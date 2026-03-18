@@ -35,7 +35,7 @@ You MUST respond in valid JSON matching this exact structure:
   }
 }`;
 
-const FREE_SYSTEM_PROMPT = `You are Darko, a tactical psychological engine. Analyze the input for manipulation patterns and provide 2 brief reply scripts.
+const FREE_SYSTEM_PROMPT = `You are Darko, a tactical psychological engine. Analyze the input for manipulation patterns and provide 2 brief reply scripts. In the_psyche, name the attachment pattern or psychological mechanism at play (e.g. avoidant withdrawal, anxious pursuit, intermittent reinforcement, narcissistic discard).
 
 Return ONLY valid JSON:
 {
@@ -46,7 +46,7 @@ Return ONLY valid JSON:
   },
   "hidden_intel": {
     "threat_level": "score/10 — label",
-    "the_psyche": "one sentence psychological summary",
+    "the_psyche": "one sentence naming the psychological mechanism or attachment pattern",
     "the_directive": ["directive 1", "directive 2", "directive 3"]
   }
 }`;
@@ -248,8 +248,10 @@ serve(async (req: Request) => {
     // ── Auto-detect mode from content ────────────────────────────────────────
     const content = message ?? '';
 
-    const isLeak = /(thinks|feels|said|claims|is acting|sensitive|is a|she is|he is|they are|told me|I want|I did|I said|should I|what should|I feel|I think|she thinks|he thinks)/i.test(content);
-    const isDebrief = content.length > 300 || /analyse|analyze|full debrief|breakdown/i.test(content);
+    const hasFirstPerson = /\b(I want|I did|I said|I feel|I think|should I|what should I|what do I|how do I|I've been|I haven't)\b/i.test(content);
+    const isPsychObs = /\b(she thinks|he thinks|she feels|he feels|she claims|she is acting|is sensitive|is insecure|is vulnerable)\b/i.test(content);
+    const isLeak = hasFirstPerson || isPsychObs;
+    const isDebrief = content.length > 200 || /analyse|analyze|full debrief|breakdown|profile|next move|psychological|who is|what is her/i.test(content);
 
     let detectedMode = 'tactical';
     if (isDebrief) {
