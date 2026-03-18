@@ -1,7 +1,8 @@
 const fs = require('fs');
 const path = require('path');
 
-const API_KEY = 'AIzaSyAykYYGjerIf4tdTT3hUkJXv7gWMFtkjv0';
+const API_KEY = process.env.GEMINI_API_KEY;
+if (!API_KEY) { console.error('[DARKO] ERROR: GEMINI_API_KEY env var not set'); process.exit(1); }
 const UPLOAD_URL = `https://generativelanguage.googleapis.com/upload/v1beta/files?key=${API_KEY}`;
 const KNOWLEDGE_DIR = path.join(__dirname, '..', 'knowledge');
 const OUTPUT_FILE = path.join(KNOWLEDGE_DIR, 'file-refs.json');

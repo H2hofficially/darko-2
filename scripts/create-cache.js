@@ -2,13 +2,14 @@ const fs = require('fs');
 const path = require('path');
 const { createClient } = require('@supabase/supabase-js');
 
-const API_KEY = process.env.GEMINI_API_KEY || 'AIzaSyAykYYGjerIf4tdTT3hUkJXv7gWMFtkjv0';
+const API_KEY = process.env.GEMINI_API_KEY;
+if (!API_KEY) { console.error('[DARKO] ERROR: GEMINI_API_KEY env var not set'); process.exit(1); }
 const CACHE_URL = `https://generativelanguage.googleapis.com/v1beta/cachedContents?key=${API_KEY}`;
 const MODEL = 'models/gemini-2.5-flash';
 
-const SUPABASE_URL = process.env.SUPABASE_URL || 'https://adyebdcyqczhkluqgwvv.supabase.co';
-const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY ||
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFkeWViZGN5cWN6aGtsdXFnd3Z2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMzNTc0MzUsImV4cCI6MjA4ODkzMzQzNX0.kpMmCfyCuszQqtXtGk4_8MrVCVZVCG-Jz8oe0Q3chlI';
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
+if (!SUPABASE_URL || !SUPABASE_ANON_KEY) { console.error('[DARKO] ERROR: SUPABASE_URL or SUPABASE_ANON_KEY env var not set'); process.exit(1); }
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
