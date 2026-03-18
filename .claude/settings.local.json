@@ -1,0 +1,28 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cd C:/Users/hpsbm/Desktop/darko && npx expo install expo-constants expo-linking expo-router react-native-safe-area-context react-native-screens --legacy-peer-deps 2>&1)",
+      "Bash(cd C:/Users/hpsbm/Desktop/darko && npx expo install expo-constants expo-linking expo-router react-native-safe-area-context react-native-screens -- --legacy-peer-deps 2>&1)",
+      "Bash(cd C:/Users/hpsbm/Desktop/darko && npx expo install @supabase/supabase-js -- --legacy-peer-deps 2>&1)",
+      "Bash(npm install:*)",
+      "Bash(winget install:*)",
+      "Bash(scoop install:*)",
+      "Bash(curl -sL https://github.com/supabase/cli/releases/latest/download/supabase_windows_amd64.tar.gz -o /tmp/supabase.tar.gz && tar -xzf /tmp/supabase.tar.gz -C /tmp && ls /tmp/supabase* 2>&1)",
+      "Bash(cp /tmp/supabase.exe /usr/local/bin/supabase && supabase --version 2>&1)",
+      "Bash(mkdir -p ~/bin && cp /tmp/supabase.exe ~/bin/supabase && ~/bin/supabase --version 2>&1)",
+      "Bash(~/bin/supabase login:*)",
+      "Bash(cd C:/Users/hpsbm/Desktop/darko && ~/bin/supabase functions deploy decode-intel --project-ref adyebdcyqczhkluqgwvv --token sbp_0e73f0707d3e645b5af60d918e5dcbffbaf402b4 2>&1)",
+      "Bash(cd C:/Users/hpsbm/Desktop/darko && SUPABASE_ACCESS_TOKEN=sbp_0e73f0707d3e645b5af60d918e5dcbffbaf402b4 ~/bin/supabase functions deploy decode-intel --project-ref adyebdcyqczhkluqgwvv --use-api 2>&1)",
+      "Bash(cd C:/Users/hpsbm/Desktop/darko && SUPABASE_ACCESS_TOKEN=sbp_0e73f0707d3e645b5af60d918e5dcbffbaf402b4 ~/bin/supabase secrets set GEMINI_API_KEY=AIzaSyAykYYGjerIf4tdTT3hUkJXv7gWMFtkjv0 --project-ref adyebdcyqczhkluqgwvv 2>&1)",
+      "Bash(node -e \"\nconst fs = require\\('fs'\\);\nconst sql = fs.readFileSync\\('C:/Users/hpsbm/Desktop/darko/supabase/schema.sql', 'utf8'\\);\nfetch\\('https://api.supabase.com/v1/projects/adyebdcyqczhkluqgwvv/database/query', {\n  method: 'POST',\n  headers: {\n    'Authorization': 'Bearer sbp_0e73f0707d3e645b5af60d918e5dcbffbaf402b4',\n    'Content-Type': 'application/json',\n  },\n  body: JSON.stringify\\({ query: sql }\\),\n}\\).then\\(r => r.text\\(\\)\\).then\\(console.log\\).catch\\(console.error\\);\n\" 2>&1)",
+      "Bash(curl -s -X PATCH \"https://api.supabase.com/v1/projects/adyebdcyqczhkluqgwvv/config/auth\" \\\\\n  -H \"Authorization: Bearer sbp_0e73f0707d3e645b5af60d918e5dcbffbaf402b4\" \\\\\n  -H \"Content-Type: application/json\" \\\\\n  -d '{\"mailer_autoconfirm\": true}')",
+      "Bash(SUPABASE_ACCESS_TOKEN=sbp_0e73f0707d3e645b5af60d918e5dcbffbaf402b4 ~/bin/supabase functions deploy decode-intel --project-ref adyebdcyqczhkluqgwvv --use-api 2>&1)",
+      "Bash(SUPABASE_ACCESS_TOKEN=sbp_0e73f0707d3e645b5af60d918e5dcbffbaf402b4 ~/bin/supabase functions deploy decode-intel --project-ref adyebdcyqczhkluqgwvv --use-api --no-verify-jwt 2>&1)",
+      "Bash(SUPABASE_ACCESS_TOKEN=sbp_0e73f0707d3e645b5af60d918e5dcbffbaf402b4 ~/bin/supabase functions deploy transcribe-audio --project-ref adyebdcyqczhkluqgwvv --use-api --no-verify-jwt 2>&1)",
+      "Bash(SUPABASE_ACCESS_TOKEN=sbp_0e73f0707d3e645b5af60d918e5dcbffbaf402b4 ~/bin/supabase secrets set MISTRAL_API_KEY=2sBi0dki2UYYppbYkjlM7ehRmM2ywALY --project-ref adyebdcyqczhkluqgwvv 2>&1)",
+      "Bash(git init:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
+    ]
+  }
+}
