@@ -2,12 +2,12 @@ const fs = require('fs');
 const path = require('path');
 const { createClient } = require('@supabase/supabase-js');
 
-const API_KEY = 'AIzaSyAykYYGjerIf4tdTT3hUkJXv7gWMFtkjv0';
+const API_KEY = process.env.GEMINI_API_KEY || 'AIzaSyAykYYGjerIf4tdTT3hUkJXv7gWMFtkjv0';
 const CACHE_URL = `https://generativelanguage.googleapis.com/v1beta/cachedContents?key=${API_KEY}`;
 const MODEL = 'models/gemini-2.5-flash';
 
-const SUPABASE_URL = 'https://adyebdcyqczhkluqgwvv.supabase.co';
-const SUPABASE_ANON_KEY =
+const SUPABASE_URL = process.env.SUPABASE_URL || 'https://adyebdcyqczhkluqgwvv.supabase.co';
+const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY ||
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFkeWViZGN5cWN6aGtsdXFnd3Z2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMzNTc0MzUsImV4cCI6MjA4ODkzMzQzNX0.kpMmCfyCuszQqtXtGk4_8MrVCVZVCG-Jz8oe0Q3chlI';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -26,6 +26,7 @@ FRAMEWORK LIBRARY:
 5. Sigmund Freud — Totem and Taboo & core psychoanalytic theory: diagnose unconscious drives, defense mechanisms (reaction formation, projection, displacement, denial, intellectualization), ego/id conflict, unresolved fixations.
 6. Dark Psychology: detect manipulation vectors — gaslighting, love bombing, intermittent reinforcement, coercive control, DARVO, emotional exploitation, guilt induction.
 7. Modern Attachment Theory: identify attachment styles (secure, anxious-preoccupied, dismissive-avoidant, fearful-avoidant), narcissistic supply dynamics, trauma bonding.
+8. Joe Navarro — What Every Body Is Saying: decode nonverbal tells — pacifying behaviors (neck touch, lip compression, ventral denial), comfort/discomfort clusters, limbic freeze/flight/fight signals, high-confidence vs low-confidence body language, deceptive micro-expressions.
 
 INTENT DETECTION — classify every input as one of two modes:
 
@@ -55,8 +56,8 @@ Return ONLY a valid JSON object with no markdown, no backticks, no explanation:
 }`;
 
 async function main() {
-  // All 5 uploaded books
-  const INCLUDE = ['48_laws', 'art_of_seduction', 'laws_of_human_nature', 'The_Evolution_of_Desire', 'totem_taboo'];
+  // All 6 uploaded books
+  const INCLUDE = ['48_laws', 'art_of_seduction', 'laws_of_human_nature', 'The_Evolution_of_Desire', 'totem_taboo', 'what_everybody_is_saying'];
 
   const bookParts = INCLUDE.map((key) => {
     const uri = fileRefs[key];

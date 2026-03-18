@@ -15,6 +15,7 @@ function toKey(filename) {
   if (name.includes('dark psych') || name.includes('dark_psych'))             return 'dark_psychology';
   if (name.includes('laws of human') || name.includes('laws_of_human'))       return 'laws_of_human_nature';
   if (name.includes('evolution of desire') || name.includes('evolution_of_desire')) return 'The_Evolution_of_Desire';
+  if (name.includes('what every body') || name.includes('what everybody') || name.includes('what-everybody') || name.includes('navarro')) return 'what_everybody_is_saying';
   // fallback: sanitize the filename
   return name.replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
 }

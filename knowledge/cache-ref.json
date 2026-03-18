@@ -1,13 +1,14 @@
 {
-  "name": "cachedContents/w0jdlus415b3s3cjypur5yumlq5leg2c3h7ta7t7",
+  "name": "cachedContents/unvm8qti60z2vokx9ajwtlzqyzkw732e6amhabqn",
   "model": "models/gemini-2.5-flash",
-  "expireTime": "2026-03-17T13:24:48.128369919Z",
+  "expireTime": "2026-03-19T10:41:46.884790156Z",
   "books": [
     "48_laws",
     "art_of_seduction",
     "laws_of_human_nature",
     "The_Evolution_of_Desire",
-    "totem_taboo"
+    "totem_taboo",
+    "what_everybody_is_saying"
   ],
-  "createdAt": "2026-03-16T13:24:48.742Z"
+  "createdAt": "2026-03-18T10:41:49.490Z"
 }
