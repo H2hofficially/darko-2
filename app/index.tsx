@@ -61,16 +61,13 @@ export default function ProfilesScreen() {
   }, []);
 
   const loadTargets = async () => {
-    console.log('[DARKO] loadTargets: fetching...');
     const list = await getTargets();
-    console.log('[DARKO] loadTargets: got', list.length, 'targets:', JSON.stringify(list.map(t => ({ id: t.id, name: t.name }))));
     const withCounts = await Promise.all(
       list.map(async (t) => ({
         ...t,
         decodeCount: await getDecodeCount(t.id),
       })),
     );
-    console.log('[DARKO] loadTargets: setting state with', withCounts.length, 'targets');
     setTargets(withCounts);
   };
 
@@ -97,12 +94,10 @@ export default function ProfilesScreen() {
         leverage: newLeverage.trim() || undefined,
         objective: newObjective.trim() || undefined,
       });
-      console.log('[DARKO] target created:', JSON.stringify({ id: target.id, name: target.name }));
       resetModal();
-      console.log('[DARKO] navigating to decode — targetId:', target.id);
       router.push(`/decode?targetId=${target.id}&targetName=${encodeURIComponent(target.name)}`);
     } catch (err) {
-      console.log('[DARKO] saveTarget error:', err);
+      console.error('[DARKO] saveTarget error:', err);
       // saveTarget throws on error — stay in modal
     } finally {
       setCreating(false);
@@ -118,7 +113,6 @@ export default function ProfilesScreen() {
     <TouchableOpacity
       style={styles.targetCard}
       onPress={() => {
-        console.log('[DARKO] navigating to decode — targetId:', item.id, 'targetName:', item.name);
         router.push(`/decode?targetId=${item.id}&targetName=${encodeURIComponent(item.name)}`);
       }}
       activeOpacity={0.7}

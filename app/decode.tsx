@@ -325,7 +325,6 @@ export default function DecodeScreen() {
   const recordPulse = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
-    console.log('[DARKO] decode mount — targetId:', targetId, 'targetName:', targetName);
     if (targetId) {
       getHistory(targetId).then(setHistory);
       getTargetProfile(targetId).then(setProfile);
@@ -410,7 +409,7 @@ export default function DecodeScreen() {
       recorder.record();
       setIsRecording(true);
     } catch (err) {
-      console.log('[DARKO] Recording start error:', err);
+      console.error('[DARKO] Recording start error:', err);
     }
   };
 
@@ -421,10 +420,8 @@ export default function DecodeScreen() {
       await AudioModule.setAudioModeAsync({ allowsRecording: false });
 
       const uri = recorder.uri;
-      console.log('[DARKO] stopRecording — recorder.uri:', uri);
 
       if (!uri) {
-        console.log('[DARKO] stopRecording — no URI after stop, aborting');
         Alert.alert('Recording error', 'No audio file was created. Try again.');
         return;
       }
@@ -435,13 +432,10 @@ export default function DecodeScreen() {
       try {
         await new Promise((resolve) => setTimeout(resolve, 500));
 
-        console.log('[DARKO] stopRecording — reading audio via fetch:', uri);
-
         const response = await fetch(uri);
         if (!response.ok) throw new Error(`Failed to fetch audio file: ${response.status}`);
 
         const blob = await response.blob();
-        console.log('[DARKO] stopRecording — blob size:', blob.size);
 
         base64 = await new Promise<string>((resolve, reject) => {
           const reader = new FileReader();
@@ -452,9 +446,8 @@ export default function DecodeScreen() {
           reader.onerror = () => reject(new Error('FileReader failed'));
           reader.readAsDataURL(blob);
         });
-        console.log('[DARKO] stopRecording — base64 length:', base64.length);
       } catch (fsErr) {
-        console.log('[DARKO] stopRecording — file read error:', fsErr);
+        console.error('[DARKO] stopRecording — file read error:', fsErr);
         setTranscribing(false);
         Alert.alert('Recording error', 'Could not read audio file. Try again.');
         return;
@@ -463,7 +456,6 @@ export default function DecodeScreen() {
       // Pass platform-appropriate mimeType — HIGH_QUALITY gives .m4a on both platforms
       const mimeType = Platform.OS === 'android' ? 'audio/m4a' : 'audio/m4a';
       const transcribed = await transcribeAudio(base64, mimeType);
-      console.log('[DARKO] stopRecording — transcribeAudio returned:', transcribed);
       setTranscribing(false);
 
       if (transcribed) {
@@ -474,7 +466,7 @@ export default function DecodeScreen() {
     } catch (err) {
       setIsRecording(false);
       setTranscribing(false);
-      console.log('[DARKO] stopRecording — outer catch:', err);
+      console.error('[DARKO] stopRecording error:', err);
       Alert.alert('Recording error', 'Something went wrong. Try again.');
     }
   };
