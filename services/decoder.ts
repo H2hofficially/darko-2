@@ -1,4 +1,4 @@
-import { supabase, SUPABASE_ANON_KEY } from '../lib/supabase';
+import { supabase } from '../lib/supabase';
 import { DecodeEntry, TargetProfile } from './storage';
 
 export type DecoderResult = {
@@ -59,11 +59,11 @@ export async function decodeMessage(
     if (input.relationshipBrief) body.relationshipBrief = input.relationshipBrief;
 
     const { data: { session } } = await supabase.auth.getSession();
-    const authToken = session?.access_token ?? SUPABASE_ANON_KEY;
+    if (!session) return null;
 
     const { data, error } = await supabase.functions.invoke('decode-intel', {
       body,
-      headers: { Authorization: `Bearer ${authToken}` },
+      headers: { Authorization: `Bearer ${session.access_token}` },
     });
 
     if (error) {
