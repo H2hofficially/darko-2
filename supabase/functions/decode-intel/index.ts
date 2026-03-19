@@ -107,6 +107,57 @@ function buildRelationshipBrief(brief: string): string {
   return `[RUNNING RELATIONSHIP BRIEF — current clinical assessment of this target]\n${brief}\n\n───\n`;
 }
 
+// ── RAG helpers ────────────────────────────────────────────────────────────────
+
+async function getQueryEmbedding(text: string, apiKey: string): Promise<number[] | null> {
+  try {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'models/text-embedding-004',
+          content: { parts: [{ text: text.slice(0, 2000) }] },
+        }),
+      },
+    );
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data?.embedding?.values ?? null;
+  } catch {
+    return null;
+  }
+}
+
+async function searchPassages(
+  embedding: number[],
+  supabaseUrl: string,
+  serviceKey: string,
+): Promise<Array<{ book_name: string; chapter: string | null; passage: string }>> {
+  try {
+    const { data, error } = await createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } })
+      .rpc('search_book_passages', { query_embedding: embedding, match_count: 5 });
+    if (error) {
+      console.error('[decode-intel] RAG search error:', error.message);
+      return [];
+    }
+    return data ?? [];
+  } catch {
+    return [];
+  }
+}
+
+function buildPassageBlock(
+  passages: Array<{ book_name: string; chapter: string | null; passage: string }>,
+): string {
+  if (!passages.length) return '';
+  const lines = passages
+    .map((p, i) => `[SOURCE ${i + 1}: ${p.book_name}${p.chapter ? ` — ${p.chapter}` : ''}]\n${p.passage}`)
+    .join('\n\n');
+  return `\n\n[RETRIEVED KNOWLEDGE — reference these specific passages in your analysis. Cite the source book and chapter directly.]\n\n${lines}\n\n`;
+}
+
 // ── Handler ────────────────────────────────────────────────────────────────────
 
 serve(async (req: Request) => {
@@ -253,7 +304,19 @@ serve(async (req: Request) => {
       ? buildRelationshipBrief(relationshipBrief)
       : '';
     const historyBlock = useFullContext ? buildHistoryBlock(history ?? []) : '';
-    const fullMessage = `${dossierContext}${briefBlock}${historyBlock}${message ?? ''}`;
+
+    // ── RAG: retrieve relevant passages from book knowledge base ─────────────
+    const queryText = `${message ?? ''} ${dossierContext}`.trim().slice(0, 2000);
+    const queryEmbedding = await getQueryEmbedding(queryText, GEMINI_API_KEY as string);
+    const passages = queryEmbedding
+      ? await searchPassages(queryEmbedding, SUPABASE_URL, SERVICE_KEY)
+      : [];
+    const passageBlock = buildPassageBlock(passages);
+    if (passages.length) {
+      console.log(`[decode-intel] RAG: injected ${passages.length} passages`);
+    }
+
+    const fullMessage = `${dossierContext}${briefBlock}${historyBlock}${passageBlock}${message ?? ''}`;
 
     // ── Build Gemini content parts ───────────────────────────────────────────
     const parts: unknown[] = [];
