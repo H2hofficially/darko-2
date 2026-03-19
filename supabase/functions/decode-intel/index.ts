@@ -107,57 +107,6 @@ function buildRelationshipBrief(brief: string): string {
   return `[RUNNING RELATIONSHIP BRIEF — current clinical assessment of this target]\n${brief}\n\n───\n`;
 }
 
-// ── Mistral script generator ───────────────────────────────────────────────────
-
-async function getMistralScripts(
-  message: string,
-  dossierContext: string,
-  historyBlock: string,
-  apiKey: string,
-): Promise<{ option_1_script: string; option_2_script: string } | null> {
-  try {
-    const res = await fetch('https://api.mistral.ai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: 'mistral-large-latest',
-        messages: [
-          {
-            role: 'system',
-            content: `You are DARKO. Generate exactly 2 short text message replies the user can send. Each reply must be lowercase, under 20 words, human-sounding, and tactically designed to shift power. Return ONLY valid JSON: {"option_1_script": "...", "option_2_script": "..."}`,
-          },
-          {
-            role: 'user',
-            content: `Target's message: "${message}"\nContext: ${dossierContext}\nHistory: ${historyBlock}`,
-          },
-        ],
-        temperature: 0.7,
-        max_tokens: 200,
-      }),
-    });
-
-    if (!res.ok) {
-      console.error('[decode-intel] Mistral error:', res.status);
-      return null;
-    }
-
-    const data = await res.json();
-    const text = data?.choices?.[0]?.message?.content;
-    if (!text) return null;
-
-    const parsed = JSON.parse(text);
-    if (!parsed.option_1_script || !parsed.option_2_script) return null;
-
-    return { option_1_script: parsed.option_1_script, option_2_script: parsed.option_2_script };
-  } catch (err) {
-    console.error('[decode-intel] Mistral failed:', err);
-    return null;
-  }
-}
-
 // ── Handler ────────────────────────────────────────────────────────────────────
 
 serve(async (req: Request) => {
@@ -306,13 +255,6 @@ serve(async (req: Request) => {
     const historyBlock = useFullContext ? buildHistoryBlock(history ?? []) : '';
     const fullMessage = `${dossierContext}${briefBlock}${historyBlock}${message ?? ''}`;
 
-    // ── Fire Mistral (tactical only) in parallel with Gemini ─────────────────
-    const MISTRAL_API_KEY = Deno.env.get('MISTRAL_API_KEY');
-    const isTactical = detectedMode === 'tactical';
-    const mistralPromise = (isTactical && MISTRAL_API_KEY)
-      ? getMistralScripts(message ?? '', dossierContext, historyBlock, MISTRAL_API_KEY)
-      : Promise.resolve(null);
-
     // ── Build Gemini content parts ───────────────────────────────────────────
     const parts: unknown[] = [];
     if (imageBase64 && imageMimeType) {
@@ -387,8 +329,6 @@ serve(async (req: Request) => {
       );
     }
 
-    const mistralScripts = await mistralPromise;
-
     const autoDetectedModeLabel = detectedMode.toUpperCase().replace(/_/g, ' ');
 
     let result: Record<string, unknown>;
@@ -404,17 +344,10 @@ serve(async (req: Request) => {
         debrief: parsed.debrief ?? null,
       };
     } else {
-      const script1 = (isTactical && mistralScripts?.option_1_script)
-        ? mistralScripts.option_1_script
-        : (parsed.visible_arsenal as any)?.option_1_script ?? '';
-      const script2 = (isTactical && mistralScripts?.option_2_script)
-        ? mistralScripts.option_2_script
-        : (parsed.visible_arsenal as any)?.option_2_script ?? '';
-
       result = {
         intent: parsed.intent === 'strategic_advice' ? 'strategic_advice' : 'text_back',
-        option_1_script: script1,
-        option_2_script: script2,
+        option_1_script: (parsed.visible_arsenal as any)?.option_1_script ?? '',
+        option_2_script: (parsed.visible_arsenal as any)?.option_2_script ?? '',
         threat_level: (parsed.hidden_intel as any)?.threat_level ?? '',
         the_psyche: (parsed.hidden_intel as any)?.the_psyche ?? '',
         the_directive: (parsed.hidden_intel as any)?.the_directive ?? ['', '', ''],
