@@ -29,7 +29,6 @@ export type DecodeInput = {
 };
 
 function buildHistory(history: DecodeEntry[]) {
-  // Send the full history — no slice cap
   return history.map((e) => ({
     inputMessage: e.inputMessage,
     result: {
@@ -70,13 +69,13 @@ export async function decodeMessage(
     if (error) {
       try {
         const errorBody = await (error as any).context?.text?.();
-        console.log('[DARKO] Edge function error body:', errorBody);
+        console.error('[DARKO] Edge function error:', errorBody);
       } catch {}
       return null;
     }
 
     if (data?.error) {
-      console.log('[DARKO] Decode blocked:', data.error);
+      console.error('[DARKO] Decode blocked:', data.error);
       return null;
     }
 
@@ -92,7 +91,7 @@ export async function decodeMessage(
       ...(data.debrief ? { debrief: data.debrief } : {}),
     };
   } catch (err) {
-    console.log('[DARKO] Caught error:', err);
+    console.error('[DARKO] decodeMessage error:', err);
     return null;
   }
 }
@@ -101,32 +100,24 @@ export async function decodeMessage(
 
 export async function transcribeAudio(audioBase64: string, mimeType = 'audio/m4a'): Promise<string | null> {
   try {
-    console.log('[DARKO] transcribeAudio — sending request, base64 length:', audioBase64.length, 'mimeType:', mimeType);
-
     const { data, error } = await supabase.functions.invoke('transcribe-audio', {
       body: { audioBase64, mimeType },
     });
 
-    console.log('[DARKO] transcribeAudio — raw response data:', JSON.stringify(data));
-
     if (error) {
-      console.log('[DARKO] transcribeAudio — edge function error:', JSON.stringify(error));
+      console.error('[DARKO] transcribeAudio error:', JSON.stringify(error));
       try {
         const detail = await (error as any).context?.text?.();
-        console.log('[DARKO] transcribeAudio — error body:', detail);
+        console.error('[DARKO] transcribeAudio detail:', detail);
       } catch {}
       return null;
     }
 
-    if (!data?.text) {
-      console.log('[DARKO] transcribeAudio — no text in response, full data:', JSON.stringify(data));
-      return null;
-    }
+    if (!data?.text) return null;
 
-    console.log('[DARKO] transcribeAudio — success, text:', data.text);
     return data.text;
   } catch (err) {
-    console.log('[DARKO] transcribeAudio — caught error:', err);
+    console.error('[DARKO] transcribeAudio error:', err);
     return null;
   }
 }

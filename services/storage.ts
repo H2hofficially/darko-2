@@ -42,9 +42,8 @@ export async function getTargets(): Promise<Target[]> {
     .from('targets')
     .select('id, target_alias, created_at, leverage, objective')
     .order('created_at', { ascending: false });
-  console.log('[DARKO] getTargets raw response — data:', JSON.stringify(data), 'error:', error?.message ?? null);
   if (error) {
-    console.log('[DARKO] getTargets error:', error.message);
+    console.error('[DARKO] getTargets error:', error.message);
     return [];
   }
   return (data ?? []).map((row) => ({
@@ -122,7 +121,7 @@ export async function getHistory(targetId: string): Promise<DecodeEntry[]> {
     .eq('target_id', targetId)
     .order('created_at', { ascending: true });
   if (error) {
-    console.log('[DARKO] getHistory error:', error.message);
+    console.error('[DARKO] getHistory error:', error.message);
     return [];
   }
   return (data ?? []).map((row) => row.message_content as DecodeEntry);
@@ -137,7 +136,7 @@ export async function addDecodeEntry(
     role: 'system',
     message_content: entry,
   });
-  if (error) console.log('[DARKO] addDecodeEntry error:', error.message);
+  if (error) console.error('[DARKO] addDecodeEntry error:', error.message);
 }
 
 // ── Target Profile — Supabase (behavioral_profile column on targets) ──────────
@@ -160,5 +159,5 @@ export async function saveTargetProfile(
     .from('targets')
     .update({ behavioral_profile: profile })
     .eq('id', targetId);
-  if (error) console.log('[DARKO] saveTargetProfile error:', error.message);
+  if (error) console.error('[DARKO] saveTargetProfile error:', error.message);
 }

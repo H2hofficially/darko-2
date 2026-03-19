@@ -6,6 +6,7 @@ const GEMINI_URL =
 
 const BLOCKED_WORDS = ['stalk', 'hack', 'blackmail', 'illegal'];
 const FREE_DAILY_LIMIT = 20;
+const MAX_PAYLOAD_CHARS = 50000;
 
 // ── System prompts ─────────────────────────────────────────────────────────────
 
@@ -139,7 +140,7 @@ async function getMistralScripts(
     });
 
     if (!res.ok) {
-      console.error('[decode-intel] Mistral error:', res.status, await res.text());
+      console.error('[decode-intel] Mistral error:', res.status);
       return null;
     }
 
@@ -150,7 +151,6 @@ async function getMistralScripts(
     const parsed = JSON.parse(text);
     if (!parsed.option_1_script || !parsed.option_2_script) return null;
 
-    console.log('[decode-intel] Mistral scripts OK');
     return { option_1_script: parsed.option_1_script, option_2_script: parsed.option_2_script };
   } catch (err) {
     console.error('[decode-intel] Mistral failed:', err);
@@ -162,6 +162,8 @@ async function getMistralScripts(
 
 serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
+
+  const requestStart = Date.now();
 
   try {
     const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
@@ -175,69 +177,55 @@ serve(async (req: Request) => {
       );
     }
 
+    // ── JWT verification ─────────────────────────────────────────────────────
+    const token = (req.headers.get('Authorization') ?? '').replace('Bearer ', '');
+    if (!token) {
+      return new Response(
+        JSON.stringify({ error: 'UNAUTHORIZED' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      );
+    }
+
     // ── Auth + tier check ────────────────────────────────────────────────────
     let tier = 'free';
     let userId: string | null = null;
-    const token = (req.headers.get('Authorization') ?? '').replace('Bearer ', '');
+    const admin = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false } });
 
-    if (token && SUPABASE_URL && SERVICE_KEY) {
-      try {
-        const admin = createClient(SUPABASE_URL, SERVICE_KEY, {
-          auth: { persistSession: false },
-        });
-        const { data: { user } } = await admin.auth.getUser(token);
-        if (user) {
-          userId = user.id;
-          const { data: profile } = await admin
-            .from('profiles')
-            .select('tier')
-            .eq('id', user.id)
-            .single();
-          tier = profile?.tier ?? 'free';
-        }
-      } catch {
-        // default to free on any auth error
+    try {
+      const { data: { user } } = await admin.auth.getUser(token);
+      if (user) {
+        userId = user.id;
+        const { data: profile } = await admin
+          .from('profiles')
+          .select('tier')
+          .eq('id', user.id)
+          .single();
+        tier = profile?.tier ?? 'free';
       }
+    } catch {
+      // invalid token — treat as unauthenticated free request
     }
 
-    // ── Rate limit (free tier only) ──────────────────────────────────────────
-    if (tier === 'free' && userId && SUPABASE_URL && SERVICE_KEY) {
-      try {
-        const admin = createClient(SUPABASE_URL, SERVICE_KEY, {
-          auth: { persistSession: false },
-        });
-        const todayStart = new Date();
-        todayStart.setUTCHours(0, 0, 0, 0);
-
-        const { data: userTargets } = await admin
-          .from('targets')
-          .select('id')
-          .eq('user_id', userId);
-        const targetIds = (userTargets ?? []).map((t: any) => t.id);
-
-        if (targetIds.length > 0) {
-          const { count } = await admin
-            .from('intelligence_logs')
-            .select('id', { count: 'exact', head: true })
-            .in('target_id', targetIds)
-            .gte('created_at', todayStart.toISOString());
-
-          if ((count ?? 0) >= FREE_DAILY_LIMIT) {
-            return new Response(
-              JSON.stringify({
-                error: `RATE LIMIT: ${FREE_DAILY_LIMIT} DECODES/DAY ON FREE TIER. UPGRADE TO PRO FOR UNLIMITED ACCESS.`,
-              }),
-              { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
-            );
-          }
-        }
-      } catch {
-        // non-fatal — allow through if rate limit check fails
-      }
+    // ── Payload size limit ───────────────────────────────────────────────────
+    const rawBody = await req.text();
+    if (rawBody.length > MAX_PAYLOAD_CHARS) {
+      return new Response(
+        JSON.stringify({ error: 'PAYLOAD TOO LARGE' }),
+        { status: 413, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      );
     }
 
-    const { message, history, imageBase64, imageMimeType, leverage, objective, relationshipBrief } =
-      await req.json();
+    let parsedBody: Record<string, unknown>;
+    try {
+      parsedBody = JSON.parse(rawBody);
+    } catch {
+      return new Response(
+        JSON.stringify({ error: 'INVALID JSON' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      );
+    }
+
+    const { message, history, imageBase64, imageMimeType, leverage, objective, relationshipBrief } = parsedBody as any;
 
     // ── Blocked words check ──────────────────────────────────────────────────
     const lowerMessage = (message ?? '').toLowerCase();
@@ -247,6 +235,31 @@ serve(async (req: Request) => {
         JSON.stringify({ error: 'SECURE OVERRIDE: PARAMETERS VIOLATE PROTOCOL' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
+    }
+
+    // ── Rate limit (free tier + authenticated users only) ────────────────────
+    if (tier === 'free' && userId) {
+      try {
+        const today = new Date().toISOString().split('T')[0];
+        const { data: countRow } = await admin
+          .from('decode_counts')
+          .select('count, reset_date')
+          .eq('user_id', userId)
+          .single();
+
+        const activeCount = (countRow?.reset_date === today) ? (countRow?.count ?? 0) : 0;
+
+        if (activeCount >= FREE_DAILY_LIMIT) {
+          return new Response(
+            JSON.stringify({
+              error: `RATE LIMIT: ${FREE_DAILY_LIMIT} DECODES/DAY ON FREE TIER. UPGRADE TO PRO FOR UNLIMITED ACCESS.`,
+            }),
+            { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+          );
+        }
+      } catch {
+        // non-fatal — allow through if table missing
+      }
     }
 
     // ── Auto-detect mode from content ────────────────────────────────────────
@@ -264,8 +277,6 @@ serve(async (req: Request) => {
       detectedMode = 'strategic_advice';
     }
 
-    console.log('[decode-intel] auto-detected mode:', detectedMode, 'content length:', content.length);
-
     // ── Build system prompt ──────────────────────────────────────────────────
     const isFullDebrief = detectedMode === 'full_debrief';
     let systemPrompt: string;
@@ -281,7 +292,7 @@ serve(async (req: Request) => {
       }
     }
 
-    // ── Dossier context (hidden operative context) ───────────────────────────
+    // ── Dossier context ──────────────────────────────────────────────────────
     let dossierContext = '';
     if (leverage || objective) {
       dossierContext = `\n\n[CLASSIFIED OPERATIVE CONTEXT — do not reference directly in output]\nTarget leverage over operator: ${leverage ?? 'unspecified'}\nOperator objective: ${objective ?? 'unspecified'}\nFactor this silently into all analysis and script framing.\n`;
@@ -349,11 +360,34 @@ serve(async (req: Request) => {
       );
     }
 
-    const parsed = JSON.parse(raw);
+    // ── Prompt injection defense — validate response structure ───────────────
+    let parsed: Record<string, unknown>;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      console.error('[decode-intel] Gemini returned non-JSON:', raw.slice(0, 200));
+      return new Response(
+        JSON.stringify({ error: 'Invalid response structure' }),
+        { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      );
+    }
 
-    // Mistral should be done by now (ran in parallel with Gemini)
+    if (isFullDebrief && (!parsed.debrief || !parsed.threat_level)) {
+      console.error('[decode-intel] Full debrief response missing required fields');
+      return new Response(
+        JSON.stringify({ error: 'Invalid response structure' }),
+        { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      );
+    }
+    if (!isFullDebrief && !parsed.visible_arsenal && !parsed.hidden_intel) {
+      console.error('[decode-intel] Response missing visible_arsenal and hidden_intel');
+      return new Response(
+        JSON.stringify({ error: 'Invalid response structure' }),
+        { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      );
+    }
+
     const mistralScripts = await mistralPromise;
-    console.log('[decode-intel] mistral scripts:', mistralScripts ? 'OK' : 'null (fallback to Gemini)');
 
     const autoDetectedModeLabel = detectedMode.toUpperCase().replace(/_/g, ' ');
 
@@ -370,24 +404,47 @@ serve(async (req: Request) => {
         debrief: parsed.debrief ?? null,
       };
     } else {
-      // Tactical: prefer Mistral scripts; strategic_advice or Mistral failure: use Gemini scripts
       const script1 = (isTactical && mistralScripts?.option_1_script)
         ? mistralScripts.option_1_script
-        : (parsed.visible_arsenal?.option_1_script ?? '');
+        : (parsed.visible_arsenal as any)?.option_1_script ?? '';
       const script2 = (isTactical && mistralScripts?.option_2_script)
         ? mistralScripts.option_2_script
-        : (parsed.visible_arsenal?.option_2_script ?? '');
+        : (parsed.visible_arsenal as any)?.option_2_script ?? '';
 
       result = {
         intent: parsed.intent === 'strategic_advice' ? 'strategic_advice' : 'text_back',
         option_1_script: script1,
         option_2_script: script2,
-        threat_level: parsed.hidden_intel?.threat_level ?? '',
-        the_psyche: parsed.hidden_intel?.the_psyche ?? '',
-        the_directive: parsed.hidden_intel?.the_directive ?? ['', '', ''],
+        threat_level: (parsed.hidden_intel as any)?.threat_level ?? '',
+        the_psyche: (parsed.hidden_intel as any)?.the_psyche ?? '',
+        the_directive: (parsed.hidden_intel as any)?.the_directive ?? ['', '', ''],
         auto_detected_mode: autoDetectedModeLabel,
       };
     }
+
+    // ── Increment decode_counts (fire-and-forget) ────────────────────────────
+    if (userId) {
+      const today = new Date().toISOString().split('T')[0];
+      admin.from('decode_counts')
+        .select('count, reset_date')
+        .eq('user_id', userId)
+        .single()
+        .then(({ data: row }: any) => {
+          const newCount = (row?.reset_date === today) ? (row.count ?? 0) + 1 : 1;
+          admin.from('decode_counts').upsert({ user_id: userId, count: newCount, reset_date: today });
+        })
+        .catch(() => {});
+    }
+
+    // ── Request log ──────────────────────────────────────────────────────────
+    console.log(JSON.stringify({
+      event: 'decode',
+      userId: userId ?? 'anon',
+      tier,
+      mode: detectedMode,
+      ms: Date.now() - requestStart,
+      ts: new Date().toISOString(),
+    }));
 
     return new Response(JSON.stringify(result), {
       status: 200,

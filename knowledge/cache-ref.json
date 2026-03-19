@@ -1,7 +1,7 @@
 {
-  "name": "cachedContents/unvm8qti60z2vokx9ajwtlzqyzkw732e6amhabqn",
+  "name": "cachedContents/fxswtcl07884xq326w9ju95n1vnwf67dudmjezus",
   "model": "models/gemini-2.5-flash",
-  "expireTime": "2026-03-19T10:41:46.884790156Z",
+  "expireTime": "2026-03-19T11:34:54.175279333Z",
   "books": [
     "48_laws",
     "art_of_seduction",
@@ -10,5 +10,5 @@
     "totem_taboo",
     "what_everybody_is_saying"
   ],
-  "createdAt": "2026-03-18T10:41:49.490Z"
+  "createdAt": "2026-03-18T11:34:56.128Z"
 }
