@@ -26,6 +26,7 @@ export type DecodeInput = {
   leverage?: string;
   objective?: string;
   relationshipBrief?: string;
+  missionPhase?: number;
 };
 
 function buildHistory(history: DecodeEntry[]) {
@@ -57,14 +58,26 @@ export async function decodeMessage(
     if (input.leverage) body.leverage = input.leverage;
     if (input.objective) body.objective = input.objective;
     if (input.relationshipBrief) body.relationshipBrief = input.relationshipBrief;
+    if (input.missionPhase) body.mission_phase = input.missionPhase;
 
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) return null;
 
-    const { data, error } = await supabase.functions.invoke('decode-intel', {
-      body,
-      headers: { Authorization: `Bearer ${session.access_token}` },
-    });
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30000);
+
+    let data: any, error: any;
+    try {
+      const res = await supabase.functions.invoke('decode-intel', {
+        body,
+        headers: { Authorization: `Bearer ${session.access_token}` },
+        signal: controller.signal,
+      });
+      data = res.data;
+      error = res.error;
+    } finally {
+      clearTimeout(timeout);
+    }
 
     if (error) {
       try {

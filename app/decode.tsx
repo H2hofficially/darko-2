@@ -11,12 +11,12 @@ import {
   KeyboardAvoidingView,
   Image,
   Alert,
-  Share,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as ImagePicker from 'expo-image-picker';
 import { useAudioRecorder, AudioModule, RecordingPresets } from 'expo-audio';
+import * as Clipboard from 'expo-clipboard';
 import {
   decodeMessage,
   transcribeAudio,
@@ -29,10 +29,13 @@ import {
   getTargetProfile,
   saveTargetProfile,
   getTarget,
+  getMissionPhase,
+  saveMissionPhase,
   type DecodeEntry,
   type TargetProfile,
-  type MbtiProfile,
 } from '../services/storage';
+
+// ─── Constants ────────────────────────────────────────────────────────────────
 
 const ACCENT = '#CCFF00';
 const BG = '#09090B';
@@ -47,267 +50,266 @@ const SANS = Platform.select({ ios: 'System', android: 'sans-serif', default: 's
 
 const LOADER_MESSAGES = [
   '> INTERCEPTING PAYLOAD...',
-  '> CROSS-REFERENCING BEHAVIORAL VECTORS...',
+  '> SCANNING BEHAVIORAL VECTORS...',
+  '> CROSS-REFERENCING FRAMEWORK LIBRARY...',
   '> ISOLATING VULNERABILITY...',
   '> COMPILING TACTICAL RESPONSE...',
 ];
 
-// ─── Typing indicator ────────────────────────────────────────────────────────
+const PHASE_NAMES = [
+  '',
+  'INITIAL RECONNAISSANCE',
+  'PATTERN RECOGNITION',
+  'PSYCHOLOGICAL PENETRATION',
+  'FRAME CONTROL',
+  'ESCALATION PROTOCOL',
+];
 
-function TypingIndicator({ label = 'ANALYZING' }: { label?: string }) {
-  const dots = [
-    useRef(new Animated.Value(0.15)).current,
-    useRef(new Animated.Value(0.15)).current,
-    useRef(new Animated.Value(0.15)).current,
-  ];
+const PHASE_UNLOCK_LINE1: Record<number, string> = {
+  1: '[ OPERATIVE ONLINE ] > TARGET ACQUIRED.',
+  2: '[ PHASE 2 UNLOCKED ] > BEHAVIORAL PATTERN IDENTIFIED.',
+  3: '[ PHASE 3 UNLOCKED ] > PSYCHOLOGICAL PROFILE ESTABLISHED.',
+  4: '[ PHASE 4 UNLOCKED ] > FRAME DOMINANCE PROTOCOL ACTIVE.',
+  5: '[ PHASE 5 UNLOCKED ] > MAXIMUM INTELLIGENCE CLEARANCE GRANTED.',
+};
+
+// ─── Phase computation ────────────────────────────────────────────────────────
+
+function computePhase(history: DecodeEntry[]): number {
+  const count = history.length;
+  if (count === 0) return 1;
+  if (count >= 20) return 5;
+  if (count >= 10) return 4;
+  const hasHighThreat = history.some((e) => {
+    const score = parseFloat(e.result.threat_level);
+    return !isNaN(score) && score >= 7.0;
+  });
+  if (hasHighThreat) return 3;
+  if (count >= 2) return 2;
+  return 1;
+}
+
+// ─── Chat message types ───────────────────────────────────────────────────────
+
+type ChatMsg =
+  | { id: string; type: 'user'; text: string; timestamp: string }
+  | { id: string; type: 'darko'; result: DecoderResult; phase: number; timestamp: string };
+
+function historyToChatMsgs(history: DecodeEntry[]): ChatMsg[] {
+  const msgs: ChatMsg[] = [];
+  history.forEach((entry, idx) => {
+    msgs.push({
+      id: entry.id + '_u',
+      type: 'user',
+      text: entry.inputMessage || '[ image / audio input ]',
+      timestamp: entry.timestamp,
+    });
+    msgs.push({
+      id: entry.id + '_d',
+      type: 'darko',
+      result: entry.result,
+      phase: computePhase(history.slice(0, idx + 1)),
+      timestamp: entry.timestamp,
+    });
+  });
+  return msgs;
+}
+
+// ─── Phase bar ────────────────────────────────────────────────────────────────
+
+function PhaseBar({ phase }: { phase: number }) {
+  const pct = (phase / 5) * 100;
+  return (
+    <View style={styles.phaseBarTrack}>
+      <View style={[styles.phaseBarFill, { width: `${pct}%` as any }]} />
+    </View>
+  );
+}
+
+// ─── Phase unlock overlay ─────────────────────────────────────────────────────
+
+function PhaseUnlockOverlay({ phase, onComplete }: { phase: number; onComplete: () => void }) {
+  const line1Full = PHASE_UNLOCK_LINE1[phase] ?? `[ PHASE ${phase} UNLOCKED ]`;
+  const line2Full = `> ${PHASE_NAMES[phase] ?? ''} INITIATED`;
+  const [displayed1, setDisplayed1] = useState('');
+  const [displayed2, setDisplayed2] = useState('');
+  const [showLine2, setShowLine2] = useState(false);
+  const overlayOpacity = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    const anims = dots.map((dot, i) =>
-      Animated.loop(
-        Animated.sequence([
-          Animated.delay(i * 180),
-          Animated.timing(dot, { toValue: 1, duration: 380, useNativeDriver: true }),
-          Animated.timing(dot, { toValue: 0.15, duration: 380, useNativeDriver: true }),
-          Animated.delay((dots.length - i) * 180),
-        ]),
-      ),
-    );
-    anims.forEach((a) => a.start());
-    return () => anims.forEach((a) => a.stop());
+    Animated.timing(overlayOpacity, { toValue: 1, duration: 150, useNativeDriver: true }).start();
+
+    let i = 0;
+    const iv1 = setInterval(() => {
+      i++;
+      setDisplayed1(line1Full.slice(0, i));
+      if (i >= line1Full.length) {
+        clearInterval(iv1);
+        setTimeout(() => {
+          setShowLine2(true);
+          let j = 0;
+          const iv2 = setInterval(() => {
+            j++;
+            setDisplayed2(line2Full.slice(0, j));
+            if (j >= line2Full.length) {
+              clearInterval(iv2);
+              setTimeout(() => {
+                Animated.timing(overlayOpacity, { toValue: 0, duration: 250, useNativeDriver: true }).start(() => {
+                  onComplete();
+                });
+              }, 500);
+            }
+          }, 20);
+        }, 150);
+      }
+    }, 22);
+
+    return () => clearInterval(iv1);
   }, []);
 
   return (
-    <View style={styles.typingRow}>
-      <Text style={styles.typingLabel}>{label}</Text>
-      {dots.map((dot, i) => (
-        <Animated.Text key={i} style={[styles.typingDot, { opacity: dot }]}>.</Animated.Text>
-      ))}
-    </View>
+    <Animated.View style={[styles.phaseOverlay, { opacity: overlayOpacity }]}>
+      <Text style={styles.phaseOverlayText}>{displayed1}</Text>
+      {showLine2 && <Text style={styles.phaseOverlaySubText}>{displayed2}</Text>}
+    </Animated.View>
   );
 }
 
-// ─── Target profile card ─────────────────────────────────────────────────────
+// ─── User bubble ──────────────────────────────────────────────────────────────
 
-function ProfileCard({ profile, updatingProfile }: { profile: TargetProfile; updatingProfile: boolean }) {
-  const [open, setOpen] = useState(true);
-
+function UserBubble({ msg }: { msg: Extract<ChatMsg, { type: 'user' }> }) {
   return (
-    <View style={styles.profileCard}>
-      <TouchableOpacity style={styles.profileHeader} onPress={() => setOpen((v) => !v)} activeOpacity={0.7}>
-        <Text style={styles.profileHeaderLabel}>[ TARGET PROFILE ]</Text>
-        <Text style={styles.profileChevron}>{open ? '▲' : '▼'}</Text>
-      </TouchableOpacity>
-
-      {updatingProfile && <TypingIndicator label="UPDATING PROFILE" />}
-
-      {open && !updatingProfile && (
-        <View style={styles.profileBody}>
-          <View style={styles.profileRow}>
-            <Text style={styles.profileKey}>ARCHETYPE</Text>
-            <Text style={styles.profileValue}>{profile.dominant_archetype}</Text>
-          </View>
-          <View style={styles.profileRow}>
-            <Text style={styles.profileKey}>ATTACHMENT</Text>
-            <Text style={styles.profileValue}>{profile.attachment_style}</Text>
-          </View>
-          <View style={styles.profileRow}>
-            <Text style={styles.profileKey}>VULNERABILITY</Text>
-            <Text style={[styles.profileValue, { color: ACCENT }]}>{profile.vulnerability_score}</Text>
-          </View>
-          <View style={styles.profileDivider} />
-          <Text style={styles.profileKey}>MANIPULATION PATTERNS</Text>
-          {profile.manipulation_patterns.map((p, i) => (
-            <View key={i} style={styles.directiveRow}>
-              <Text style={styles.directiveBullet}>&gt;</Text>
-              <Text style={styles.directiveText}>{p}</Text>
-            </View>
-          ))}
-          <View style={styles.profileDivider} />
-          <Text style={styles.profileKey}>BEHAVIORAL SUMMARY</Text>
-          <Text style={styles.profileSummary}>{profile.summary}</Text>
-
-          {profile.mbti_profile && (
-            <>
-              <View style={styles.profileDivider} />
-              <Text style={[styles.profileKey, { marginBottom: 10 }]}>MBTI CLASSIFICATION</Text>
-              <View style={styles.profileRow}>
-                <Text style={styles.profileKey}>TYPE</Text>
-                <Text style={[styles.profileValue, styles.mbtiType]}>{profile.mbti_profile.type}</Text>
-              </View>
-              <View style={styles.profileRow}>
-                <Text style={styles.profileKey}>DOMINANT</Text>
-                <Text style={styles.profileValue}>{profile.mbti_profile.dominant_function}</Text>
-              </View>
-              <View style={styles.profileRow}>
-                <Text style={styles.profileKey}>SHADOW</Text>
-                <Text style={[styles.profileValue, { color: '#AA8800' }]}>{profile.mbti_profile.shadow_function}</Text>
-              </View>
-              <View style={styles.profileDivider} />
-              <Text style={styles.profileKey}>SEDUCTION VULNERABILITY</Text>
-              <Text style={[styles.profileSummary, { color: '#CCAA00', marginTop: 6 }]}>
-                {profile.mbti_profile.seduction_vulnerability}
-              </Text>
-            </>
-          )}
-
-          <Text style={styles.profileTimestamp}>
-            last updated {new Date(profile.generatedAt).toLocaleDateString()}
-          </Text>
-        </View>
-      )}
+    <View style={styles.userBubbleContainer}>
+      <View style={styles.userBubble}>
+        <Text style={styles.userBubbleText}>{msg.text}</Text>
+      </View>
     </View>
   );
 }
 
-// ─── Debrief section block ────────────────────────────────────────────────────
+// ─── DARKO response bubble ────────────────────────────────────────────────────
 
-function DebriefSection({ label, content, accent = false }: { label: string; content: string; accent?: boolean }) {
-  return (
-    <View style={styles.debriefBlock}>
-      <Text style={styles.sectionLabel}>{label}</Text>
-      <Text style={[styles.debriefText, accent ? { color: TEXT_PRIMARY } : null]}>{content}</Text>
-    </View>
-  );
-}
-
-// ─── History card ─────────────────────────────────────────────────────────────
-
-const HistoryCard = React.memo(function HistoryCard({ entry, index }: { entry: DecodeEntry; index: number }) {
-  const [psycheOpen, setPsycheOpen] = useState(false);
-  const { result } = entry;
+const DarkoBubble = React.memo(function DarkoBubble({
+  msg,
+  onLongPress,
+}: {
+  msg: Extract<ChatMsg, { type: 'darko' }>;
+  onLongPress: () => void;
+}) {
+  const { result, phase } = msg;
+  const phaseName = PHASE_NAMES[phase] ?? 'INITIAL RECONNAISSANCE';
   const isDebrief = result.intent === 'full_debrief';
   const isAdvice = result.intent === 'strategic_advice';
   const label1 = isAdvice ? '// STRATEGIC DIRECTIVE 01' : '// OPTION 01';
   const label2 = isAdvice ? '// STRATEGIC DIRECTIVE 02' : '// OPTION 02';
-
-
-  const handleCopy = () => {
-    let text: string;
-    if (isDebrief && result.debrief) {
-      text = [
-        `THREAT: ${result.threat_level}`,
-        '',
-        '// POWER DYNAMIC AUDIT',
-        result.debrief.power_dynamic_audit,
-        '',
-        '// PSYCHOLOGICAL PROFILE',
-        result.debrief.psychological_profile,
-        '',
-        '// ERRORS MADE',
-        ...(result.debrief.errors_made ?? []).map((e: string) => `  > ${e}`),
-        '',
-        '// CURRENT PHASE',
-        result.debrief.current_phase,
-        '',
-        '// NEXT MOVE',
-        result.debrief.next_move,
-        '',
-        'PSYCHE:',
-        result.the_psyche,
-      ].join('\n');
-    } else {
-      text = [
-        `THREAT: ${result.threat_level}`,
-        '',
-        label1,
-        result.option_1_script,
-        '',
-        label2,
-        result.option_2_script,
-        '',
-        'PSYCHE:',
-        result.the_psyche,
-      ].join('\n');
-    }
-    Share.share({ message: text });
-  };
+  const nextProtocol =
+    phase < 5
+      ? `\uD83D\uDD12 ${PHASE_NAMES[phase + 1]} — STAND BY`
+      : 'MAXIMUM CLEARANCE ACTIVE — ALL PROTOCOLS UNLOCKED';
 
   return (
-    <View style={styles.historyCard}>
-      <View style={styles.historyCardHeader}>
-        <Text style={styles.historyCardLabel}>// STRATEGIC ANALYSIS</Text>
-        <TouchableOpacity onPress={handleCopy} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-          <Text style={styles.copyBtn}>COPY</Text>
-        </TouchableOpacity>
-      </View>
-      <Text style={styles.historyInput} numberOfLines={3}>{entry.inputMessage || '[ image / audio input ]'}</Text>
-
-      <View style={styles.historyDivider} />
-
-      <Text style={{ color: '#A1A1AA', fontSize: 10, fontFamily: MONO, letterSpacing: 2, marginBottom: 8, textTransform: 'uppercase' }}>
-        {`// AUTO-DETECTED: ${entry.auto_detected_mode || 'TACTICAL'}`}
+    <TouchableOpacity
+      style={styles.darkoBubble}
+      onLongPress={onLongPress}
+      delayLongPress={400}
+      activeOpacity={0.9}
+    >
+      {/* Mission status header */}
+      <Text style={styles.darkoBubbleLabel}>
+        {'[ MISSION STATUS ]: '}
+        <Text style={{ color: ACCENT }}>
+          {'PHASE ' + phase + ' — ' + phaseName}
+        </Text>
+      </Text>
+      <Text style={styles.darkoBubbleLabel}>
+        {'[ VALIDATION ]: '}
+        <Text style={styles.darkoBubbleBody}>SIGNAL RECEIVED. ANALYSIS COMPILED.</Text>
       </Text>
 
-      <Text style={styles.historyThreat}>{result.threat_level}</Text>
+      <View style={styles.darkoBubbleDivider} />
 
+      {/* Threat level */}
+      <Text style={styles.threatLevel}>{result.threat_level}</Text>
+
+      {/* Response content */}
       {isDebrief && result.debrief ? (
         <>
-          <DebriefSection label="POWER DYNAMIC AUDIT" content={result.debrief.power_dynamic_audit} />
-          <DebriefSection label="PSYCHOLOGICAL PROFILE" content={result.debrief.psychological_profile} />
-          <DebriefSection label="CURRENT PHASE" content={result.debrief.current_phase} />
-          <View style={styles.debriefBlock}>
-            <Text style={styles.sectionLabel}>ERRORS MADE</Text>
-            {(result.debrief.errors_made ?? []).map((e: string, i: number) => (
-              <View key={i} style={styles.directiveRow}>
-                <Text style={[styles.directiveBullet, { color: '#FF5533' }]}>&gt;</Text>
-                <Text style={[styles.directiveText, { color: '#CC4422' }]}>{e}</Text>
-              </View>
-            ))}
-          </View>
-          <DebriefSection label="NEXT MOVE" content={result.debrief.next_move} accent />
+          <Text style={styles.darkoBubbleSectionLabel}>POWER DYNAMIC AUDIT</Text>
+          <Text style={styles.darkoBubbleBody}>{result.debrief.power_dynamic_audit}</Text>
+
+          <Text style={[styles.darkoBubbleSectionLabel, { marginTop: 12 }]}>PSYCHOLOGICAL PROFILE</Text>
+          <Text style={styles.darkoBubbleBody}>{result.debrief.psychological_profile}</Text>
+
+          <Text style={[styles.darkoBubbleSectionLabel, { marginTop: 12 }]}>CURRENT PHASE</Text>
+          <Text style={styles.darkoBubbleBody}>{result.debrief.current_phase}</Text>
+
+          <Text style={[styles.darkoBubbleSectionLabel, { marginTop: 12, color: ERROR_RED }]}>ERRORS MADE</Text>
+          {(result.debrief.errors_made ?? []).map((e: string, i: number) => (
+            <View key={i} style={styles.directiveRow}>
+              <Text style={[styles.directiveBullet, { color: ERROR_RED }]}>&gt;</Text>
+              <Text style={[styles.darkoBubbleBody, { color: '#CC4422', flex: 1 }]}>{e}</Text>
+            </View>
+          ))}
+
+          <Text style={[styles.darkoBubbleSectionLabel, { marginTop: 12 }]}>NEXT MOVE</Text>
+          <Text style={[styles.darkoBubbleBody, { color: TEXT_PRIMARY }]}>{result.debrief.next_move}</Text>
         </>
       ) : (
         <>
-          <View style={styles.scriptCard}>
-            <Text style={styles.scriptTag}>{label1}</Text>
-            <Text style={styles.scriptText}>{result.option_1_script}</Text>
-          </View>
-          <View style={styles.scriptCard}>
-            <Text style={styles.scriptTag}>{label2}</Text>
-            <Text style={styles.scriptText}>{result.option_2_script}</Text>
-          </View>
+          <Text style={styles.darkoBubbleSectionLabel}>{label1}</Text>
+          <Text style={styles.darkoBubbleBody}>{result.option_1_script}</Text>
+
+          <Text style={[styles.darkoBubbleSectionLabel, { marginTop: 12 }]}>{label2}</Text>
+          <Text style={styles.darkoBubbleBody}>{result.option_2_script}</Text>
         </>
       )}
 
-      <TouchableOpacity
-        style={styles.psycheToggle}
-        onPress={() => setPsycheOpen((v) => !v)}
-        activeOpacity={0.7}
-      >
-        <Text style={styles.psycheToggleText}>
-          [ {psycheOpen ? 'HIDE PSYCHOLOGY' : 'VIEW PSYCHOLOGY'} ]
-        </Text>
-      </TouchableOpacity>
+      {/* Psychology block */}
+      <View style={styles.psycheBlock}>
+        <Text style={styles.darkoBubbleSectionLabel}>PSYCHE ANALYSIS</Text>
+        <Text style={styles.darkoBubbleBody}>{result.the_psyche}</Text>
 
-      {psycheOpen && (
-        <View style={styles.psychePanel}>
-          <Text style={styles.sectionLabel}>PSYCHE ANALYSIS</Text>
-          <View style={styles.psycheContainer}>
-            <Text style={styles.psycheText}>{result.the_psyche}</Text>
+        <Text style={[styles.darkoBubbleSectionLabel, { marginTop: 10 }]}>DIRECTIVES</Text>
+        {(result.the_directive ?? []).map((d: string, i: number) => (
+          <View key={i} style={styles.directiveRow}>
+            <Text style={styles.directiveBullet}>&gt;</Text>
+            <Text style={[styles.darkoBubbleBody, { flex: 1 }]}>{d}</Text>
           </View>
-          <Text style={[styles.sectionLabel, { marginTop: 14 }]}>DIRECTIVES</Text>
-          {result.the_directive.map((d, i) => (
-            <View key={i} style={styles.directiveRow}>
-              <Text style={styles.directiveBullet}>&gt;</Text>
-              <Text style={styles.directiveText}>{d}</Text>
-            </View>
-          ))}
-        </View>
-      )}
+        ))}
+      </View>
+
+      <View style={styles.darkoBubbleDivider} />
+
+      {/* Next protocol */}
+      <Text style={styles.nextProtocol}>
+        {'[ NEXT PROTOCOL ]: ' + nextProtocol}
+      </Text>
+    </TouchableOpacity>
+  );
+});
+
+// ─── Loading bubble ───────────────────────────────────────────────────────────
+
+function LoadingBubble({ text }: { text: string }) {
+  return (
+    <View style={[styles.darkoBubble, { borderLeftColor: BORDER }]}>
+      <Text style={styles.loaderLine}>{text}</Text>
     </View>
   );
-}, (prev, next) => prev.entry.id === next.entry.id && prev.index === next.index);
+}
 
 // ─── Main screen ──────────────────────────────────────────────────────────────
 
 export default function DecodeScreen() {
-  const { targetId, targetName } = useLocalSearchParams<{
-    targetId: string;
-    targetName: string;
-  }>();
+  const { targetId, targetName } = useLocalSearchParams<{ targetId: string; targetName: string }>();
   const router = useRouter();
 
   const [history, setHistory] = useState<DecodeEntry[]>([]);
+  const [chatMessages, setChatMessages] = useState<ChatMsg[]>([]);
+  const [currentPhase, setCurrentPhase] = useState(1);
+  const [phaseUnlocking, setPhaseUnlocking] = useState<number | null>(null);
+  const pendingResultRef = useRef<{ result: DecoderResult; newPhase: number } | null>(null);
+
   const [profile, setProfile] = useState<TargetProfile | null>(null);
   const [inputText, setInputText] = useState('');
   const [selectedImage, setSelectedImage] = useState<{ base64: string; mimeType: string; uri: string } | null>(null);
@@ -316,7 +318,6 @@ export default function DecodeScreen() {
   const [transcribing, setTranscribing] = useState(false);
   const [loading, setLoading] = useState(false);
   const [loaderText, setLoaderText] = useState(LOADER_MESSAGES[0]);
-  const [updatingProfile, setUpdatingProfile] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [targetLeverage, setTargetLeverage] = useState<string | undefined>();
   const [targetObjective, setTargetObjective] = useState<string | undefined>();
@@ -324,20 +325,32 @@ export default function DecodeScreen() {
   const flatListRef = useRef<FlatList>(null);
   const recordPulse = useRef(new Animated.Value(1)).current;
 
+  // ── Mount ──────────────────────────────────────────────────────────────────
+
   useEffect(() => {
-    if (targetId) {
-      getHistory(targetId).then(setHistory);
-      getTargetProfile(targetId).then(setProfile);
-      getTarget(targetId).then((t) => {
-        if (t) {
-          setTargetLeverage(t.leverage);
-          setTargetObjective(t.objective);
-        }
-      });
-    }
+    if (!targetId) return;
+    (async () => {
+      const [hist, storedPhase, tgt, prof] = await Promise.all([
+        getHistory(targetId),
+        getMissionPhase(targetId),
+        getTarget(targetId),
+        getTargetProfile(targetId),
+      ]);
+      setHistory(hist);
+      const computedPhase = computePhase(hist);
+      const effectivePhase = Math.max(storedPhase, computedPhase);
+      setCurrentPhase(effectivePhase);
+      setChatMessages(historyToChatMsgs(hist));
+      if (tgt) {
+        setTargetLeverage(tgt.leverage);
+        setTargetObjective(tgt.objective);
+      }
+      if (prof) setProfile(prof);
+    })();
   }, [targetId]);
 
-  // Single-line loader cycling
+  // ── Loader cycling ─────────────────────────────────────────────────────────
+
   useEffect(() => {
     if (!loading) return;
     let idx = 0;
@@ -348,7 +361,8 @@ export default function DecodeScreen() {
     return () => clearInterval(iv);
   }, [loading]);
 
-  // Recording pulse animation
+  // ── Recording pulse ────────────────────────────────────────────────────────
+
   useEffect(() => {
     if (isRecording) {
       const pulse = Animated.loop(
@@ -364,46 +378,52 @@ export default function DecodeScreen() {
     }
   }, [isRecording]);
 
-  // ── Image picker ──────────────────────────────────────────────────────────
+  // ── Phase unlock complete ──────────────────────────────────────────────────
+
+  const handlePhaseUnlockComplete = useCallback(() => {
+    const pending = pendingResultRef.current;
+    pendingResultRef.current = null;
+    setPhaseUnlocking(null);
+    if (!pending) return;
+    setChatMessages((prev) => [
+      ...prev,
+      {
+        id: Date.now().toString() + '_d',
+        type: 'darko',
+        result: pending.result,
+        phase: pending.newPhase,
+        timestamp: new Date().toISOString(),
+      },
+    ]);
+    setTimeout(() => flatListRef.current?.scrollToOffset({ offset: 0, animated: true }), 80);
+  }, []);
+
+  // ── Image picker ───────────────────────────────────────────────────────────
 
   const handlePickImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('Permission needed', 'Photo library access is required to analyze screenshots.');
+      Alert.alert('Permission needed', 'Photo library access required.');
       return;
     }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      base64: true,
-      quality: 0.6,
-    });
-    if (!result.canceled && result.assets[0]) {
-      const asset = result.assets[0];
-      setSelectedImage({
-        base64: asset.base64!,
-        mimeType: asset.mimeType ?? 'image/jpeg',
-        uri: asset.uri,
-      });
+    const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], base64: true, quality: 0.6 });
+    if (!res.canceled && res.assets[0]) {
+      const a = res.assets[0];
+      setSelectedImage({ base64: a.base64!, mimeType: a.mimeType ?? 'image/jpeg', uri: a.uri });
     }
   };
 
-  // ── Voice recorder ────────────────────────────────────────────────────────
+  // ── Voice recorder ─────────────────────────────────────────────────────────
 
   const handleMicPress = async () => {
-    if (isRecording) {
-      await stopRecording();
-    } else {
-      await startRecording();
-    }
+    if (isRecording) await stopRecording();
+    else await startRecording();
   };
 
   const startRecording = async () => {
     try {
       const { granted } = await AudioModule.requestRecordingPermissionsAsync();
-      if (!granted) {
-        Alert.alert('Permission needed', 'Microphone access is required for voice input.');
-        return;
-      }
+      if (!granted) { Alert.alert('Permission needed', 'Microphone access required.'); return; }
       await AudioModule.setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
       await recorder.prepareToRecordAsync();
       recorder.record();
@@ -418,75 +438,70 @@ export default function DecodeScreen() {
       setIsRecording(false);
       await recorder.stop();
       await AudioModule.setAudioModeAsync({ allowsRecording: false });
-
       const uri = recorder.uri;
-
-      if (!uri) {
-        Alert.alert('Recording error', 'No audio file was created. Try again.');
-        return;
-      }
-
+      if (!uri) { Alert.alert('Recording error', 'No audio file. Try again.'); return; }
       setTranscribing(true);
-
       let base64: string;
       try {
         await new Promise((resolve) => setTimeout(resolve, 500));
-
         const response = await fetch(uri);
-        if (!response.ok) throw new Error(`Failed to fetch audio file: ${response.status}`);
-
+        if (!response.ok) throw new Error(`fetch failed: ${response.status}`);
         const blob = await response.blob();
-
         base64 = await new Promise<string>((resolve, reject) => {
           const reader = new FileReader();
-          reader.onload = () => {
-            const result = reader.result as string;
-            resolve(result.split(',')[1]);
-          };
+          reader.onload = () => resolve((reader.result as string).split(',')[1]);
           reader.onerror = () => reject(new Error('FileReader failed'));
           reader.readAsDataURL(blob);
         });
-      } catch (fsErr) {
-        console.error('[DARKO] stopRecording — file read error:', fsErr);
+      } catch {
         setTranscribing(false);
-        Alert.alert('Recording error', 'Could not read audio file. Try again.');
+        Alert.alert('Recording error', 'Could not read audio. Try again.');
         return;
       }
-
-      // Pass platform-appropriate mimeType — HIGH_QUALITY gives .m4a on both platforms
-      const mimeType = Platform.OS === 'android' ? 'audio/m4a' : 'audio/m4a';
-      const transcribed = await transcribeAudio(base64, mimeType);
+      const transcribed = await transcribeAudio(base64, 'audio/m4a');
       setTranscribing(false);
-
-      if (transcribed) {
-        setInputText(transcribed);
-      } else {
-        Alert.alert('Transcription failed', 'Could not transcribe audio. Try again.');
-      }
+      if (transcribed) setInputText(transcribed);
+      else Alert.alert('Transcription failed', 'Could not transcribe. Try again.');
     } catch (err) {
       setIsRecording(false);
       setTranscribing(false);
-      console.error('[DARKO] stopRecording error:', err);
-      Alert.alert('Recording error', 'Something went wrong. Try again.');
+      Alert.alert('Recording error', 'Something went wrong.');
     }
   };
 
   // ── Decode ─────────────────────────────────────────────────────────────────
 
   const handleDecode = async () => {
-    if (loading || (!inputText.trim() && !selectedImage)) return;
+    if (loading || phaseUnlocking || (!inputText.trim() && !selectedImage)) return;
     setLoading(true);
     setError(null);
     setLoaderText(LOADER_MESSAGES[0]);
 
+    // Optimistic user bubble
+    const msgId = Date.now().toString();
+    const userMsg: ChatMsg = {
+      id: msgId + '_u',
+      type: 'user',
+      text: inputText.trim() || '[ image input ]',
+      timestamp: new Date().toISOString(),
+    };
+    setChatMessages((prev) => [...prev, userMsg]);
+    setTimeout(() => flatListRef.current?.scrollToOffset({ offset: 0, animated: true }), 50);
+
+    const inputSnapshot = inputText.trim();
+    const imageSnapshot = selectedImage;
+    setInputText('');
+    setSelectedImage(null);
+
     const result = await decodeMessage({
-      text: inputText.trim() || undefined,
-      imageBase64: selectedImage?.base64,
-      imageMimeType: selectedImage?.mimeType,
+      text: inputSnapshot || undefined,
+      imageBase64: imageSnapshot?.base64,
+      imageMimeType: imageSnapshot?.mimeType,
       historyContext: history,
       leverage: targetLeverage,
       objective: targetObjective,
       relationshipBrief: profile?.relationship_brief,
+      missionPhase: currentPhase,
     });
 
     setLoading(false);
@@ -496,42 +511,100 @@ export default function DecodeScreen() {
       return;
     }
 
+    // Persist
     const entry: DecodeEntry = {
-      id: Date.now().toString(),
-      inputMessage: inputText.trim(),
+      id: msgId,
+      inputMessage: inputSnapshot,
       result,
       timestamp: new Date().toISOString(),
       auto_detected_mode: result.auto_detected_mode,
     };
-
     await addDecodeEntry(targetId, entry);
-    const updated = await getHistory(targetId);
-    setHistory(updated);
-    setInputText('');
-    setSelectedImage(null);
+    const updatedHistory = await getHistory(targetId);
+    setHistory(updatedHistory);
 
-    setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
+    // Phase advancement check
+    const newPhase = computePhase(updatedHistory);
+    const phaseAdvanced = newPhase > currentPhase;
 
-    // Regenerate profile every 3 decodes
-    if (updated.length % 3 === 0) {
-      setUpdatingProfile(true);
-      const newProfile = await generateTargetProfile(updated);
-      setUpdatingProfile(false);
+    if (phaseAdvanced) {
+      setCurrentPhase(newPhase);
+      saveMissionPhase(targetId, newPhase);
+      pendingResultRef.current = { result, newPhase };
+      setPhaseUnlocking(newPhase);
+    } else {
+      setChatMessages((prev) => [
+        ...prev,
+        {
+          id: msgId + '_d',
+          type: 'darko',
+          result,
+          phase: newPhase,
+          timestamp: new Date().toISOString(),
+        },
+      ]);
+      setTimeout(() => flatListRef.current?.scrollToOffset({ offset: 0, animated: true }), 80);
+    }
+
+    // Profile update every 3 decodes
+    if (updatedHistory.length % 3 === 0) {
+      const newProfile = await generateTargetProfile(updatedHistory);
       if (newProfile) {
-        await saveTargetProfile(targetId, newProfile);
+        saveTargetProfile(targetId, newProfile);
         setProfile(newProfile);
       }
     }
   };
 
-  const canDecode = (!!inputText.trim() || !!selectedImage) && !loading;
+  // ── Long press copy ────────────────────────────────────────────────────────
 
-  const renderHistoryItem = useCallback(
-    ({ item, index }: { item: DecodeEntry; index: number }) => (
-      <HistoryCard entry={item} index={index} />
-    ),
-    [],
-  );
+  const handleDarkoBubbleLongPress = useCallback(async (msg: Extract<ChatMsg, { type: 'darko' }>) => {
+    const { result } = msg;
+    const isDebrief = result.intent === 'full_debrief';
+    const text = isDebrief && result.debrief
+      ? [
+          `THREAT: ${result.threat_level}`,
+          '',
+          'POWER DYNAMIC AUDIT',
+          result.debrief.power_dynamic_audit,
+          '',
+          'PSYCHOLOGICAL PROFILE',
+          result.debrief.psychological_profile,
+          '',
+          'ERRORS MADE',
+          ...(result.debrief.errors_made ?? []).map((e: string) => `  > ${e}`),
+          '',
+          'NEXT MOVE',
+          result.debrief.next_move,
+        ].join('\n')
+      : [
+          `THREAT: ${result.threat_level}`,
+          '',
+          result.option_1_script,
+          '',
+          result.option_2_script,
+          '',
+          result.the_psyche,
+          '',
+          ...(result.the_directive ?? []).map((d: string) => `  > ${d}`),
+        ].join('\n');
+    await Clipboard.setStringAsync(text);
+    Alert.alert('COPIED', 'Intelligence copied to clipboard.');
+  }, []);
+
+  // ── Render item ────────────────────────────────────────────────────────────
+
+  const renderItem = useCallback(({ item }: { item: ChatMsg }) => {
+    if (item.type === 'user') return <UserBubble msg={item} />;
+    if (item.type === 'darko') {
+      return <DarkoBubble msg={item} onLongPress={() => handleDarkoBubbleLongPress(item)} />;
+    }
+    return null;
+  }, [handleDarkoBubbleLongPress]);
+
+  const canDecode = (!!inputText.trim() || !!selectedImage) && !loading && !phaseUnlocking;
+
+  // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
     <View style={styles.root}>
@@ -539,121 +612,94 @@ export default function DecodeScreen() {
 
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity
-          onPress={() => router.back()}
-          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-        >
+        <TouchableOpacity onPress={() => router.back()} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
           <Text style={styles.backBtn}>← TARGETS</Text>
         </TouchableOpacity>
         <Text style={styles.targetTitle}>{(targetName ?? '').toUpperCase()}</Text>
       </View>
 
+      {/* Phase bar */}
+      <PhaseBar phase={currentPhase} />
+
+      {/* Phase label */}
+      <View style={styles.phaseLabelRow}>
+        <Text style={styles.phaseLabelText}>
+          {'PHASE ' + currentPhase + ' — ' + (PHASE_NAMES[currentPhase] ?? '')}
+        </Text>
+      </View>
+
       <View style={styles.divider} />
 
-      {/* History + profile */}
+      {/* Chat list — inverted so newest at bottom */}
       <FlatList
         ref={flatListRef}
-        data={history}
+        data={[...chatMessages].reverse()}
+        inverted
         keyExtractor={(item) => item.id}
-        renderItem={renderHistoryItem}
-        contentContainerStyle={styles.historyContent}
+        renderItem={renderItem}
+        contentContainerStyle={styles.chatContent}
         showsVerticalScrollIndicator={false}
-        removeClippedSubviews={true}
-        maxToRenderPerBatch={5}
-        windowSize={7}
-        initialNumToRender={8}
-        ListHeaderComponent={
-          profile ? (
-            <ProfileCard profile={profile} updatingProfile={updatingProfile} />
-          ) : updatingProfile ? (
-            <View style={styles.profileCard}>
-              <TypingIndicator label="BUILDING TARGET PROFILE" />
-            </View>
-          ) : null
-        }
+        removeClippedSubviews
+        maxToRenderPerBatch={10}
+        windowSize={10}
+        ListHeaderComponent={loading ? <LoadingBubble text={loaderText} /> : null}
         ListEmptyComponent={
-          !profile ? (
-            <View style={styles.emptyHistory}>
-              <Text style={styles.emptyHistoryText}>NO DECODES YET</Text>
-              <Text style={styles.emptyHistorySubtext}>
-                profile generates after 3 decodes
-              </Text>
+          !loading ? (
+            <View style={styles.emptyChat}>
+              <Text style={styles.emptyChatText}>[ OPERATIVE ONLINE ]</Text>
+              <Text style={styles.emptyChatSubtext}>&gt; TARGET ACQUIRED. BEGIN RECONNAISSANCE.</Text>
             </View>
-          ) : null
-        }
-        ListFooterComponent={
-          loading ? (
-            <Text style={styles.loaderText}>{loaderText}</Text>
           ) : null
         }
       />
 
       {/* Input area */}
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={0}
-      >
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={0}>
         <View style={styles.inputArea}>
           {error && <Text style={styles.errorText}>{error}</Text>}
 
-          {/* Image thumbnail */}
           {selectedImage && (
             <View style={styles.imageThumbnailRow}>
               <Image source={{ uri: selectedImage.uri }} style={styles.imageThumbnail} />
-              <TouchableOpacity
-                style={styles.imageRemove}
-                onPress={() => setSelectedImage(null)}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              >
+              <TouchableOpacity onPress={() => setSelectedImage(null)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                 <Text style={styles.imageRemoveText}>✕</Text>
               </TouchableOpacity>
               <Text style={styles.imageLabel}>screenshot attached</Text>
             </View>
           )}
 
-          {/* Transcribing indicator */}
-          {transcribing && <TypingIndicator label="TRANSCRIBING" />}
+          {transcribing && <Text style={styles.transcribingText}>&gt; TRANSCRIBING AUDIO...</Text>}
 
-          <View style={styles.inputWrapper}>
+          {/* CMD input row */}
+          <View style={styles.cmdRow}>
+            <Text style={styles.cmdPrefix}>CMD &gt;</Text>
             <TextInput
-              style={styles.input}
+              style={styles.cmdInput}
               value={inputText}
               onChangeText={setInputText}
-              placeholder={
-                selectedImage
-                  ? 'add context or leave blank...'
-                  : 'paste message, describe situation, or use voice...'
-              }
-              placeholderTextColor={TEXT_DIM}
-              multiline
-              textAlignVertical="top"
+              placeholder={selectedImage ? 'add context...' : 'paste message or describe situation...'}
+              placeholderTextColor={BORDER}
+              returnKeyType="send"
+              onSubmitEditing={canDecode ? handleDecode : undefined}
+              blurOnSubmit={false}
             />
           </View>
 
           {/* Action row */}
           <View style={styles.actionRow}>
-            {/* Camera button */}
-            <TouchableOpacity
-              style={[styles.iconButton, selectedImage ? styles.iconButtonActive : null]}
-              onPress={handlePickImage}
-              disabled={loading}
-            >
-              <Text style={styles.iconButtonText}>
-                📷
-              </Text>
+            <TouchableOpacity style={styles.iconButton} onPress={handlePickImage} disabled={loading}>
+              <Text style={styles.iconButtonText}>📷</Text>
             </TouchableOpacity>
 
-            {/* Mic button */}
             <TouchableOpacity
-              style={[styles.iconButton, isRecording ? styles.iconButtonRecording : null]}
+              style={[styles.iconButton, isRecording && styles.iconButtonRecording]}
               onPress={handleMicPress}
               disabled={loading || transcribing}
             >
               <Animated.Text
                 style={[
                   styles.iconButtonText,
-                  isRecording ? { color: RECORD_RED } : null,
-                  isRecording ? { transform: [{ scale: recordPulse }] } : null,
+                  isRecording && { color: RECORD_RED, transform: [{ scale: recordPulse }] },
                 ]}
               >
                 🎤
@@ -662,119 +708,158 @@ export default function DecodeScreen() {
 
             {isRecording && <Text style={styles.recordingLabel}>REC ●</Text>}
 
-            {/* Decode button */}
             <TouchableOpacity
               style={[styles.decodeButton, !canDecode && styles.decodeButtonDisabled]}
               onPress={handleDecode}
               activeOpacity={0.85}
               disabled={!canDecode}
             >
-              <Text style={styles.decodeButtonText}>{loading ? 'DECODING' : 'DECODE'}</Text>
+              <Text style={styles.decodeButtonText}>{loading ? 'DECODING...' : 'DECODE'}</Text>
             </TouchableOpacity>
           </View>
         </View>
       </KeyboardAvoidingView>
+
+      {/* Phase unlock overlay */}
+      {phaseUnlocking !== null && (
+        <PhaseUnlockOverlay phase={phaseUnlocking} onComplete={handlePhaseUnlockComplete} />
+      )}
     </View>
   );
 }
 
+// ─── Styles ───────────────────────────────────────────────────────────────────
+
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: BG, paddingTop: 60 },
 
-  header: { paddingHorizontal: 20, marginBottom: 4 },
+  header: { paddingHorizontal: 20, marginBottom: 8 },
   backBtn: { fontFamily: MONO, fontSize: 10, color: TEXT_DIM, letterSpacing: 2, marginBottom: 8 },
   targetTitle: { fontFamily: MONO, fontSize: 22, fontWeight: '700', color: TEXT_PRIMARY, letterSpacing: 4 },
 
-  divider: { height: 1, backgroundColor: BORDER, marginHorizontal: 20, marginVertical: 16 },
+  phaseBarTrack: { height: 2, backgroundColor: BORDER, marginHorizontal: 20 },
+  phaseBarFill: { height: 2, backgroundColor: ACCENT },
 
-  historyContent: { paddingHorizontal: 20, paddingBottom: 12 },
+  phaseLabelRow: { paddingHorizontal: 20, paddingTop: 6, paddingBottom: 2 },
+  phaseLabelText: { fontFamily: MONO, fontSize: 9, color: TEXT_DIM, letterSpacing: 2 },
 
-  emptyHistory: { paddingVertical: 40, alignItems: 'center' },
-  emptyHistoryText: { fontFamily: MONO, fontSize: 11, color: TEXT_DIM, letterSpacing: 3 },
-  emptyHistorySubtext: { fontFamily: MONO, fontSize: 10, color: '#3D3D40', letterSpacing: 2, marginTop: 6 },
+  divider: { height: 1, backgroundColor: BORDER, marginHorizontal: 20, marginTop: 10, marginBottom: 0 },
 
-  // ── Profile card ──
-  profileCard: {
-    backgroundColor: '#0D1A00',
-    borderWidth: 1,
-    borderColor: '#2A3A00',
-    borderRadius: 4,
-    padding: 14,
-    marginBottom: 16,
-    overflow: 'hidden',
-    maxWidth: '100%',
-  },
-  profileHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  profileHeaderLabel: { fontFamily: MONO, fontSize: 10, color: TEXT_DIM, letterSpacing: 3 },
-  profileChevron: { fontFamily: MONO, fontSize: 10, color: TEXT_DIM },
-  profileBody: { marginTop: 14, overflow: 'hidden' },
-  profileRow: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 10, gap: 8 },
-  profileKey: { fontFamily: MONO, fontSize: 9, color: TEXT_DIM, letterSpacing: 2, marginBottom: 4, flexShrink: 0, width: 100 },
-  profileValue: { fontFamily: MONO, fontSize: 12, color: TEXT_PRIMARY, letterSpacing: 1, flex: 1, flexShrink: 1, textAlign: 'right' },
-  profileDivider: { height: 1, backgroundColor: '#1A2A00', marginVertical: 10 },
-  profileSummary: { fontFamily: SANS, fontSize: 15, color: TEXT_DIM, lineHeight: 22 },
-  profileTimestamp: { fontFamily: MONO, fontSize: 9, color: '#3D3D40', letterSpacing: 1, marginTop: 10 },
-  mbtiType: { color: ACCENT, fontSize: 15, fontWeight: '700', letterSpacing: 4 },
+  chatContent: { paddingHorizontal: 16, paddingBottom: 12, paddingTop: 12 },
 
-  // ── History card ──
-  historyCard: {
+  emptyChat: { paddingVertical: 60, alignItems: 'center' },
+  emptyChatText: { fontFamily: MONO, fontSize: 11, color: TEXT_DIM, letterSpacing: 3, marginBottom: 8 },
+  emptyChatSubtext: { fontFamily: MONO, fontSize: 10, color: '#3D3D40', letterSpacing: 2 },
+
+  // ── User bubble ──
+  userBubbleContainer: { alignItems: 'flex-end', marginBottom: 8 },
+  userBubble: {
     backgroundColor: CARD_BG,
     borderWidth: 1,
     borderColor: BORDER,
-    borderRadius: 4,
-    padding: 16,
-    marginBottom: 12,
-  },
-  historyCardHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 6, gap: 8 },
-  historyCardLabel: { fontFamily: MONO, fontSize: 11, color: TEXT_DIM, letterSpacing: 2, flex: 1 },
-  historyMode: { fontFamily: MONO, fontSize: 8, color: '#3D3D40', letterSpacing: 2 },
-  copyBtn: { fontFamily: MONO, fontSize: 8, color: '#3D3D40', letterSpacing: 2 },
-  historyInput: { fontFamily: MONO, fontSize: 12, color: TEXT_DIM, lineHeight: 18, fontStyle: 'italic' },
-  historyDivider: { height: 1, backgroundColor: BORDER, marginVertical: 12 },
-  historyThreat: { fontFamily: MONO, fontSize: 18, fontWeight: '700', color: ACCENT, letterSpacing: 1, marginBottom: 12 },
-
-  scriptCard: {
-    backgroundColor: CARD_BG,
-    borderWidth: 1,
-    borderColor: BORDER,
-    borderRadius: 3,
+    borderRadius: 0,
     padding: 12,
-    marginBottom: 10,
+    maxWidth: '78%',
   },
-  scriptTag: { fontFamily: MONO, fontSize: 10, color: TEXT_DIM, letterSpacing: 3, marginBottom: 4 },
-  scriptText: { fontFamily: SANS, fontSize: 15, color: TEXT_PRIMARY, lineHeight: 22 },
+  userBubbleText: { fontFamily: SANS, fontSize: 15, color: TEXT_PRIMARY, lineHeight: 22 },
 
-  psycheToggle: { marginTop: 4, paddingVertical: 10, alignItems: 'center', borderWidth: 1, borderColor: BORDER, borderRadius: 4 },
-  psycheToggleText: { fontFamily: MONO, fontSize: 10, color: TEXT_DIM, letterSpacing: 2 },
-  psychePanel: { marginTop: 10, paddingTop: 12, borderTopWidth: 1, borderTopColor: BORDER },
-  psycheContainer: {
+  // ── DARKO bubble ──
+  darkoBubble: {
     backgroundColor: BG,
     borderLeftWidth: 2,
     borderLeftColor: ACCENT,
-    padding: 12,
+    borderRadius: 0,
+    padding: 14,
+    marginBottom: 8,
+    marginRight: 20,
+  },
+  darkoBubbleLabel: {
+    fontFamily: MONO,
+    fontSize: 10,
+    color: TEXT_DIM,
+    letterSpacing: 1.5,
     marginBottom: 4,
   },
-  psycheText: { fontFamily: SANS, fontSize: 15, color: TEXT_PRIMARY, lineHeight: 22 },
+  darkoBubbleSectionLabel: {
+    fontFamily: MONO,
+    fontSize: 10,
+    color: TEXT_DIM,
+    letterSpacing: 2,
+    marginBottom: 5,
+    textTransform: 'uppercase',
+  },
+  darkoBubbleBody: {
+    fontFamily: SANS,
+    fontSize: 15,
+    color: TEXT_PRIMARY,
+    lineHeight: 22,
+  },
+  darkoBubbleDivider: { height: 1, backgroundColor: BORDER, marginVertical: 10 },
 
-  sectionLabel: { fontFamily: MONO, fontSize: 10, color: TEXT_DIM, letterSpacing: 3, marginBottom: 6 },
+  threatLevel: {
+    fontFamily: MONO,
+    fontSize: 16,
+    fontWeight: '700',
+    color: ACCENT,
+    letterSpacing: 1,
+    marginBottom: 12,
+  },
 
-  directiveRow: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 6 },
-  directiveBullet: { fontFamily: MONO, fontSize: 11, color: TEXT_DIM, marginRight: 8, marginTop: 1 },
-  directiveText: { fontFamily: SANS, fontSize: 14, color: TEXT_DIM, flex: 1, lineHeight: 20 },
+  psycheBlock: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: BORDER,
+  },
 
-  // ── Typing indicator ──
-  typingRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 4 },
-  typingLabel: { fontFamily: MONO, fontSize: 10, color: TEXT_DIM, letterSpacing: 3, marginRight: 6 },
-  typingDot: { fontFamily: MONO, fontSize: 18, color: TEXT_DIM, lineHeight: 18, marginHorizontal: 2 },
+  directiveRow: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 5 },
+  directiveBullet: { fontFamily: MONO, fontSize: 11, color: TEXT_DIM, marginRight: 8, marginTop: 2 },
 
-  // ── Single-line loader ──
-  loaderText: { fontFamily: MONO, fontSize: 13, color: TEXT_DIM, paddingVertical: 20, paddingHorizontal: 4 },
+  nextProtocol: {
+    fontFamily: MONO,
+    fontSize: 10,
+    color: TEXT_DIM,
+    letterSpacing: 1.5,
+    marginTop: 2,
+  },
+
+  // ── Loading bubble ──
+  loaderLine: { fontFamily: MONO, fontSize: 13, color: ACCENT, letterSpacing: 1 },
+
+  // ── Phase overlay ──
+  phaseOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: '#000000',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 999,
+    paddingHorizontal: 30,
+  },
+  phaseOverlayText: {
+    fontFamily: MONO,
+    fontSize: 16,
+    color: ACCENT,
+    letterSpacing: 2,
+    textAlign: 'center',
+    marginBottom: 10,
+  },
+  phaseOverlaySubText: {
+    fontFamily: MONO,
+    fontSize: 13,
+    color: TEXT_DIM,
+    letterSpacing: 2,
+    textAlign: 'center',
+  },
 
   // ── Input area ──
   inputArea: {
     paddingHorizontal: 20,
     paddingBottom: 36,
-    paddingTop: 8,
+    paddingTop: 10,
     borderTopWidth: 1,
     borderTopColor: BORDER,
     backgroundColor: BG,
@@ -782,54 +867,56 @@ const styles = StyleSheet.create({
   errorText: { fontFamily: MONO, fontSize: 11, color: ERROR_RED, letterSpacing: 2, textAlign: 'center', marginBottom: 8 },
 
   imageThumbnailRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
-  imageThumbnail: { width: 44, height: 44, borderRadius: 4, borderWidth: 1, borderColor: BORDER },
-  imageRemove: { marginLeft: 8 },
-  imageRemoveText: { fontFamily: MONO, fontSize: 12, color: TEXT_DIM },
+  imageThumbnail: { width: 40, height: 40, borderRadius: 0, borderWidth: 1, borderColor: BORDER },
+  imageRemoveText: { fontFamily: MONO, fontSize: 12, color: TEXT_DIM, marginLeft: 8 },
   imageLabel: { fontFamily: MONO, fontSize: 10, color: TEXT_DIM, letterSpacing: 2, marginLeft: 8 },
 
-  // ── Debrief blocks ──
-  debriefBlock: {
-    marginBottom: 14,
-    paddingBottom: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: BORDER,
+  transcribingText: { fontFamily: MONO, fontSize: 11, color: ACCENT, letterSpacing: 2, marginBottom: 6 },
+
+  // ── CMD input row ──
+  cmdRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: BORDER,
+    backgroundColor: CARD_BG,
+    marginBottom: 10,
+    paddingLeft: 10,
   },
-  debriefText: {
-    fontFamily: SANS,
-    fontSize: 14,
-    color: TEXT_DIM,
-    lineHeight: 22,
+  cmdPrefix: { fontFamily: MONO, fontSize: 13, color: ACCENT, marginRight: 6 },
+  cmdInput: {
+    flex: 1,
+    fontFamily: MONO,
+    fontSize: 13,
+    color: TEXT_PRIMARY,
+    paddingVertical: 12,
+    paddingRight: 10,
   },
 
-  inputWrapper: { backgroundColor: CARD_BG, borderWidth: 1, borderColor: BORDER, borderRadius: 4, marginBottom: 10 },
-  input: { fontFamily: MONO, fontSize: 13, color: TEXT_PRIMARY, padding: 12, minHeight: 60, maxHeight: 120, lineHeight: 20 },
-
+  // ── Action row ──
   actionRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-
   iconButton: {
     width: 42,
     height: 42,
     borderWidth: 1,
     borderColor: BORDER,
-    borderRadius: 4,
+    borderRadius: 0,
     backgroundColor: CARD_BG,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  iconButtonActive: { borderColor: BORDER },
   iconButtonRecording: { borderColor: RECORD_RED },
   iconButtonText: { fontSize: 18 },
-
   recordingLabel: { fontFamily: MONO, fontSize: 9, color: RECORD_RED, letterSpacing: 2 },
 
   decodeButton: {
     flex: 1,
     backgroundColor: ACCENT,
-    borderRadius: 4,
-    paddingVertical: 13,
+    height: 42,
     alignItems: 'center',
-    overflow: 'hidden',
+    justifyContent: 'center',
+    borderRadius: 0,
   },
-  decodeButtonDisabled: { backgroundColor: '#557000' },
-  decodeButtonText: { fontFamily: MONO, fontSize: 13, fontWeight: '700', color: BG, letterSpacing: 4 },
+  decodeButtonDisabled: { backgroundColor: BORDER },
+  decodeButtonText: { fontFamily: MONO, fontSize: 12, color: BG, fontWeight: '700', letterSpacing: 3 },
 });

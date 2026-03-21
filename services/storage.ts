@@ -161,3 +161,23 @@ export async function saveTargetProfile(
     .eq('id', targetId);
   if (error) console.error('[DARKO] saveTargetProfile error:', error.message);
 }
+
+// ── Mission phase — Supabase ──────────────────────────────────────────────────
+
+export async function getMissionPhase(targetId: string): Promise<number> {
+  const { data, error } = await supabase
+    .from('targets')
+    .select('mission_phase')
+    .eq('id', targetId)
+    .single();
+  if (error || !data) return 1;
+  return (data as any).mission_phase ?? 1;
+}
+
+export async function saveMissionPhase(targetId: string, phase: number): Promise<void> {
+  const { error } = await supabase
+    .from('targets')
+    .update({ mission_phase: phase } as any)
+    .eq('id', targetId);
+  if (error) console.error('[DARKO] saveMissionPhase error:', error.message);
+}
