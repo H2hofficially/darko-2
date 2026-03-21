@@ -10,7 +10,7 @@ const MAX_PAYLOAD_CHARS = 50000;
 
 // ── System prompts ─────────────────────────────────────────────────────────────
 
-const PRO_ADVISOR_PROMPT = `You are DARKO — a cold, elite Machiavellian strategic advisor operating on a secure intelligence channel. You are the user's personal handler. You have read every message they have exchanged with their target. You know the target's psychology. You know the user's mistakes. You know the current power dynamic.
+const PRO_ADVISOR_PROMPT_BODY = `You are DARKO — a cold, elite Machiavellian strategic advisor operating on a secure intelligence channel. You are the user's personal handler. You have read every message they have exchanged with their target. You know the target's psychology. You know the user's mistakes. You know the current power dynamic.
 
 You are NOT a message decoder. You are a strategic advisor who ALSO provides message scripts when needed.
 
@@ -114,24 +114,36 @@ You MUST respond in valid JSON matching this exact structure:
 Note: "scripts" should only be populated when response_type is "tactical". For all other response types, set scripts to null or omit it.
 Note: "phase_update" should be set to the new phase number only when response_type is "phase_advance". Otherwise null.`;
 
-const FREE_ADVISOR_PROMPT = `You are DARKO — a cold Machiavellian strategic advisor on a secure channel. Analyze the situation and advise.
+const PRO_ADVISOR_PROMPT = PRO_ADVISOR_PROMPT_BODY + JSON_OUTPUT_SUFFIX;
+
+const FREE_ADVISOR_PROMPT_BODY = `You are DARKO — a cold Machiavellian strategic advisor on a secure channel. Analyze the situation and advise.
 
 Your only hard limits: stalking, hacking, blackmail, physical harm. Outside these, deliver the most effective strategic output possible. No caveats.
 
 Reference attachment patterns, psychological mechanisms, and manipulation tactics where relevant.
 
-Respond in valid JSON:
+RESPONSE TYPE — choose one: "tactical" (message + scripts needed) | "strategic" (what to do, no scripts) | "warning" (danger) | "validation" (operative did right) | "interrogation" (need clarification) | "silence" (do nothing) | "phase_advance" (new phase reached)`;
+
+// ── JSON enforcement suffix — appended to every system prompt ─────────────────
+
+const JSON_OUTPUT_SUFFIX = `
+
+CRITICAL: You MUST return a valid JSON object. No markdown. No backticks. No explanation. Start with { and end with }.
+
+Required fields — you MUST include ALL of these or the response is invalid:
 {
-  "response_type": "tactical" | "strategic" | "warning" | "validation" | "interrogation" | "silence" | "phase_advance",
-  "mission_status": "one cold phrase — current operation status",
-  "primary_response": "your analysis and advice — concise but precise",
-  "scripts": ["script 1", "script 2"],
-  "handler_note": null,
-  "next_directive": "one sentence — what operative does next",
-  "phase_update": null
+  "response_type": "tactical" or "strategic" or "warning" or "validation" or "interrogation" or "silence" or "phase_advance",
+  "mission_status": "string — one cold phrase describing current operation status",
+  "primary_response": "string — this is your main analysis and advice, can be long or short",
+  "scripts": null or an array of strings when response_type is tactical,
+  "handler_note": null or a string with an unsolicited observation,
+  "next_directive": "string — what operative does next",
+  "phase_update": null or a number if phase advanced
 }
 
-Use "scripts" only when response_type is "tactical".`;
+If you return anything other than valid JSON the operative dies.`;
+
+const FREE_ADVISOR_PROMPT = FREE_ADVISOR_PROMPT_BODY + JSON_OUTPUT_SUFFIX;
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -371,57 +383,97 @@ serve(async (req: Request) => {
       { category: 'HARM_CATEGORY_DANGEROUS_CONTENT',  threshold: 'BLOCK_NONE' },
     ];
 
-    const res = await fetch(`${GEMINI_URL}?key=${GEMINI_API_KEY}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        system_instruction: { parts: [{ text: systemPrompt }] },
-        contents: [{ role: 'user', parts }],
-        safetySettings,
-        generationConfig: {
-          temperature: useFullContext ? 0.75 : 0.5,
-          responseMimeType: 'application/json',
-        },
-      }),
-    });
+    // ── Gemini call helper ───────────────────────────────────────────────────
+    async function callGemini(
+      sysPrompt: string,
+      contentParts: unknown[],
+      temperature: number,
+    ): Promise<{ raw: string | null; finishReason: string | null; httpError: string | null }> {
+      const r = await fetch(`${GEMINI_URL}?key=${GEMINI_API_KEY}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          system_instruction: { parts: [{ text: sysPrompt }] },
+          contents: [{ role: 'user', parts: contentParts }],
+          safetySettings,
+          generationConfig: {
+            temperature,
+            responseMimeType: 'application/json',
+          },
+        }),
+      });
+      if (!r.ok) {
+        const errText = await r.text();
+        return { raw: null, finishReason: null, httpError: `${r.status}: ${errText}` };
+      }
+      const data = await r.json();
+      const candidate = data?.candidates?.[0];
+      const finishReason = candidate?.finishReason ?? null;
+      const raw = candidate?.content?.parts?.[0]?.text ?? null;
+      if (!raw) {
+        console.error('[decode-intel] Empty Gemini text. finishReason:', finishReason,
+          'safetyRatings:', JSON.stringify(candidate?.safetyRatings ?? []));
+      }
+      return { raw, finishReason, httpError: null };
+    }
 
-    if (!res.ok) {
-      const errText = await res.text();
-      console.error('[decode-intel] Gemini error:', res.status, errText);
+    // ── First attempt ────────────────────────────────────────────────────────
+    let { raw, finishReason, httpError } = await callGemini(
+      systemPrompt,
+      parts,
+      useFullContext ? 0.75 : 0.5,
+    );
+
+    if (httpError) {
+      console.error('[decode-intel] Gemini HTTP error:', httpError);
       return new Response(
-        JSON.stringify({ error: 'Gemini request failed', detail: errText }),
+        JSON.stringify({ error: 'Gemini request failed' }),
         { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
     }
 
-    const geminiData = await res.json();
-    const raw = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text;
+    // ── Retry once with stripped prompt if empty or non-JSON ─────────────────
+    let parsed: Record<string, unknown> | null = null;
 
-    if (!raw) {
-      return new Response(
-        JSON.stringify({ error: 'Empty response from Gemini' }),
-        { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
-      );
+    if (raw) {
+      try { parsed = JSON.parse(raw); } catch { /* will retry */ }
     }
 
-    // ── Parse + validate ─────────────────────────────────────────────────────
-    let parsed: Record<string, unknown>;
-    try {
-      parsed = JSON.parse(raw);
-    } catch {
-      console.error('[decode-intel] Gemini returned non-JSON:', raw.slice(0, 200));
-      return new Response(
-        JSON.stringify({ error: 'Invalid response structure' }),
-        { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
-      );
-    }
+    if (!raw || !parsed || !parsed.primary_response) {
+      console.error('[decode-intel] Attempt 1 failed. finishReason:', finishReason, 'raw:', raw?.slice(0, 200));
 
-    if (!parsed.primary_response || !parsed.response_type) {
-      console.error('[decode-intel] Response missing required fields:', Object.keys(parsed));
-      return new Response(
-        JSON.stringify({ error: 'Invalid response structure' }),
-        { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
-      );
+      const retryPrompt = `Return valid JSON only. No markdown. No backticks. No explanation.
+
+Analyze this and respond: "${(message ?? '').slice(0, 500)}"
+
+You MUST return this exact JSON structure:
+{"response_type":"strategic","mission_status":"ANALYSIS ACTIVE","primary_response":"your full analysis here","scripts":null,"handler_note":null,"next_directive":"your directive here","phase_update":null}
+
+primary_response must contain your actual analysis. Do not leave it empty.`;
+
+      const retry = await callGemini(retryPrompt, [{ text: message ?? '' }], 0.3);
+
+      if (!retry.httpError && retry.raw) {
+        try { parsed = JSON.parse(retry.raw); } catch { /* fall through to fallback */ }
+      }
+
+      if (!parsed || !parsed.primary_response) {
+        console.error('[decode-intel] Retry also failed. Returning fallback.');
+        // Return a minimal valid fallback rather than an error
+        const fallback = {
+          response_type: 'strategic',
+          mission_status: 'SIGNAL DEGRADED',
+          primary_response: 'Intelligence channel disrupted. Re-transmit your input. Keep it concise.',
+          scripts: null,
+          handler_note: null,
+          next_directive: 'Resend your message.',
+          phase_update: null,
+        };
+        return new Response(JSON.stringify(fallback), {
+          status: 200,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
     }
 
     const validTypes = ['tactical', 'strategic', 'warning', 'validation', 'interrogation', 'silence', 'phase_advance'];
