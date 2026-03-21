@@ -80,11 +80,7 @@ function computePhase(history: DecodeEntry[]): number {
   if (count === 0) return 1;
   if (count >= 20) return 5;
   if (count >= 10) return 4;
-  const hasHighThreat = history.some((e) => {
-    const score = parseFloat(e.result.threat_level);
-    return !isNaN(score) && score >= 7.0;
-  });
-  if (hasHighThreat) return 3;
+  if (count >= 5) return 3;
   if (count >= 2) return 2;
   return 1;
 }
@@ -198,10 +194,21 @@ const DarkoBubble = React.memo(function DarkoBubble({
 }) {
   const { result, phase } = msg;
   const phaseName = PHASE_NAMES[phase] ?? 'INITIAL RECONNAISSANCE';
-  const isDebrief = result.intent === 'full_debrief';
-  const isAdvice = result.intent === 'strategic_advice';
-  const label1 = isAdvice ? '// STRATEGIC DIRECTIVE 01' : '// OPTION 01';
-  const label2 = isAdvice ? '// STRATEGIC DIRECTIVE 02' : '// OPTION 02';
+  const rt = result.response_type ?? 'strategic';
+
+  // Border color: red for warnings, accent for everything else
+  const bubbleBorderColor = rt === 'warning' ? ERROR_RED : ACCENT;
+
+  // Primary response text style varies by type
+  const primaryTextStyle =
+    rt === 'warning'
+      ? [styles.primaryResponse, styles.primaryResponseWarning]
+      : rt === 'silence'
+      ? [styles.primaryResponse, styles.primaryResponseSilence]
+      : rt === 'interrogation'
+      ? [styles.primaryResponse, styles.primaryResponseInterrogation]
+      : [styles.primaryResponse];
+
   const nextProtocol =
     phase < 5
       ? `\uD83D\uDD12 ${PHASE_NAMES[phase + 1]} — STAND BY`
@@ -209,81 +216,52 @@ const DarkoBubble = React.memo(function DarkoBubble({
 
   return (
     <TouchableOpacity
-      style={styles.darkoBubble}
+      style={[styles.darkoBubble, { borderLeftColor: bubbleBorderColor }]}
       onLongPress={onLongPress}
       delayLongPress={400}
       activeOpacity={0.9}
     >
-      {/* Mission status header */}
-      <Text style={styles.darkoBubbleLabel}>
-        {'[ MISSION STATUS ]: '}
-        <Text style={{ color: ACCENT }}>
-          {'PHASE ' + phase + ' — ' + phaseName}
-        </Text>
-      </Text>
-      <Text style={styles.darkoBubbleLabel}>
-        {'[ VALIDATION ]: '}
-        <Text style={styles.darkoBubbleBody}>SIGNAL RECEIVED. ANALYSIS COMPILED.</Text>
+      {/* Mission status */}
+      <Text style={styles.missionStatusLabel}>
+        {'[ ' + (result.mission_status || 'ANALYSIS COMPILED') + ' ]'}
       </Text>
 
       <View style={styles.darkoBubbleDivider} />
 
-      {/* Threat level */}
-      <Text style={styles.threatLevel}>{result.threat_level}</Text>
+      {/* Primary response */}
+      <Text style={primaryTextStyle as any}>{result.primary_response}</Text>
 
-      {/* Response content */}
-      {isDebrief && result.debrief ? (
-        <>
-          <Text style={styles.darkoBubbleSectionLabel}>POWER DYNAMIC AUDIT</Text>
-          <Text style={styles.darkoBubbleBody}>{result.debrief.power_dynamic_audit}</Text>
-
-          <Text style={[styles.darkoBubbleSectionLabel, { marginTop: 12 }]}>PSYCHOLOGICAL PROFILE</Text>
-          <Text style={styles.darkoBubbleBody}>{result.debrief.psychological_profile}</Text>
-
-          <Text style={[styles.darkoBubbleSectionLabel, { marginTop: 12 }]}>CURRENT PHASE</Text>
-          <Text style={styles.darkoBubbleBody}>{result.debrief.current_phase}</Text>
-
-          <Text style={[styles.darkoBubbleSectionLabel, { marginTop: 12, color: ERROR_RED }]}>ERRORS MADE</Text>
-          {(result.debrief.errors_made ?? []).map((e: string, i: number) => (
-            <View key={i} style={styles.directiveRow}>
-              <Text style={[styles.directiveBullet, { color: ERROR_RED }]}>&gt;</Text>
-              <Text style={[styles.darkoBubbleBody, { color: '#CC4422', flex: 1 }]}>{e}</Text>
+      {/* Scripts — only for tactical */}
+      {rt === 'tactical' && result.scripts && result.scripts.length > 0 && (
+        <View style={styles.scriptsContainer}>
+          {result.scripts.map((script: string, i: number) => (
+            <View key={i} style={styles.scriptBox}>
+              <Text style={styles.scriptBoxLabel}>{'// SCRIPT ' + String(i + 1).padStart(2, '0')}</Text>
+              <Text style={styles.scriptBoxText}>{script}</Text>
             </View>
           ))}
-
-          <Text style={[styles.darkoBubbleSectionLabel, { marginTop: 12 }]}>NEXT MOVE</Text>
-          <Text style={[styles.darkoBubbleBody, { color: TEXT_PRIMARY }]}>{result.debrief.next_move}</Text>
-        </>
-      ) : (
-        <>
-          <Text style={styles.darkoBubbleSectionLabel}>{label1}</Text>
-          <Text style={styles.darkoBubbleBody}>{result.option_1_script}</Text>
-
-          <Text style={[styles.darkoBubbleSectionLabel, { marginTop: 12 }]}>{label2}</Text>
-          <Text style={styles.darkoBubbleBody}>{result.option_2_script}</Text>
-        </>
+        </View>
       )}
 
-      {/* Psychology block */}
-      <View style={styles.psycheBlock}>
-        <Text style={styles.darkoBubbleSectionLabel}>PSYCHE ANALYSIS</Text>
-        <Text style={styles.darkoBubbleBody}>{result.the_psyche}</Text>
-
-        <Text style={[styles.darkoBubbleSectionLabel, { marginTop: 10 }]}>DIRECTIVES</Text>
-        {(result.the_directive ?? []).map((d: string, i: number) => (
-          <View key={i} style={styles.directiveRow}>
-            <Text style={styles.directiveBullet}>&gt;</Text>
-            <Text style={[styles.darkoBubbleBody, { flex: 1 }]}>{d}</Text>
-          </View>
-        ))}
-      </View>
+      {/* Handler note — unsolicited observation */}
+      {result.handler_note && (
+        <View style={styles.handlerNoteBox}>
+          <Text style={styles.handlerNoteText}>
+            {'[ HANDLER NOTE ]: ' + result.handler_note}
+          </Text>
+        </View>
+      )}
 
       <View style={styles.darkoBubbleDivider} />
 
-      {/* Next protocol */}
-      <Text style={styles.nextProtocol}>
-        {'[ NEXT PROTOCOL ]: ' + nextProtocol}
-      </Text>
+      {/* Next directive */}
+      {result.next_directive ? (
+        <Text style={rt === 'validation' ? styles.nextDirectiveAccent : styles.nextDirective}>
+          {result.next_directive}
+        </Text>
+      ) : (
+        <Text style={styles.nextProtocol}>{'[ NEXT PROTOCOL ]: ' + nextProtocol}</Text>
+      )}
     </TouchableOpacity>
   );
 });
@@ -517,15 +495,16 @@ export default function DecodeScreen() {
       inputMessage: inputSnapshot,
       result,
       timestamp: new Date().toISOString(),
-      auto_detected_mode: result.auto_detected_mode,
     };
     await addDecodeEntry(targetId, entry);
     const updatedHistory = await getHistory(targetId);
     setHistory(updatedHistory);
 
-    // Phase advancement check
-    const newPhase = computePhase(updatedHistory);
-    const phaseAdvanced = newPhase > currentPhase;
+    // Phase advancement check — count-based OR Gemini-suggested OR phase_advance response type
+    const countPhase = computePhase(updatedHistory);
+    const suggestedPhase = result.phase_update ?? 0;
+    const newPhase = Math.max(countPhase, suggestedPhase);
+    const phaseAdvanced = newPhase > currentPhase || result.response_type === 'phase_advance';
 
     if (phaseAdvanced) {
       setCurrentPhase(newPhase);
@@ -560,35 +539,25 @@ export default function DecodeScreen() {
 
   const handleDarkoBubbleLongPress = useCallback(async (msg: Extract<ChatMsg, { type: 'darko' }>) => {
     const { result } = msg;
-    const isDebrief = result.intent === 'full_debrief';
-    const text = isDebrief && result.debrief
-      ? [
-          `THREAT: ${result.threat_level}`,
-          '',
-          'POWER DYNAMIC AUDIT',
-          result.debrief.power_dynamic_audit,
-          '',
-          'PSYCHOLOGICAL PROFILE',
-          result.debrief.psychological_profile,
-          '',
-          'ERRORS MADE',
-          ...(result.debrief.errors_made ?? []).map((e: string) => `  > ${e}`),
-          '',
-          'NEXT MOVE',
-          result.debrief.next_move,
-        ].join('\n')
-      : [
-          `THREAT: ${result.threat_level}`,
-          '',
-          result.option_1_script,
-          '',
-          result.option_2_script,
-          '',
-          result.the_psyche,
-          '',
-          ...(result.the_directive ?? []).map((d: string) => `  > ${d}`),
-        ].join('\n');
-    await Clipboard.setStringAsync(text);
+    const lines: string[] = [
+      `[ ${result.mission_status || 'DARKO'} ]`,
+      '',
+      result.primary_response,
+    ];
+    if (result.scripts && result.scripts.length > 0) {
+      lines.push('');
+      result.scripts.forEach((s: string, i: number) => {
+        lines.push(`// SCRIPT ${String(i + 1).padStart(2, '0')}`);
+        lines.push(s);
+      });
+    }
+    if (result.handler_note) {
+      lines.push('', `[ HANDLER NOTE ]: ${result.handler_note}`);
+    }
+    if (result.next_directive) {
+      lines.push('', `> ${result.next_directive}`);
+    }
+    await Clipboard.setStringAsync(lines.join('\n'));
     Alert.alert('COPIED', 'Intelligence copied to clipboard.');
   }, []);
 
@@ -773,48 +742,82 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     marginRight: 20,
   },
-  darkoBubbleLabel: {
+  darkoBubbleDivider: { height: 1, backgroundColor: BORDER, marginVertical: 10 },
+
+  missionStatusLabel: {
     fontFamily: MONO,
-    fontSize: 10,
-    color: TEXT_DIM,
-    letterSpacing: 1.5,
-    marginBottom: 4,
-  },
-  darkoBubbleSectionLabel: {
-    fontFamily: MONO,
-    fontSize: 10,
+    fontSize: 9,
     color: TEXT_DIM,
     letterSpacing: 2,
-    marginBottom: 5,
+    marginBottom: 2,
     textTransform: 'uppercase',
   },
-  darkoBubbleBody: {
+
+  // Primary response — varies by type
+  primaryResponse: {
     fontFamily: SANS,
     fontSize: 15,
     color: TEXT_PRIMARY,
-    lineHeight: 22,
+    lineHeight: 23,
+    marginBottom: 4,
   },
-  darkoBubbleDivider: { height: 1, backgroundColor: BORDER, marginVertical: 10 },
-
-  threatLevel: {
-    fontFamily: MONO,
+  primaryResponseWarning: {
     fontSize: 16,
-    fontWeight: '700',
-    color: ACCENT,
-    letterSpacing: 1,
-    marginBottom: 12,
+    color: '#FF6644',
+    lineHeight: 24,
+  },
+  primaryResponseSilence: {
+    color: TEXT_DIM,
+    fontStyle: 'italic' as const,
+  },
+  primaryResponseInterrogation: {
+    color: TEXT_PRIMARY,
+    fontStyle: 'italic' as const,
   },
 
-  psycheBlock: {
-    marginTop: 12,
-    paddingTop: 12,
+  // Scripts (tactical only)
+  scriptsContainer: { marginTop: 12 },
+  scriptBox: {
+    backgroundColor: CARD_BG,
+    borderWidth: 1,
+    borderColor: BORDER,
+    borderRadius: 0,
+    padding: 12,
+    marginBottom: 8,
+  },
+  scriptBoxLabel: { fontFamily: MONO, fontSize: 9, color: TEXT_DIM, letterSpacing: 3, marginBottom: 5 },
+  scriptBoxText: { fontFamily: SANS, fontSize: 15, color: TEXT_PRIMARY, lineHeight: 22 },
+
+  // Handler note
+  handlerNoteBox: {
+    marginTop: 10,
+    paddingTop: 10,
     borderTopWidth: 1,
     borderTopColor: BORDER,
   },
+  handlerNoteText: {
+    fontFamily: MONO,
+    fontSize: 11,
+    color: TEXT_DIM,
+    lineHeight: 18,
+    fontStyle: 'italic' as const,
+  },
 
-  directiveRow: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: 5 },
-  directiveBullet: { fontFamily: MONO, fontSize: 11, color: TEXT_DIM, marginRight: 8, marginTop: 2 },
-
+  // Next directive
+  nextDirective: {
+    fontFamily: MONO,
+    fontSize: 11,
+    color: TEXT_DIM,
+    letterSpacing: 1,
+    lineHeight: 18,
+  },
+  nextDirectiveAccent: {
+    fontFamily: MONO,
+    fontSize: 11,
+    color: ACCENT,
+    letterSpacing: 1,
+    lineHeight: 18,
+  },
   nextProtocol: {
     fontFamily: MONO,
     fontSize: 10,

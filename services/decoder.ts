@@ -2,20 +2,13 @@ import { supabase } from '../lib/supabase';
 import { DecodeEntry, TargetProfile } from './storage';
 
 export type DecoderResult = {
-  intent: 'text_back' | 'strategic_advice' | 'full_debrief';
-  option_1_script: string;
-  option_2_script: string;
-  threat_level: string;
-  the_psyche: string;
-  the_directive: [string, string, string];
-  auto_detected_mode?: string;
-  debrief?: {
-    power_dynamic_audit: string;
-    psychological_profile: string;
-    errors_made: string[];
-    current_phase: string;
-    next_move: string;
-  };
+  response_type: 'tactical' | 'strategic' | 'warning' | 'validation' | 'interrogation' | 'silence' | 'phase_advance';
+  mission_status: string;
+  primary_response: string;
+  scripts?: string[] | null;
+  handler_note?: string | null;
+  next_directive: string;
+  phase_update?: number | null;
 };
 
 export type DecodeInput = {
@@ -33,9 +26,9 @@ function buildHistory(history: DecodeEntry[]) {
   return history.map((e) => ({
     inputMessage: e.inputMessage,
     result: {
-      threat_level: e.result.threat_level,
-      the_psyche: e.result.the_psyche,
-      the_directive: e.result.the_directive,
+      response_type: (e.result as any).response_type ?? 'strategic',
+      primary_response: (e.result as any).primary_response ?? (e.result as any).the_psyche ?? '',
+      next_directive: (e.result as any).next_directive ?? ((e.result as any).the_directive ?? []).join(' | '),
     },
   }));
 }
@@ -92,16 +85,15 @@ export async function decodeMessage(
       return null;
     }
 
-    const validIntents = ['text_back', 'strategic_advice', 'full_debrief'] as const;
+    const validTypes = ['tactical', 'strategic', 'warning', 'validation', 'interrogation', 'silence', 'phase_advance'] as const;
     return {
-      intent: validIntents.includes(data.intent) ? data.intent : 'text_back',
-      option_1_script: data.option_1_script ?? '',
-      option_2_script: data.option_2_script ?? '',
-      threat_level: data.threat_level,
-      the_psyche: data.the_psyche,
-      the_directive: data.the_directive,
-      auto_detected_mode: data.auto_detected_mode ?? undefined,
-      ...(data.debrief ? { debrief: data.debrief } : {}),
+      response_type: validTypes.includes(data.response_type) ? data.response_type : 'strategic',
+      mission_status: data.mission_status ?? '',
+      primary_response: data.primary_response ?? '',
+      scripts: Array.isArray(data.scripts) && data.scripts.length > 0 ? data.scripts : null,
+      handler_note: data.handler_note ?? null,
+      next_directive: data.next_directive ?? '',
+      phase_update: data.phase_update ? Number(data.phase_update) : null,
     };
   } catch (err) {
     console.error('[DARKO] decodeMessage error:', err);
@@ -146,8 +138,8 @@ export async function generateTargetProfile(
         history: history.map((e) => ({
           inputMessage: e.inputMessage,
           result: {
-            threat_level: e.result.threat_level,
-            the_psyche: e.result.the_psyche,
+            threat_level: (e.result as any).mission_status ?? '',
+            the_psyche: (e.result as any).primary_response ?? (e.result as any).the_psyche ?? '',
           },
         })),
       },

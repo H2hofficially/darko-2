@@ -14,7 +14,6 @@ export type DecodeEntry = {
   inputMessage: string;
   result: DecoderResult;
   timestamp: string;
-  auto_detected_mode?: string;
 };
 
 export type MbtiProfile = {
