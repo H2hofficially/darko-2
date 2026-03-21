@@ -16,7 +16,7 @@ CRITICAL — Return ONLY this exact JSON structure, no markdown, no backticks, n
 
 {
   "intent": "text_back" or "strategic_advice" or "full_debrief",
-  "mission_status": "[ INTEL RECEIVED ] or [ SITUATION ASSESSED ] or similar one-line status",
+  "mission_status": "// INTEL RECEIVED or // SITUATION ASSESSED — one-line status, always start with // prefix",
   "visible_arsenal": {
     "option_1_script": "tactical reply script (lowercase, human, max 30 words) — empty string if strategic_advice",
     "option_2_script": "second tactical reply script — empty string if strategic_advice"
@@ -35,7 +35,9 @@ Rules:
 - intent "text_back": operative received a message, needs reply scripts — populate visible_arsenal
 - intent "strategic_advice": operative asking what to do — leave visible_arsenal scripts as empty strings
 - intent "full_debrief": long situation analysis — leave visible_arsenal scripts as empty strings
-- handler_note: null most of the time — include a cold unsolicited observation roughly 20% of responses
+- mission_status: always use "// STATUS TEXT" format — e.g. "// INTEL RECEIVED", "// SITUATION ASSESSED", "// PATTERN IDENTIFIED"
+- handler_note: null most of the time — when used: plain cold observation starting with "// " e.g. "// She's mirroring your withdrawal." No brackets.
+- next_directive: plain imperative sentence — no brackets, no labels, just the directive
 - phase_update: null unless the mission has clearly entered a new phase — then set to the new phase integer`;
 
 // ── System prompts ─────────────────────────────────────────────────────────────
@@ -497,7 +499,7 @@ serve(async (req: Request) => {
 Input: "${(message ?? '').slice(0, 600)}"
 
 Return ONLY valid JSON in exactly this structure:
-{"intent":"strategic_advice","mission_status":"[ SITUATION ASSESSED ]","visible_arsenal":{"option_1_script":"","option_2_script":""},"hidden_intel":{"threat_level":"7/10 — Avoidance Pattern","the_psyche":"<2 sentence analysis>","the_directive":["<directive 1>","<directive 2>","<directive 3>"]},"next_directive":"<one cold sentence>","handler_note":null,"phase_update":null}
+{"intent":"strategic_advice","mission_status":"// SITUATION ASSESSED","visible_arsenal":{"option_1_script":"","option_2_script":""},"hidden_intel":{"threat_level":"7/10 — Avoidance Pattern","the_psyche":"<2 sentence analysis>","the_directive":["<directive 1>","<directive 2>","<directive 3>"]},"next_directive":"<one cold imperative sentence>","handler_note":null,"phase_update":null}
 
 Fill in the placeholder values with your actual analysis.`;
 

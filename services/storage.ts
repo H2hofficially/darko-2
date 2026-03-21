@@ -14,6 +14,7 @@ export type DecodeEntry = {
   inputMessage: string;
   result: DecoderResult;
   timestamp: string;
+  isEdited?: boolean;
 };
 
 export type MbtiProfile = {
@@ -31,6 +32,17 @@ export type TargetProfile = {
   summary: string;
   relationship_brief?: string;
   mbti_profile?: MbtiProfile;
+  // Dossier fields
+  strengths?: string[];
+  weaknesses?: string[];
+  likes?: string[];
+  dislikes?: string[];
+  birthday?: string | null;
+  location?: string | null;
+  manipulation_vectors?: string[];
+  power_dynamic?: string;
+  predicted_next_behavior?: string;
+  key_turning_points?: string[];
   generatedAt: string;
 };
 
@@ -136,6 +148,18 @@ export async function addDecodeEntry(
     message_content: entry,
   });
   if (error) console.error('[DARKO] addDecodeEntry error:', error.message);
+}
+
+export async function updateDecodeEntry(
+  targetId: string,
+  entry: DecodeEntry,
+): Promise<void> {
+  const { error } = await supabase
+    .from('intelligence_logs')
+    .update({ message_content: entry })
+    .eq('target_id', targetId)
+    .filter('message_content->>id', 'eq', entry.id);
+  if (error) console.error('[DARKO] updateDecodeEntry error:', error.message);
 }
 
 // ── Target Profile — Supabase (behavioral_profile column on targets) ──────────

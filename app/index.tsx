@@ -152,7 +152,7 @@ export default function ProfilesScreen() {
 
       <View style={styles.header}>
         <View>
-          <Text style={styles.headerLabel}>[ DARKO ]</Text>
+          <Text style={styles.headerLabel}>// DARKO</Text>
           <Text style={styles.headerSub}>target profiles</Text>
         </View>
         <TouchableOpacity
