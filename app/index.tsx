@@ -16,6 +16,7 @@ import { StatusBar } from 'expo-status-bar';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getTargets, saveTarget, deleteTarget, getDecodeCount, type Target } from '../services/storage';
 import { supabase } from '../lib/supabase';
+import { registerPushToken } from '../services/notifications';
 
 const ACCENT = '#CCFF00';
 const BG = '#09090B';
@@ -50,6 +51,7 @@ export default function ProfilesScreen() {
         router.replace('/auth');
       } else {
         setAuthReady(true);
+        registerPushToken(); // non-blocking — requests permission and saves token
       }
     })();
 

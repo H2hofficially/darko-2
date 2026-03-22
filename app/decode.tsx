@@ -554,8 +554,15 @@ function DossierPanel({ visible, onClose, loading, targetName, leverage, objecti
 
 // ─── Main screen ──────────────────────────────────────────────────────────────
 
+const DARKO_ALERT_BODIES: Record<string, string> = {
+  SILENCE_WINDOW: 'Re-engagement window detected. Target silence threshold for this phase has been crossed.',
+  ADVANCEMENT_SIGNAL: 'Target showing advancement signals in the arc. Strike while momentum holds — do not wait.',
+  MISTAKE_FOLLOWUP: 'Last decode flagged operative errors. Course correction required before your next move.',
+  RE_ENGAGEMENT: 'Target silence extending past threshold. The window is closing — act now or lose the frame.',
+};
+
 export default function DecodeScreen() {
-  const { targetId, targetName } = useLocalSearchParams<{ targetId: string; targetName: string }>();
+  const { targetId, targetName, darkoAlert } = useLocalSearchParams<{ targetId: string; targetName: string; darkoAlert?: string }>();
   const router = useRouter();
 
   const [history, setHistory] = useState<DecodeEntry[]>([]);
@@ -605,7 +612,30 @@ export default function DecodeScreen() {
       const computedPhase = computePhase(hist);
       const effectivePhase = Math.max(storedPhase, computedPhase);
       setCurrentPhase(effectivePhase);
-      setChatMessages(historyToChatMsgs(hist));
+      const msgs = historyToChatMsgs(hist);
+
+      // If navigated from a push notification, inject DARKO alert as the newest message
+      if (darkoAlert) {
+        const alertBody = DARKO_ALERT_BODIES[darkoAlert] ?? 'Proactive alert from DARKO handler.';
+        const alertMsg: ChatMsg = {
+          id: 'darko_push_alert_' + Date.now(),
+          type: 'darko',
+          result: {
+            response_type: 'warning',
+            mission_status: '// DARKO ALERT — ' + darkoAlert.replace(/_/g, ' '),
+            primary_response: alertBody,
+            scripts: null,
+            handler_note: null,
+            next_directive: 'Assess the situation and decode your next move.',
+            phase_update: null,
+          },
+          phase: effectivePhase,
+          timestamp: new Date().toISOString(),
+        };
+        msgs.push(alertMsg);
+      }
+
+      setChatMessages(msgs);
       if (tgt) {
         setTargetLeverage(tgt.leverage);
         setTargetObjective(tgt.objective);

@@ -43,6 +43,10 @@ export type TargetProfile = {
   power_dynamic?: string;
   predicted_next_behavior?: string;
   key_turning_points?: string[];
+  operative_mistakes?: string[];
+  target_communication_style?: string;
+  relationship_momentum?: string;
+  last_known_emotional_state?: string;
   generatedAt: string;
 };
 
@@ -128,14 +132,17 @@ export async function getDecodeCount(targetId: string): Promise<number> {
 export async function getHistory(targetId: string): Promise<DecodeEntry[]> {
   const { data, error } = await supabase
     .from('intelligence_logs')
-    .select('message_content')
+    .select('message_content, created_at')
     .eq('target_id', targetId)
     .order('created_at', { ascending: true });
   if (error) {
     console.error('[DARKO] getHistory error:', error.message);
     return [];
   }
-  return (data ?? []).map((row) => row.message_content as DecodeEntry);
+  return (data ?? []).map((row) => ({
+    ...(row.message_content as DecodeEntry),
+    timestamp: row.created_at,
+  }));
 }
 
 export async function addDecodeEntry(

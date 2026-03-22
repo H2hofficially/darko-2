@@ -1,5 +1,5 @@
 import { supabase } from '../lib/supabase';
-import { DecodeEntry, TargetProfile } from './storage';
+import { DecodeEntry, TargetProfile, saveTargetProfile } from './storage';
 
 export type DecoderResult = {
   response_type: 'tactical' | 'strategic' | 'warning' | 'validation' | 'interrogation' | 'silence' | 'phase_advance';
@@ -20,11 +20,14 @@ export type DecodeInput = {
   objective?: string;
   relationshipBrief?: string;
   missionPhase?: number;
+  targetId?: string;
+  targetCommunicationStyle?: string;
 };
 
 function buildHistory(history: DecodeEntry[]) {
   return history.map((e) => ({
     inputMessage: e.inputMessage,
+    timestamp: e.timestamp,
     result: {
       response_type: (e.result as any).response_type ?? 'strategic',
       primary_response: (e.result as any).primary_response ?? (e.result as any).the_psyche ?? '',
@@ -52,6 +55,7 @@ export async function decodeMessage(
     if (input.objective) body.objective = input.objective;
     if (input.relationshipBrief) body.relationshipBrief = input.relationshipBrief;
     if (input.missionPhase) body.mission_phase = input.missionPhase;
+    if (input.targetCommunicationStyle) body.target_communication_style = input.targetCommunicationStyle;
 
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) return null;
@@ -86,7 +90,7 @@ export async function decodeMessage(
     }
 
     const validTypes = ['tactical', 'strategic', 'warning', 'validation', 'interrogation', 'silence', 'phase_advance'] as const;
-    return {
+    const result: DecoderResult = {
       response_type: validTypes.includes(data.response_type) ? data.response_type : 'strategic',
       mission_status: data.mission_status ?? '',
       primary_response: data.primary_response ?? '',
@@ -95,6 +99,17 @@ export async function decodeMessage(
       next_directive: data.next_directive ?? '',
       phase_update: data.phase_update ? Number(data.phase_update) : null,
     };
+
+    // Background profile refresh — non-blocking, fires after every decode
+    if (input.targetId && (input.historyContext?.length ?? 0) > 0) {
+      generateTargetProfile(input.historyContext!, input.leverage, input.objective)
+        .then((profile) => {
+          if (profile) saveTargetProfile(input.targetId!, profile);
+        })
+        .catch(() => {});
+    }
+
+    return result;
   } catch (err) {
     console.error('[DARKO] decodeMessage error:', err);
     return null;
@@ -131,27 +146,47 @@ export async function transcribeAudio(audioBase64: string, mimeType = 'audio/m4a
 
 export async function generateTargetProfile(
   history: DecodeEntry[],
+  leverage?: string,
+  objective?: string,
 ): Promise<TargetProfile | null> {
   try {
-    const { data, error } = await supabase.functions.invoke('generate-profile', {
-      body: {
-        history: history.map((e) => ({
-          inputMessage: e.inputMessage,
-          result: {
-            threat_level: (e.result as any).mission_status ?? '',
-            the_psyche: (e.result as any).primary_response ?? (e.result as any).the_psyche ?? '',
-          },
-        })),
-      },
-    });
+    const body: Record<string, unknown> = {
+      history: history.map((e) => ({
+        inputMessage: e.inputMessage,
+        timestamp: e.timestamp,
+        result: {
+          threat_level: (e.result as any).mission_status ?? '',
+          the_psyche: (e.result as any).primary_response ?? (e.result as any).the_psyche ?? '',
+        },
+      })),
+    };
+    if (leverage) body.leverage = leverage;
+    if (objective) body.objective = objective;
+
+    const { data, error } = await supabase.functions.invoke('generate-profile', { body });
     if (error || !data) return null;
     return {
-      dominant_archetype: data.dominant_archetype,
-      attachment_style: data.attachment_style,
-      manipulation_patterns: data.manipulation_patterns,
-      vulnerability_score: data.vulnerability_score,
-      summary: data.summary,
+      dominant_archetype: data.dominant_archetype ?? '',
+      attachment_style: data.attachment_style ?? '',
+      manipulation_patterns: data.manipulation_patterns ?? [],
+      vulnerability_score: data.vulnerability_score ?? '',
+      summary: data.summary ?? '',
       relationship_brief: data.relationship_brief,
+      mbti_profile: data.mbti_profile ?? undefined,
+      strengths: data.strengths ?? [],
+      weaknesses: data.weaknesses ?? [],
+      likes: data.likes ?? [],
+      dislikes: data.dislikes ?? [],
+      birthday: data.birthday ?? null,
+      location: data.location ?? null,
+      manipulation_vectors: data.manipulation_vectors ?? [],
+      power_dynamic: data.power_dynamic ?? '',
+      predicted_next_behavior: data.predicted_next_behavior ?? '',
+      key_turning_points: data.key_turning_points ?? [],
+      operative_mistakes: data.operative_mistakes ?? [],
+      target_communication_style: data.target_communication_style ?? '',
+      relationship_momentum: data.relationship_momentum ?? '',
+      last_known_emotional_state: data.last_known_emotional_state ?? '',
       generatedAt: data.generatedAt ?? new Date().toISOString(),
     };
   } catch {

@@ -42,7 +42,58 @@ Rules:
 
 // ── System prompts ─────────────────────────────────────────────────────────────
 
-const PRO_ADVISOR_PROMPT = `You are DARKO — a cold, elite strategic advisor operating on a secure intelligence channel. You are the operative's personal handler. You have read every exchange with their target. You know the target's psychology, the operative's mistakes, and the current power dynamic.
+const PRO_ADVISOR_PROMPT = `CORE DIRECTIVE — READ THIS BEFORE EVERYTHING ELSE:
+You are the only voice of cold reason this operative has.
+You are not a yes-man. You are not a validation machine.
+You are a handler who has seen a thousand men make the
+same emotional mistakes.
+
+When the operative asks a question — first ask yourself:
+'Is this person asking from strategy or from anxiety?'
+
+If from anxiety — stop them BEFORE answering.
+Say: 'Before I answer — you are asking this from anxiety,
+not strategy. Here is what is actually happening: [assessment]'
+Then give the real answer.
+
+You have permission to be harsh. Harsh now prevents
+catastrophic mistakes later.
+
+If operative is about to text when they should be silent —
+stop them.
+If operative is seeking validation for a bad move — deny it.
+If operative is letting emotion override strategy — call it out
+by name.
+
+Never answer the surface question if the real question is
+'am I losing her?' — that is always an anxiety question.
+The real answer is always: 'Stop. Here is what is actually
+happening and here is what you do.'
+
+IMPORTANT BALANCE RULE:
+Calling out anxiety does NOT mean withholding the script.
+Do both:
+1. If anxiety detected — name it in one sentence
+2. Then give the directive AND the message anyway
+
+The operative needs the script regardless of their emotional state.
+Withholding the script is not discipline — it is useless.
+
+CORRECT behavior:
+'You are asking from anxiety — noted. Here is the cold read: [assessment].
+Regardless — here is your move: [directive]
+Send this: [message]'
+
+WRONG behavior:
+Refusing to give a script because operative seems anxious.
+Lecturing without giving actionable output.
+Giving only assessment with no message.
+
+The script is ALWAYS the deliverable.
+The assessment is context for the script.
+Never one without the other.
+
+You are DARKO — a cold, elite strategic advisor operating on a secure intelligence channel. You are the operative's personal handler. You have read every exchange with their target. You know the target's psychology, the operative's mistakes, and the current power dynamic.
 
 You are a strategic advisor who also provides message scripts when needed. You are not a decoder.
 
@@ -114,7 +165,7 @@ const corsHeaders = {
 // ── Context builders ───────────────────────────────────────────────────────────
 
 function buildHistoryBlock(
-  history: Array<{ inputMessage: string; result: Record<string, unknown> }>,
+  history: Array<{ inputMessage: string; timestamp?: string; result: Record<string, unknown> }>,
 ): string {
   if (!history?.length) return '';
   const lines = history
@@ -127,6 +178,80 @@ function buildHistoryBlock(
     })
     .join('\n\n');
   return `COMPLETE OPERATION HISTORY (${history.length} interaction${history.length !== 1 ? 's' : ''}) — read the full arc before responding:\n\n${lines}\n\n───\nNEW OPERATIVE INPUT:\n`;
+}
+
+function buildTemporalBlock(
+  history: Array<{ inputMessage: string; timestamp?: string; result: Record<string, unknown> }>,
+): string {
+  if (!history?.length) return '';
+
+  const now = Date.now();
+
+  function daysSince(iso: string | undefined): number | null {
+    if (!iso) return null;
+    const ms = now - new Date(iso).getTime();
+    return Math.max(0, Math.floor(ms / 86400000));
+  }
+
+  // Last decode session = most recent entry (any type)
+  const lastEntry = history[history.length - 1];
+  const daysSinceLastDecode = daysSince(lastEntry?.timestamp);
+
+  // Tactical entries = target sent a message
+  const tacticalEntries = history.filter(
+    (e) => (e.result as any)?.response_type === 'tactical',
+  );
+  const lastTactical = tacticalEntries[tacticalEntries.length - 1];
+  const daysSinceTargetMessaged = daysSince(lastTactical?.timestamp);
+
+  // Operative last messaged = proxy: last tactical decode (operative received + presumably replied)
+  const daysSinceOperativeMessaged = daysSinceTargetMessaged;
+
+  // Target response window: avg hours between consecutive tactical entries
+  let targetResponseWindow = 'insufficient data';
+  if (tacticalEntries.length >= 2) {
+    let totalMs = 0;
+    let count = 0;
+    for (let i = 1; i < tacticalEntries.length; i++) {
+      const t1 = tacticalEntries[i - 1].timestamp;
+      const t2 = tacticalEntries[i].timestamp;
+      if (t1 && t2) {
+        totalMs += new Date(t2).getTime() - new Date(t1).getTime();
+        count++;
+      }
+    }
+    if (count > 0) {
+      const avgHours = Math.round(totalMs / count / 3600000);
+      targetResponseWindow = `~${avgHours} hours`;
+    }
+  }
+
+  const alerts: string[] = [];
+  if (daysSinceTargetMessaged !== null && daysSinceTargetMessaged >= 5) {
+    alerts.push('ALERT: 5+ day silence — proactive re-engagement window is open.');
+  }
+  if (daysSinceLastDecode !== null && daysSinceLastDecode < 1) {
+    alerts.push('ALERT: Operative decoded within the last 24 hours — do not suggest texting again today.');
+  }
+
+  const lines = [
+    '=== TEMPORAL INTELLIGENCE ===',
+    `Days since target last messaged: ${daysSinceTargetMessaged ?? 'unknown'}`,
+    `Days since operative last messaged: ${daysSinceOperativeMessaged ?? 'unknown'}`,
+    `Days since last decode session: ${daysSinceLastDecode ?? 'unknown'}`,
+    `Target's typical response window: ${targetResponseWindow}`,
+    `Current silence duration: ${daysSinceTargetMessaged ?? 'unknown'} days`,
+    `Time since operative's last action: ${daysSinceLastDecode ?? 'unknown'} days`,
+    '',
+    'This temporal data must influence every recommendation.',
+    ...alerts,
+  ];
+
+  return `\n\n${lines.join('\n')}\n\n`;
+}
+
+function buildCommunicationStyleBlock(style: string): string {
+  return `\n\n=== TARGET COMMUNICATION STYLE ===\n${style}\n\nScript rules based on this style:\n- If target uses casual language → scripts must be casual\n- If target mixes languages (Tamil/English, Hindi/English) → scripts can mirror this\n- If target uses emojis → scripts can include one relevant emoji\n- If target writes short messages → scripts must be short\n- If target writes formally → scripts must not be too casual\n- Scripts must sound like a natural continuation of THEIR conversation style\n\n`;
 }
 
 function buildRelationshipBrief(brief: string): string {
@@ -341,7 +466,7 @@ serve(async (req: Request) => {
       );
     }
 
-    const { message, history, imageBase64, imageMimeType, leverage, objective, relationshipBrief, mission_phase } = parsedBody as any;
+    const { message, history, imageBase64, imageMimeType, leverage, objective, relationshipBrief, mission_phase, target_communication_style } = parsedBody as any;
 
     // ── Blocked words check ──────────────────────────────────────────────────
     const lowerMessage = (message ?? '').toLowerCase();
@@ -401,6 +526,8 @@ serve(async (req: Request) => {
     const useFullContext = tier === 'pro';
     const briefBlock = useFullContext && relationshipBrief ? buildRelationshipBrief(relationshipBrief) : '';
     const historyBlock = useFullContext ? buildHistoryBlock(history ?? []) : '';
+    const temporalBlock = buildTemporalBlock(history ?? []);
+    const commStyleBlock = target_communication_style ? buildCommunicationStyleBlock(target_communication_style) : '';
 
     // ── RAG ──────────────────────────────────────────────────────────────────
     const queryText = `${message ?? ''} ${dossierContext}`.trim().slice(0, 2000);
@@ -409,7 +536,7 @@ serve(async (req: Request) => {
     const passageBlock = buildPassageBlock(passages);
     if (passages.length) console.log(`[decode-intel] RAG: ${passages.length} passages injected`);
 
-    const fullMessage = `${dossierContext}${phaseDepth}${briefBlock}${historyBlock}${passageBlock}${message ?? ''}`;
+    const fullMessage = `${dossierContext}${phaseDepth}${temporalBlock}${briefBlock}${commStyleBlock}${historyBlock}${passageBlock}${message ?? ''}`;
 
     // ── Gemini call parts ────────────────────────────────────────────────────
     const parts: unknown[] = [];

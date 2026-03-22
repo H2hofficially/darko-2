@@ -44,7 +44,20 @@
           "cameraPermission": "Darko needs camera access to capture messages."
         }
       ],
-      "expo-audio"
-    ]
+      "expo-audio",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#09090B",
+          "sounds": []
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "YOUR_EAS_PROJECT_ID"
+      }
+    }
   }
 }
