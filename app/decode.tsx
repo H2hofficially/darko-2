@@ -25,6 +25,7 @@ import {
   transcribeAudio,
   generateTargetProfile,
   type DecoderResult,
+  type CampaignBriefResult,
 } from '../services/decoder';
 import {
   getHistory,
@@ -95,25 +96,41 @@ function computePhase(history: DecodeEntry[]): number {
 
 type ChatMsg =
   | { id: string; type: 'user'; text: string; timestamp: string; isEdited?: boolean }
-  | { id: string; type: 'darko'; result: DecoderResult; phase: number; timestamp: string };
+  | { id: string; type: 'darko'; result: DecoderResult; phase: number; timestamp: string }
+  | { id: string; type: 'campaign_brief'; data: CampaignBriefResult; timestamp: string };
 
 function historyToChatMsgs(history: DecodeEntry[]): ChatMsg[] {
   const msgs: ChatMsg[] = [];
   history.forEach((entry, idx) => {
-    msgs.push({
-      id: entry.id + '_u',
-      type: 'user',
-      text: entry.inputMessage || '[ image / audio input ]',
-      timestamp: entry.timestamp,
-      isEdited: entry.isEdited,
-    });
-    msgs.push({
-      id: entry.id + '_d',
-      type: 'darko',
-      result: entry.result,
-      phase: computePhase(history.slice(0, idx + 1)),
-      timestamp: entry.timestamp,
-    });
+    if (entry.entryType === 'campaign_brief') {
+      msgs.push({
+        id: entry.id + '_u',
+        type: 'user',
+        text: '// CAMPAIGN BRIEF SUBMITTED',
+        timestamp: entry.timestamp,
+      });
+      msgs.push({
+        id: entry.id + '_d',
+        type: 'campaign_brief',
+        data: entry.result as unknown as CampaignBriefResult,
+        timestamp: entry.timestamp,
+      });
+    } else {
+      msgs.push({
+        id: entry.id + '_u',
+        type: 'user',
+        text: entry.inputMessage || '[ image / audio input ]',
+        timestamp: entry.timestamp,
+        isEdited: entry.isEdited,
+      });
+      msgs.push({
+        id: entry.id + '_d',
+        type: 'darko',
+        result: entry.result,
+        phase: computePhase(history.slice(0, idx + 1)),
+        timestamp: entry.timestamp,
+      });
+    }
   });
   return msgs;
 }
@@ -552,6 +569,260 @@ function DossierPanel({ visible, onClose, loading, targetName, leverage, objecti
   );
 }
 
+// ─── Campaign brief modal ─────────────────────────────────────────────────────
+
+type CampaignBriefModalProps = {
+  visible: boolean;
+  submitting: boolean;
+  onSubmit: (briefContent: string) => void;
+  onClose: () => void;
+};
+
+function CampaignBriefModal({ visible, submitting, onSubmit, onClose }: CampaignBriefModalProps) {
+  const [who, setWho] = useState('');
+  const [howSheKnowsYou, setHowSheKnowsYou] = useState('');
+  const [hist, setHist] = useState('');
+  const [herSituation, setHerSituation] = useState('');
+  const [yourSituation, setYourSituation] = useState('');
+  const [objective, setObjective] = useState('');
+  const [complexity, setComplexity] = useState('');
+
+  const canSubmit = who.trim().length > 0 && objective.trim().length > 0 && !submitting;
+
+  const handleSubmit = () => {
+    const content = [
+      `// WHO IS SHE\n${who.trim()}`,
+      howSheKnowsYou.trim() ? `// HOW SHE KNOWS YOU\n${howSheKnowsYou.trim()}` : '',
+      hist.trim() ? `// THE HISTORY\n${hist.trim()}` : '',
+      herSituation.trim() ? `// HER SITUATION\n${herSituation.trim()}` : '',
+      yourSituation.trim() ? `// YOUR SITUATION\n${yourSituation.trim()}` : '',
+      `// YOUR OBJECTIVE\n${objective.trim()}`,
+      complexity.trim() ? `// THE COMPLEXITY\n${complexity.trim()}` : '',
+    ].filter(Boolean).join('\n\n');
+    onSubmit(content);
+  };
+
+  const Field = ({
+    label, value, onChange, placeholder, minLines = 2, singleLine = false,
+  }: {
+    label: string; value: string; onChange: (t: string) => void;
+    placeholder: string; minLines?: number; singleLine?: boolean;
+  }) => (
+    <View style={styles.briefFieldBlock}>
+      <Text style={styles.briefFieldLabel}>{label}</Text>
+      <TextInput
+        style={[styles.briefFieldInput, singleLine ? styles.briefFieldInputSingle : { minHeight: minLines * 22 + 20 }]}
+        value={value}
+        onChangeText={onChange}
+        placeholder={placeholder}
+        placeholderTextColor={BORDER}
+        multiline={!singleLine}
+        scrollEnabled={false}
+      />
+    </View>
+  );
+
+  return (
+    <Modal visible={visible} transparent={false} animationType="slide" onRequestClose={onClose}>
+      <KeyboardAvoidingView style={{ flex: 1, backgroundColor: BG }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <View style={styles.briefHeader}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.briefHeaderTitle}>{'// INITIALIZE CAMPAIGN BRIEF'}</Text>
+            <Text style={styles.briefHeaderSub}>Brief DARKO on the full situation. The more intel you provide, the more precise the campaign.</Text>
+          </View>
+          <TouchableOpacity onPress={onClose} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+            <Text style={styles.briefCloseBtn}>{'✕'}</Text>
+          </TouchableOpacity>
+        </View>
+        <View style={{ height: 1, backgroundColor: BORDER }} />
+
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.briefScroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+          <Field label="// WHO IS SHE" value={who} onChange={setWho} placeholder="Describe her personality, how she carries herself, what makes her different..." minLines={3} />
+          <Field label="// HOW SHE KNOWS YOU" value={howSheKnowsYou} onChange={setHowSheKnowsYou} placeholder="How does she see you? What role do you play in her life right now?" minLines={2} />
+          <Field label="// THE HISTORY" value={hist} onChange={setHist} placeholder="How did you meet? What has happened between you? Key moments..." minLines={3} />
+          <Field label="// HER SITUATION" value={herSituation} onChange={setHerSituation} placeholder="Family, work, emotional state, what she is going through right now..." minLines={2} />
+          <Field label="// YOUR SITUATION" value={yourSituation} onChange={setYourSituation} placeholder="Your context, what she knows about you, your strengths in this dynamic..." minLines={2} />
+          <Field label="// YOUR OBJECTIVE" value={objective} onChange={setObjective} placeholder="What specifically do you want from this? Be precise." singleLine />
+          <Field label="// THE COMPLEXITY" value={complexity} onChange={setComplexity} placeholder="What makes this difficult? What is working against you?" minLines={2} />
+        </ScrollView>
+
+        <View style={styles.briefFooter}>
+          <TouchableOpacity
+            style={[styles.briefSubmitBtn, !canSubmit && styles.briefSubmitBtnDisabled]}
+            onPress={handleSubmit}
+            disabled={!canSubmit}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.briefSubmitText}>{submitting ? '> ANALYZING...' : '// SUBMIT INTEL'}</Text>
+          </TouchableOpacity>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+}
+
+// ─── Campaign brief bubble ────────────────────────────────────────────────────
+
+function RoadmapPhaseCard({ item, isCurrent }: { item: CampaignBriefResult['campaign_roadmap'][0]; isCurrent: boolean }) {
+  const [expanded, setExpanded] = useState(isCurrent);
+  const accentColor = isCurrent ? ACCENT : TEXT_DIM;
+  const borderColor = isCurrent ? ACCENT : BORDER;
+
+  return (
+    <View style={[styles.roadmapCard, { borderLeftColor: borderColor }]}>
+      <TouchableOpacity onPress={() => setExpanded((e) => !e)} activeOpacity={0.8} style={styles.roadmapCardHeader}>
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.roadmapPhaseLabel, { color: accentColor }]}>
+            {`PHASE ${item.phase} — ${item.phase_name}`}
+          </Text>
+          <Text style={styles.roadmapDuration}>{item.estimated_duration} · {item.key_tactic}</Text>
+        </View>
+        <Text style={[styles.roadmapChevron, { color: accentColor }]}>{expanded ? '▾' : '▸'}</Text>
+      </TouchableOpacity>
+
+      {expanded && (
+        <View style={styles.roadmapExpanded}>
+          <Text style={styles.roadmapObjective}>{item.objective}</Text>
+
+          {item.behavioral_directives?.length > 0 && (
+            <View style={styles.roadmapSection}>
+              <Text style={styles.roadmapSectionLabel}>DIRECTIVES</Text>
+              {item.behavioral_directives.map((d, i) => (
+                <Text key={i} style={styles.roadmapBullet}>{'› ' + d}</Text>
+              ))}
+            </View>
+          )}
+
+          {item.message_scripts?.length > 0 && (
+            <View style={styles.roadmapSection}>
+              <Text style={styles.roadmapSectionLabel}>SCRIPTS</Text>
+              {item.message_scripts.map((s, i) => (
+                <ScriptBlock key={i} situation={s.situation} message={s.message} effect={s.effect} />
+              ))}
+            </View>
+          )}
+
+          {item.advancement_signals?.length > 0 && (
+            <View style={styles.roadmapSection}>
+              <Text style={styles.roadmapSectionLabel}>ADVANCEMENT SIGNALS</Text>
+              {item.advancement_signals.map((s, i) => (
+                <Text key={i} style={[styles.roadmapBullet, { color: ACCENT }]}>{'✓ ' + s}</Text>
+              ))}
+            </View>
+          )}
+
+          {item.mistakes_to_avoid?.length > 0 && (
+            <View style={styles.roadmapSection}>
+              <Text style={styles.roadmapSectionLabel}>AVOID</Text>
+              {item.mistakes_to_avoid.map((m, i) => (
+                <Text key={i} style={[styles.roadmapBullet, { color: ERROR_RED }]}>{'✕ ' + m}</Text>
+              ))}
+            </View>
+          )}
+        </View>
+      )}
+    </View>
+  );
+}
+
+function ScriptBlock({ situation, message, effect }: { situation: string; message: string; effect: string }) {
+  const [copied, setCopied] = useState(false);
+  const handleCopy = useCallback(async () => {
+    await Clipboard.setStringAsync(message);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  }, [message]);
+
+  return (
+    <View style={styles.roadmapScriptBlock}>
+      <Text style={styles.roadmapScriptSituation}>{situation}</Text>
+      <TouchableOpacity onPress={handleCopy} activeOpacity={0.85} style={styles.roadmapScriptMsgBox}>
+        <Text style={styles.roadmapScriptMsg}>{message}</Text>
+        <Text style={[styles.roadmapScriptCopy, copied && { color: ACCENT }]}>{copied ? 'copied' : 'copy'}</Text>
+      </TouchableOpacity>
+      <Text style={styles.roadmapScriptEffect}>{effect}</Text>
+    </View>
+  );
+}
+
+const CampaignBriefBubble = React.memo(function CampaignBriefBubble({ data }: { data: CampaignBriefResult }) {
+  const [firstMsgCopied, setFirstMsgCopied] = useState(false);
+
+  const handleCopyFirstMsg = useCallback(async () => {
+    await Clipboard.setStringAsync(data.first_message_to_send);
+    setFirstMsgCopied(true);
+    setTimeout(() => setFirstMsgCopied(false), 1500);
+  }, [data.first_message_to_send]);
+
+  return (
+    <View style={styles.campaignBubble}>
+      <Text style={styles.campaignMissionStatus}>{data.mission_status || '// CAMPAIGN INITIALIZED'}</Text>
+      <View style={styles.campaignDivider} />
+
+      {/* Target profile */}
+      <View style={styles.campaignProfileCard}>
+        <Text style={styles.campaignSectionLabel}>TARGET PROFILE</Text>
+        {data.target_profile?.psychological_type ? (
+          <Text style={styles.campaignProfileRow}><Text style={styles.campaignProfileKey}>TYPE  </Text>{data.target_profile.psychological_type}</Text>
+        ) : null}
+        {data.target_profile?.attachment_style ? (
+          <Text style={styles.campaignProfileRow}><Text style={styles.campaignProfileKey}>ATTACH  </Text>{data.target_profile.attachment_style}</Text>
+        ) : null}
+        {data.target_profile?.seduction_archetype_to_deploy ? (
+          <Text style={styles.campaignProfileRow}><Text style={styles.campaignProfileKey}>DEPLOY  </Text>{data.target_profile.seduction_archetype_to_deploy}</Text>
+        ) : null}
+        {data.target_profile?.key_insight ? (
+          <Text style={styles.campaignKeyInsight}>{data.target_profile.key_insight}</Text>
+        ) : null}
+      </View>
+
+      {/* Current position */}
+      <View style={styles.campaignSection}>
+        <Text style={styles.campaignSectionLabel}>CURRENT POSITION</Text>
+        <Text style={styles.campaignPhaseLabel}>{`PHASE ${data.current_phase} — ${data.phase_name}`}</Text>
+        <Text style={styles.campaignBodyText}>{data.phase_assessment}</Text>
+      </View>
+
+      <View style={styles.campaignDivider} />
+
+      {/* Immediate action */}
+      <View style={styles.campaignSection}>
+        <Text style={styles.campaignSectionLabel}>{'// DO THIS NOW'}</Text>
+        <Text style={styles.campaignImmediateMove}>{data.immediate_next_move}</Text>
+      </View>
+
+      {/* First message */}
+      <View style={styles.campaignSection}>
+        <Text style={styles.campaignSectionLabel}>{'// SEND THIS'}</Text>
+        <TouchableOpacity style={styles.campaignFirstMsgBox} onPress={handleCopyFirstMsg} activeOpacity={0.85}>
+          <Text style={styles.campaignFirstMsgText}>{data.first_message_to_send}</Text>
+          <Text style={[styles.campaignFirstMsgCopy, firstMsgCopied && { color: ACCENT }]}>{firstMsgCopied ? 'copied' : 'copy'}</Text>
+        </TouchableOpacity>
+        {data.first_message_rationale ? (
+          <Text style={styles.campaignRationale}>{data.first_message_rationale}</Text>
+        ) : null}
+      </View>
+
+      <View style={styles.campaignDivider} />
+
+      {/* Roadmap */}
+      <View style={styles.campaignSection}>
+        <Text style={styles.campaignSectionLabel}>CAMPAIGN ROADMAP</Text>
+        {(data.campaign_roadmap ?? []).map((phase) => (
+          <RoadmapPhaseCard key={phase.phase} item={phase} isCurrent={phase.phase === data.current_phase} />
+        ))}
+      </View>
+
+      {/* Handler note */}
+      {data.handler_note ? (
+        <View style={styles.campaignHandlerNote}>
+          <Text style={styles.campaignHandlerNoteText}>{data.handler_note}</Text>
+        </View>
+      ) : null}
+    </View>
+  );
+});
+
 // ─── Main screen ──────────────────────────────────────────────────────────────
 
 const DARKO_ALERT_BODIES: Record<string, string> = {
@@ -584,6 +855,9 @@ export default function DecodeScreen() {
   const [dossierOpen, setDossierOpen] = useState(false);
   const [dossierEverOpened, setDossierEverOpened] = useState(false);
   const [dossierLoading, setDossierLoading] = useState(false);
+
+  const [campaignBriefOpen, setCampaignBriefOpen] = useState(false);
+  const [briefSubmitting, setBriefSubmitting] = useState(false);
 
   const [editingEntry, setEditingEntry] = useState<{ id: string; text: string } | null>(null);
   const [editText, setEditText] = useState('');
@@ -893,6 +1167,61 @@ export default function DecodeScreen() {
     setDossierOpen(false);
   }, []);
 
+  // ── Campaign brief ──────────────────────────────────────────────────────────
+
+  const handleSubmitBrief = useCallback(async (briefContent: string) => {
+    setCampaignBriefOpen(false);
+    setBriefSubmitting(true);
+    setLoading(true);
+    setError(null);
+    setLoaderText('> ANALYZING CAMPAIGN BRIEF...');
+
+    const msgId = Date.now().toString();
+    const userMsg: ChatMsg = {
+      id: msgId + '_u',
+      type: 'user',
+      text: '// CAMPAIGN BRIEF SUBMITTED',
+      timestamp: new Date().toISOString(),
+    };
+    setChatMessages((prev) => [...prev, userMsg]);
+    setTimeout(() => flatListRef.current?.scrollToOffset({ offset: 0, animated: true }), 50);
+
+    const result = await decodeMessage({
+      text: briefContent,
+      historyContext: history,
+      leverage: targetLeverage,
+      objective: targetObjective,
+      missionPhase: currentPhase,
+      targetId,
+      briefMode: true,
+    });
+
+    setLoading(false);
+    setBriefSubmitting(false);
+
+    if (!result || !('intent' in result) || result.intent !== 'campaign_brief') {
+      setError('// campaign brief failed — retry');
+      return;
+    }
+
+    const campaignResult = result as CampaignBriefResult;
+    const entry: DecodeEntry = {
+      id: msgId,
+      inputMessage: briefContent,
+      result: campaignResult as unknown as DecoderResult,
+      timestamp: new Date().toISOString(),
+      entryType: 'campaign_brief',
+    };
+    await addDecodeEntry(targetId, entry);
+    setHistory((prev) => [...prev, entry]);
+
+    setChatMessages((prev) => [
+      ...prev,
+      { id: msgId + '_d', type: 'campaign_brief', data: campaignResult, timestamp: new Date().toISOString() },
+    ]);
+    setTimeout(() => flatListRef.current?.scrollToOffset({ offset: 0, animated: true }), 80);
+  }, [history, targetId, targetLeverage, targetObjective, currentPhase]);
+
   // ── Edit user message ──────────────────────────────────────────────────────
 
   const handleUserBubbleLongPress = useCallback((msg: Extract<ChatMsg, { type: 'user' }>) => {
@@ -994,6 +1323,9 @@ export default function DecodeScreen() {
     if (item.type === 'darko') {
       return <DarkoBubble msg={item} onLongPress={() => handleDarkoBubbleLongPress(item)} />;
     }
+    if (item.type === 'campaign_brief') {
+      return <CampaignBriefBubble data={item.data} />;
+    }
     return null;
   }, [handleUserBubbleLongPress, handleDarkoBubbleLongPress]);
 
@@ -1011,9 +1343,14 @@ export default function DecodeScreen() {
           <TouchableOpacity onPress={() => router.back()} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
             <Text style={styles.backBtn}>← TARGETS</Text>
           </TouchableOpacity>
-          <TouchableOpacity onPress={openDossier} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
-            <Text style={styles.dossierToggleBtn}>// DOSSIER</Text>
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', gap: 16 }}>
+            <TouchableOpacity onPress={() => setCampaignBriefOpen(true)} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+              <Text style={styles.dossierToggleBtn}>// BRIEF</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={openDossier} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+              <Text style={styles.dossierToggleBtn}>// DOSSIER</Text>
+            </TouchableOpacity>
+          </View>
         </View>
         <Text style={styles.targetTitle}>{(targetName ?? '').toUpperCase()}</Text>
       </View>
@@ -1147,6 +1484,14 @@ export default function DecodeScreen() {
           profile={profile}
         />
       )}
+
+      {/* Campaign brief modal */}
+      <CampaignBriefModal
+        visible={campaignBriefOpen}
+        submitting={briefSubmitting}
+        onSubmit={handleSubmitBrief}
+        onClose={() => setCampaignBriefOpen(false)}
+      />
 
       {/* Edit message modal */}
       <Modal
@@ -1610,5 +1955,311 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: BG,
     fontWeight: '700',
+  },
+
+  // ── Campaign brief modal ──
+  briefHeader: {
+    flexDirection: 'row',
+    paddingHorizontal: 20,
+    paddingTop: 60,
+    paddingBottom: 16,
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+  briefHeaderTitle: {
+    fontFamily: MONO,
+    fontSize: 13,
+    color: ACCENT,
+    letterSpacing: 2,
+    marginBottom: 6,
+  },
+  briefHeaderSub: {
+    fontFamily: SANS,
+    fontSize: 13,
+    color: TEXT_DIM,
+    lineHeight: 19,
+  },
+  briefCloseBtn: {
+    fontFamily: MONO,
+    fontSize: 18,
+    color: TEXT_DIM,
+    marginTop: 2,
+  },
+  briefScroll: {
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 16,
+  },
+  briefFieldBlock: {
+    marginBottom: 20,
+  },
+  briefFieldLabel: {
+    fontFamily: MONO,
+    fontSize: 9,
+    color: ACCENT,
+    letterSpacing: 2,
+    marginBottom: 8,
+  },
+  briefFieldInput: {
+    fontFamily: SANS,
+    fontSize: 15,
+    color: TEXT_PRIMARY,
+    borderWidth: 1,
+    borderColor: BORDER,
+    backgroundColor: CARD_BG,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    lineHeight: 22,
+    textAlignVertical: 'top',
+  },
+  briefFieldInputSingle: {
+    minHeight: 44,
+  },
+  briefFooter: {
+    paddingHorizontal: 20,
+    paddingBottom: 40,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: BORDER,
+  },
+  briefSubmitBtn: {
+    backgroundColor: ACCENT,
+    height: 52,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  briefSubmitBtnDisabled: {
+    backgroundColor: BORDER,
+  },
+  briefSubmitText: {
+    fontFamily: MONO,
+    fontSize: 13,
+    fontWeight: '700',
+    color: BG,
+    letterSpacing: 3,
+  },
+
+  // ── Campaign brief bubble ──
+  campaignBubble: {
+    backgroundColor: BG,
+    borderLeftWidth: 2,
+    borderLeftColor: ACCENT,
+    padding: 14,
+    marginBottom: 8,
+    marginRight: 0,
+  },
+  campaignMissionStatus: {
+    fontFamily: MONO,
+    fontSize: 10,
+    color: ACCENT,
+    letterSpacing: 3,
+    marginBottom: 4,
+  },
+  campaignDivider: {
+    height: 1,
+    backgroundColor: BORDER,
+    marginVertical: 12,
+  },
+  campaignSection: {
+    marginBottom: 14,
+  },
+  campaignSectionLabel: {
+    fontFamily: MONO,
+    fontSize: 9,
+    color: TEXT_DIM,
+    letterSpacing: 2,
+    marginBottom: 8,
+  },
+  campaignProfileCard: {
+    backgroundColor: CARD_BG,
+    borderLeftWidth: 2,
+    borderLeftColor: ACCENT,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginBottom: 14,
+  },
+  campaignProfileRow: {
+    fontFamily: SANS,
+    fontSize: 13,
+    color: TEXT_PRIMARY,
+    lineHeight: 20,
+    marginBottom: 4,
+  },
+  campaignProfileKey: {
+    fontFamily: MONO,
+    fontSize: 9,
+    color: TEXT_DIM,
+    letterSpacing: 1,
+  },
+  campaignKeyInsight: {
+    fontFamily: SANS,
+    fontSize: 14,
+    color: ACCENT,
+    lineHeight: 21,
+    marginTop: 8,
+    fontStyle: 'italic' as const,
+  },
+  campaignPhaseLabel: {
+    fontFamily: MONO,
+    fontSize: 12,
+    color: TEXT_PRIMARY,
+    letterSpacing: 1,
+    marginBottom: 6,
+  },
+  campaignBodyText: {
+    fontFamily: SANS,
+    fontSize: 14,
+    color: TEXT_PRIMARY,
+    lineHeight: 21,
+  },
+  campaignImmediateMove: {
+    fontFamily: SANS,
+    fontSize: 15,
+    color: TEXT_PRIMARY,
+    lineHeight: 22,
+    fontWeight: '600' as const,
+  },
+  campaignFirstMsgBox: {
+    borderWidth: 1,
+    borderColor: ACCENT,
+    backgroundColor: CARD_BG,
+    padding: 12,
+    marginBottom: 8,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+  },
+  campaignFirstMsgText: {
+    fontFamily: SANS,
+    fontSize: 15,
+    color: TEXT_PRIMARY,
+    lineHeight: 22,
+    flex: 1,
+  },
+  campaignFirstMsgCopy: {
+    fontFamily: MONO,
+    fontSize: 10,
+    color: TEXT_DIM,
+    paddingTop: 2,
+  },
+  campaignRationale: {
+    fontFamily: SANS,
+    fontSize: 12,
+    color: TEXT_DIM,
+    lineHeight: 18,
+    fontStyle: 'italic' as const,
+  },
+  campaignHandlerNote: {
+    marginTop: 4,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: BORDER,
+  },
+  campaignHandlerNoteText: {
+    fontFamily: MONO,
+    fontSize: 11,
+    color: TEXT_DIM,
+    lineHeight: 18,
+    fontStyle: 'italic' as const,
+  },
+
+  // ── Roadmap cards ──
+  roadmapCard: {
+    borderLeftWidth: 2,
+    borderLeftColor: BORDER,
+    backgroundColor: CARD_BG,
+    marginBottom: 8,
+  },
+  roadmapCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 12,
+  },
+  roadmapPhaseLabel: {
+    fontFamily: MONO,
+    fontSize: 11,
+    letterSpacing: 1,
+    marginBottom: 2,
+  },
+  roadmapDuration: {
+    fontFamily: MONO,
+    fontSize: 9,
+    color: TEXT_DIM,
+    letterSpacing: 1,
+  },
+  roadmapChevron: {
+    fontFamily: MONO,
+    fontSize: 14,
+    marginLeft: 8,
+  },
+  roadmapExpanded: {
+    paddingHorizontal: 12,
+    paddingBottom: 12,
+  },
+  roadmapObjective: {
+    fontFamily: SANS,
+    fontSize: 13,
+    color: TEXT_DIM,
+    lineHeight: 19,
+    marginBottom: 12,
+    fontStyle: 'italic' as const,
+  },
+  roadmapSection: {
+    marginBottom: 12,
+  },
+  roadmapSectionLabel: {
+    fontFamily: MONO,
+    fontSize: 8,
+    color: TEXT_DIM,
+    letterSpacing: 2,
+    marginBottom: 6,
+  },
+  roadmapBullet: {
+    fontFamily: SANS,
+    fontSize: 13,
+    color: TEXT_PRIMARY,
+    lineHeight: 20,
+    marginBottom: 3,
+  },
+  roadmapScriptBlock: {
+    marginBottom: 10,
+  },
+  roadmapScriptSituation: {
+    fontFamily: MONO,
+    fontSize: 9,
+    color: TEXT_DIM,
+    letterSpacing: 1,
+    marginBottom: 4,
+    fontStyle: 'italic' as const,
+  },
+  roadmapScriptMsgBox: {
+    borderWidth: 1,
+    borderColor: BORDER,
+    backgroundColor: BG,
+    padding: 10,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    marginBottom: 4,
+  },
+  roadmapScriptMsg: {
+    fontFamily: SANS,
+    fontSize: 14,
+    color: TEXT_PRIMARY,
+    lineHeight: 20,
+    flex: 1,
+  },
+  roadmapScriptCopy: {
+    fontFamily: MONO,
+    fontSize: 9,
+    color: TEXT_DIM,
+    paddingTop: 2,
+  },
+  roadmapScriptEffect: {
+    fontFamily: SANS,
+    fontSize: 11,
+    color: TEXT_DIM,
+    lineHeight: 16,
+    fontStyle: 'italic' as const,
   },
 });

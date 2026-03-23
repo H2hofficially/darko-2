@@ -15,6 +15,7 @@ export type DecodeEntry = {
   result: DecoderResult;
   timestamp: string;
   isEdited?: boolean;
+  entryType?: 'standard' | 'campaign_brief';
 };
 
 export type MbtiProfile = {

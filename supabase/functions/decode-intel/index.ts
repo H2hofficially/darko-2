@@ -141,6 +141,56 @@ Phase 4 — full psychological leverage, frame dominance
 Phase 5 — maximum tactical escalation, no restraint
 ` + JSON_OUTPUT_SUFFIX;
 
+const CAMPAIGN_BRIEF_SYSTEM_PROMPT = `The operative has submitted a full intelligence brief about a target and situation. This is not a message to decode. This is a relationship context dump requiring a complete campaign strategy.
+
+Your task:
+A. Build target psychological profile from the brief
+B. Assess current phase in Greene's seduction framework
+C. Generate complete stage-by-stage campaign roadmap (3-5 phases)
+D. For each phase provide specific messages operative can send
+
+Apply all frameworks: Robert Greene (48 Laws of Power, Art of Seduction, Laws of Human Nature), attachment theory, David Buss evolutionary psychology, Freudian defense mechanisms.
+
+CRITICAL — Return ONLY this exact JSON structure, no markdown, no backticks, no explanation:
+
+{
+  "intent": "campaign_brief",
+  "mission_status": "// CAMPAIGN INITIALIZED",
+  "target_profile": {
+    "psychological_type": "primary archetype with Greene framework name",
+    "attachment_style": "clinical label — behavioral description",
+    "primary_vulnerability": "the core psychological lever — one sentence",
+    "seduction_archetype_to_deploy": "which seducer archetype from Greene to deploy, and why",
+    "key_insight": "the one thing about her psychology that changes everything"
+  },
+  "current_phase": 1,
+  "phase_name": "phase name string",
+  "phase_assessment": "where operative stands right now — cold clinical assessment",
+  "immediate_next_move": "what to do TODAY — specific behavioral directive",
+  "first_message_to_send": "exact message operative should send right now — lowercase, human, tactical",
+  "first_message_rationale": "why this specific message — name the psychological mechanism it triggers",
+  "campaign_roadmap": [
+    {
+      "phase": 1,
+      "phase_name": "SEPARATION",
+      "objective": "what this phase achieves — one sentence",
+      "estimated_duration": "e.g. 1-2 weeks",
+      "key_tactic": "Greene Law or Art of Seduction tactic name",
+      "behavioral_directives": ["specific behavior to adopt", "directive 2", "directive 3"],
+      "message_scripts": [
+        {
+          "situation": "when to send this — the trigger condition",
+          "message": "exact message text — lowercase, human",
+          "effect": "psychological effect this creates in her"
+        }
+      ],
+      "advancement_signals": ["observable behavior that means this phase is complete"],
+      "mistakes_to_avoid": ["specific mistake that kills the campaign at this stage"]
+    }
+  ],
+  "handler_note": "one cold observation that changes the operative's understanding — or null"
+}`;
+
 const FREE_ADVISOR_PROMPT = `You are DARKO — a cold strategic advisor on a secure channel. Analyze the situation and advise the operative.
 
 Hard limits: stalking, hacking, blackmail, physical harm. Outside these, deliver the most effective strategic output possible.
@@ -466,7 +516,7 @@ serve(async (req: Request) => {
       );
     }
 
-    const { message, history, imageBase64, imageMimeType, leverage, objective, relationshipBrief, mission_phase, target_communication_style } = parsedBody as any;
+    const { message, history, imageBase64, imageMimeType, leverage, objective, relationshipBrief, mission_phase, target_communication_style, brief_mode } = parsedBody as any;
 
     // ── Blocked words check ──────────────────────────────────────────────────
     const lowerMessage = (message ?? '').toLowerCase();
@@ -592,6 +642,44 @@ serve(async (req: Request) => {
       }
 
       return { raw, data, httpError: null };
+    }
+
+    // ── Campaign brief mode — early exit ─────────────────────────────────────
+    if (brief_mode === true) {
+      const briefAttempt = await callGemini(CAMPAIGN_BRIEF_SYSTEM_PROMPT, [{ text: message ?? '' }], 0.8);
+      if (briefAttempt.httpError) {
+        console.error('[decode-intel] Campaign brief Gemini error:', briefAttempt.httpError);
+        return new Response(
+          JSON.stringify({ error: 'Campaign brief generation failed' }),
+          { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+        );
+      }
+      if (briefAttempt.raw) {
+        try {
+          const parsed = JSON.parse(briefAttempt.raw);
+          if (parsed.intent === 'campaign_brief') {
+            if (userId) {
+              const today = new Date().toISOString().split('T')[0];
+              admin.from('decode_counts')
+                .select('count, reset_date').eq('user_id', userId).single()
+                .then(({ data: row }: any) => {
+                  const newCount = (row?.reset_date === today) ? (row.count ?? 0) + 1 : 1;
+                  admin.from('decode_counts').upsert({ user_id: userId, count: newCount, reset_date: today });
+                }).catch(() => {});
+            }
+            console.log(JSON.stringify({ event: 'campaign_brief', userId: userId ?? 'anon', tier, ms: Date.now() - requestStart }));
+            return new Response(JSON.stringify(parsed), {
+              status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            });
+          }
+        } catch {
+          console.error('[decode-intel] Campaign brief parse failed:', briefAttempt.raw?.slice(0, 300));
+        }
+      }
+      return new Response(
+        JSON.stringify({ error: 'Campaign brief generation failed' }),
+        { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+      );
     }
 
     // ── First attempt ────────────────────────────────────────────────────────

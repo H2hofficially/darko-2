@@ -1,6 +1,36 @@
 import { supabase } from '../lib/supabase';
 import { DecodeEntry, TargetProfile, saveTargetProfile } from './storage';
 
+export type CampaignBriefResult = {
+  intent: 'campaign_brief';
+  mission_status: string;
+  target_profile: {
+    psychological_type: string;
+    attachment_style: string;
+    primary_vulnerability: string;
+    seduction_archetype_to_deploy: string;
+    key_insight: string;
+  };
+  current_phase: number;
+  phase_name: string;
+  phase_assessment: string;
+  immediate_next_move: string;
+  first_message_to_send: string;
+  first_message_rationale: string;
+  campaign_roadmap: Array<{
+    phase: number;
+    phase_name: string;
+    objective: string;
+    estimated_duration: string;
+    key_tactic: string;
+    behavioral_directives: string[];
+    message_scripts: Array<{ situation: string; message: string; effect: string }>;
+    advancement_signals: string[];
+    mistakes_to_avoid: string[];
+  }>;
+  handler_note: string | null;
+};
+
 export type DecoderResult = {
   response_type: 'tactical' | 'strategic' | 'warning' | 'validation' | 'interrogation' | 'silence' | 'phase_advance';
   mission_status: string;
@@ -22,6 +52,7 @@ export type DecodeInput = {
   missionPhase?: number;
   targetId?: string;
   targetCommunicationStyle?: string;
+  briefMode?: boolean;
 };
 
 function buildHistory(history: DecodeEntry[]) {
@@ -40,7 +71,7 @@ function buildHistory(history: DecodeEntry[]) {
 
 export async function decodeMessage(
   input: DecodeInput,
-): Promise<DecoderResult | null> {
+): Promise<DecoderResult | CampaignBriefResult | null> {
   try {
     const body: Record<string, unknown> = {
       message: input.text ?? '',
@@ -56,6 +87,7 @@ export async function decodeMessage(
     if (input.relationshipBrief) body.relationshipBrief = input.relationshipBrief;
     if (input.missionPhase) body.mission_phase = input.missionPhase;
     if (input.targetCommunicationStyle) body.target_communication_style = input.targetCommunicationStyle;
+    if (input.briefMode) body.brief_mode = true;
 
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) return null;
@@ -87,6 +119,11 @@ export async function decodeMessage(
     if (data?.error) {
       console.error('[DARKO] Decode blocked:', data.error);
       return null;
+    }
+
+    // Campaign brief mode — return structured result directly
+    if (data?.intent === 'campaign_brief') {
+      return data as CampaignBriefResult;
     }
 
     const validTypes = ['tactical', 'strategic', 'warning', 'validation', 'interrogation', 'silence', 'phase_advance'] as const;
