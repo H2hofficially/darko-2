@@ -1,11 +1,8 @@
 // deno-lint-ignore-file no-explicit-any
-import Stripe from 'https://esm.sh/stripe@14.21.0?target=deno';
+import Stripe from 'npm:stripe@14';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
-const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY')!, {
-  apiVersion: '2024-04-10' as any,
-  httpClient: Stripe.createFetchHttpClient(),
-});
+const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY')!);
 
 const supabase = createClient(
   Deno.env.get('SUPABASE_URL')!,

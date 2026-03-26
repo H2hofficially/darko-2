@@ -1,10 +1,5 @@
 // deno-lint-ignore-file no-explicit-any
-import Stripe from 'https://esm.sh/stripe@14.21.0?target=deno';
-
-const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY')!, {
-  apiVersion: '2024-04-10' as any,
-  httpClient: Stripe.createFetchHttpClient(),
-});
+import Stripe from 'npm:stripe@14';
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -14,15 +9,34 @@ const cors = {
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
 
-  try {
-    const { priceId, userId } = await req.json();
+  const keyExists = !!Deno.env.get('STRIPE_SECRET_KEY');
+  console.log('[create-checkout] STRIPE_SECRET_KEY exists:', keyExists);
 
-    if (!priceId || !userId) {
-      return new Response(JSON.stringify({ error: 'Missing priceId or userId' }), {
-        status: 400,
-        headers: { ...cors, 'Content-Type': 'application/json' },
-      });
-    }
+  let body: any;
+  try {
+    body = await req.json();
+    console.log('[create-checkout] priceId:', body?.priceId, 'userId present:', !!body?.userId);
+  } catch (parseErr: any) {
+    console.error('[create-checkout] Body parse error:', parseErr?.message);
+    return new Response(JSON.stringify({ error: 'Invalid JSON body' }), {
+      status: 400,
+      headers: { ...cors, 'Content-Type': 'application/json' },
+    });
+  }
+
+  const { priceId, userId } = body;
+
+  if (!priceId || !userId) {
+    console.error('[create-checkout] Missing priceId or userId');
+    return new Response(JSON.stringify({ error: 'Missing priceId or userId' }), {
+      status: 400,
+      headers: { ...cors, 'Content-Type': 'application/json' },
+    });
+  }
+
+  try {
+    const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY')!);
+    console.log('[create-checkout] Stripe client ready, creating session...');
 
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
@@ -34,15 +48,16 @@ Deno.serve(async (req) => {
       subscription_data: { metadata: { userId } },
     });
 
+    console.log('[create-checkout] Session created:', session.id, 'url present:', !!session.url);
     return new Response(JSON.stringify({ url: session.url }), {
       status: 200,
       headers: { ...cors, 'Content-Type': 'application/json' },
     });
   } catch (err: any) {
-    console.error('[create-checkout]', err);
-    return new Response(JSON.stringify({ error: err.message }), {
-      status: 500,
-      headers: { ...cors, 'Content-Type': 'application/json' },
-    });
+    console.error('[create-checkout] Stripe error — message:', err?.message, '| type:', err?.type, '| code:', err?.code, '| status:', err?.statusCode);
+    return new Response(
+      JSON.stringify({ error: err?.message ?? 'Stripe error', type: err?.type, code: err?.code }),
+      { status: 500, headers: { ...cors, 'Content-Type': 'application/json' } },
+    );
   }
 });
