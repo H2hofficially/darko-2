@@ -19,6 +19,42 @@ function daysSince(isoString: string): number {
   return (Date.now() - new Date(isoString).getTime()) / 86400000;
 }
 
+/**
+ * Process Expo push receipts and prune stale tokens.
+ * Expo returns tickets with status 'ok' or 'error'.
+ * DeviceNotRegistered means the token is permanently invalid.
+ */
+async function pruneStaleTokens(
+  supabase: any,
+  tickets: Array<{ status: string; details?: { error?: string } }>,
+  userIds: string[]
+) {
+  const staleUserIds: string[] = [];
+
+  for (let i = 0; i < tickets.length; i++) {
+    const ticket = tickets[i];
+    if (
+      ticket.status === 'error' &&
+      ticket.details?.error === 'DeviceNotRegistered'
+    ) {
+      staleUserIds.push(userIds[i]);
+    }
+  }
+
+  if (staleUserIds.length > 0) {
+    const { error } = await supabase
+      .from('push_tokens')
+      .delete()
+      .in('user_id', staleUserIds);
+
+    if (error) {
+      console.error('Failed to prune stale tokens:', error);
+    } else {
+      console.log(`Pruned ${staleUserIds.length} stale push token(s)`);
+    }
+  }
+}
+
 serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
@@ -153,22 +189,28 @@ serve(async (req: Request) => {
 
         if (pushRes.ok) {
           const pushData = await pushRes.json();
+          const ticket = pushData?.data ?? {};
           console.log(JSON.stringify({
             event: 'push_sent',
             user_id,
             targetId,
             alertType,
-            expo_status: pushData?.data?.status ?? 'unknown',
+            expo_status: ticket?.status ?? 'unknown',
           }));
 
-          alertsSent++;
-          alertSentThisUser = true;
+          // Prune token if Expo reports it as permanently invalid
+          await pruneStaleTokens(admin, [ticket], [user_id]);
 
-          // Update debounce timestamp
-          await admin
-            .from('push_tokens')
-            .update({ last_alert_at: new Date().toISOString() })
-            .eq('user_id', user_id);
+          if (ticket?.status !== 'error') {
+            alertsSent++;
+            alertSentThisUser = true;
+
+            // Update debounce timestamp
+            await admin
+              .from('push_tokens')
+              .update({ last_alert_at: new Date().toISOString() })
+              .eq('user_id', user_id);
+          }
         } else {
           console.error('[check-campaigns] Expo push failed:', await pushRes.text());
         }

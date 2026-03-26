@@ -27,6 +27,213 @@ const TEXT_DIM = '#A1A1AA';
 const MONO = Platform.select({ ios: 'Courier New', android: 'monospace', default: 'monospace' });
 const SANS = Platform.select({ ios: 'System', android: 'sans-serif', default: 'sans-serif' });
 
+// ── Web landing page (unauthenticated) ─────────────────────────────────────────
+
+function LandingPage() {
+  const router = useRouter();
+
+  return (
+    <View style={landing.root}>
+      <StatusBar style="light" />
+
+      {/* Center column */}
+      <View style={landing.inner}>
+        {/* Nav */}
+        <View style={landing.nav}>
+          <Text style={landing.navBrand}>// DARKO</Text>
+          <View style={{ flexDirection: 'row', gap: 24 }}>
+            <TouchableOpacity onPress={() => router.push('/privacy' as any)}>
+              <Text style={landing.navLink}>privacy</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => router.push('/terms' as any)}>
+              <Text style={landing.navLink}>terms</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        <View style={landing.divider} />
+
+        {/* Hero */}
+        <View style={landing.hero}>
+          <Text style={landing.tagline}>{'// RELATIONSHIP INTELLIGENCE\n// SYSTEM ACTIVE'}</Text>
+          <Text style={landing.headline}>{'Stop guessing.\nStart operating.'}</Text>
+          <Text style={landing.sub}>
+            {'DARKO is a cold psychological strategist that reads the situation, makes the call, and tells you exactly what to do — and what to say.'}
+          </Text>
+
+          <TouchableOpacity style={landing.cta} onPress={() => router.push('/auth' as any)} activeOpacity={0.85}>
+            <Text style={landing.ctaText}>INITIALIZE SYSTEM</Text>
+          </TouchableOpacity>
+
+          <Text style={landing.ctaSub}>free to start · no credit card</Text>
+        </View>
+
+        {/* Features */}
+        <View style={landing.features}>
+          <Feature icon="↳" title="DECODE ANY MESSAGE" body="Paste a text. DARKO reads the psychology, assesses the power dynamic, and tells you what it means." />
+          <Feature icon="→" title="GET THE EXACT SCRIPT" body="Not advice. The precise message to send, calibrated to the target's attachment style and communication patterns." />
+          <Feature icon="◈" title="RUN THE CAMPAIGN" body="5-phase mission system. DARKO tracks your relationship arc and adapts strategy as the situation evolves." />
+        </View>
+
+        {/* Footer */}
+        <View style={landing.footer}>
+          <Text style={landing.footerText}>{'© 2026 DARKO · '}</Text>
+          <TouchableOpacity onPress={() => router.push('/privacy' as any)}>
+            <Text style={[landing.footerText, { color: TEXT_DIM }]}>Privacy</Text>
+          </TouchableOpacity>
+          <Text style={landing.footerText}>{' · '}</Text>
+          <TouchableOpacity onPress={() => router.push('/terms' as any)}>
+            <Text style={[landing.footerText, { color: TEXT_DIM }]}>Terms</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </View>
+  );
+}
+
+function Feature({ icon, title, body }: { icon: string; title: string; body: string }) {
+  return (
+    <View style={landing.feature}>
+      <Text style={landing.featureIcon}>{icon}</Text>
+      <View style={{ flex: 1 }}>
+        <Text style={landing.featureTitle}>{title}</Text>
+        <Text style={landing.featureBody}>{body}</Text>
+      </View>
+    </View>
+  );
+}
+
+const landing = StyleSheet.create({
+  root: {
+    flex: 1,
+    backgroundColor: BG,
+    alignItems: 'center',
+  },
+  inner: {
+    width: '100%' as any,
+    maxWidth: 680,
+    paddingHorizontal: 24,
+    paddingTop: 48,
+    paddingBottom: 60,
+  },
+  nav: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 0,
+  },
+  navBrand: {
+    fontFamily: MONO,
+    fontSize: 18,
+    fontWeight: '700',
+    color: TEXT_PRIMARY,
+    letterSpacing: 4,
+  },
+  navLink: {
+    fontFamily: MONO,
+    fontSize: 10,
+    color: TEXT_DIM,
+    letterSpacing: 1,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: BORDER,
+    marginVertical: 32,
+  },
+  hero: {
+    marginBottom: 56,
+  },
+  tagline: {
+    fontFamily: MONO,
+    fontSize: 9,
+    color: ACCENT,
+    letterSpacing: 3,
+    marginBottom: 20,
+    lineHeight: 16,
+  },
+  headline: {
+    fontFamily: MONO,
+    fontSize: 38,
+    fontWeight: '700',
+    color: TEXT_PRIMARY,
+    letterSpacing: 1,
+    lineHeight: 48,
+    marginBottom: 20,
+  },
+  sub: {
+    fontFamily: SANS,
+    fontSize: 15,
+    color: TEXT_DIM,
+    lineHeight: 24,
+    marginBottom: 36,
+    maxWidth: 520,
+  },
+  cta: {
+    backgroundColor: ACCENT,
+    borderRadius: 4,
+    paddingVertical: 16,
+    paddingHorizontal: 32,
+    alignSelf: 'flex-start' as const,
+    marginBottom: 12,
+  },
+  ctaText: {
+    fontFamily: MONO,
+    fontSize: 13,
+    fontWeight: '700',
+    color: BG,
+    letterSpacing: 4,
+  },
+  ctaSub: {
+    fontFamily: MONO,
+    fontSize: 9,
+    color: '#3D3D40',
+    letterSpacing: 1,
+  },
+  features: {
+    gap: 32,
+    marginBottom: 64,
+  },
+  feature: {
+    flexDirection: 'row',
+    gap: 16,
+  },
+  featureIcon: {
+    fontFamily: MONO,
+    fontSize: 18,
+    color: ACCENT,
+    width: 24,
+    marginTop: 2,
+  },
+  featureTitle: {
+    fontFamily: MONO,
+    fontSize: 11,
+    fontWeight: '700',
+    color: TEXT_PRIMARY,
+    letterSpacing: 2,
+    marginBottom: 6,
+  },
+  featureBody: {
+    fontFamily: SANS,
+    fontSize: 13,
+    color: TEXT_DIM,
+    lineHeight: 20,
+  },
+  footer: {
+    flexDirection: 'row',
+    borderTopWidth: 1,
+    borderTopColor: BORDER,
+    paddingTop: 24,
+  },
+  footerText: {
+    fontFamily: MONO,
+    fontSize: 10,
+    color: '#3D3D40',
+    letterSpacing: 1,
+  },
+});
+
+// ── Main authenticated screen ───────────────────────────────────────────────────
+
 export default function ProfilesScreen() {
   const router = useRouter();
   const [targets, setTargets] = useState<(Target & { decodeCount: number })[]>([]);
@@ -36,10 +243,23 @@ export default function ProfilesScreen() {
   const [newObjective, setNewObjective] = useState('');
   const [creating, setCreating] = useState(false);
   const [authReady, setAuthReady] = useState(false);
+  const [showLanding, setShowLanding] = useState(false);
 
   // Onboarding gate → Auth gate
   useEffect(() => {
     (async () => {
+      if (Platform.OS === 'web') {
+        // Web: skip onboarding, show landing if not authenticated
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) {
+          setShowLanding(true);
+        } else {
+          setAuthReady(true);
+        }
+        return;
+      }
+
+      // Native: onboarding → auth gate
       const onboarded = await AsyncStorage.getItem('darko_onboarded');
       if (!onboarded) {
         router.replace('/onboarding');
@@ -56,7 +276,12 @@ export default function ProfilesScreen() {
     })();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!session) router.replace('/auth');
+      if (Platform.OS === 'web') {
+        if (!session) { setAuthReady(false); setShowLanding(true); }
+        else { setShowLanding(false); setAuthReady(true); }
+      } else {
+        if (!session) router.replace('/auth');
+      }
     });
 
     return () => subscription.unsubscribe();
@@ -146,10 +371,11 @@ export default function ProfilesScreen() {
     </TouchableOpacity>
   );
 
+  if (showLanding) return <LandingPage />;
   if (!authReady) return <View style={styles.root} />;
 
   return (
-    <View style={styles.root}>
+    <View style={[styles.root, Platform.OS === 'web' && styles.rootWeb]}>
       <StatusBar style="light" />
 
       <View style={styles.header}>
@@ -261,6 +487,11 @@ const styles = StyleSheet.create({
     backgroundColor: BG,
     paddingTop: 64,
     paddingHorizontal: 20,
+  },
+  rootWeb: {
+    maxWidth: 600,
+    alignSelf: 'center' as const,
+    width: '100%' as any,
   },
   header: {
     marginBottom: 8,

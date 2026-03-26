@@ -1,22 +1,27 @@
 import { useEffect } from 'react';
+import { Platform } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
-import * as Notifications from 'expo-notifications';
 
-// Show alerts while app is foregrounded
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: false,
-    shouldSetBadge: false,
-  }),
-});
+// Push notifications are native-only — expo-notifications crashes on web
+if (Platform.OS !== 'web') {
+  const Notifications = require('expo-notifications');
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowAlert: true,
+      shouldPlaySound: false,
+      shouldSetBadge: false,
+    }),
+  });
+}
 
 export default function RootLayout() {
   const router = useRouter();
 
-  // Handle notification tap → navigate to relevant target's decode screen
+  // Notification tap → navigate to target's decode screen (native only)
   useEffect(() => {
-    const sub = Notifications.addNotificationResponseReceivedListener((response) => {
+    if (Platform.OS === 'web') return;
+    const Notifications = require('expo-notifications');
+    const sub = Notifications.addNotificationResponseReceivedListener((response: any) => {
       const data = response.notification.request.content.data as any;
       if (data?.targetId && data?.targetName) {
         router.push(
@@ -34,6 +39,8 @@ export default function RootLayout() {
       <Stack.Screen name="auth" />
       <Stack.Screen name="auth/callback" />
       <Stack.Screen name="decode" />
+      <Stack.Screen name="privacy" />
+      <Stack.Screen name="terms" />
     </Stack>
   );
 }

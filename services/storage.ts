@@ -121,6 +121,15 @@ export async function deleteTarget(id: string): Promise<void> {
 }
 
 export async function getDecodeCount(targetId: string): Promise<number> {
+  // Try conversation_messages first (V3), fall back to intelligence_logs (V2)
+  const { count: newCount } = await supabase
+    .from('conversation_messages')
+    .select('id', { count: 'exact', head: true })
+    .eq('target_id', targetId)
+    .eq('role', 'user');
+
+  if (newCount !== null && newCount > 0) return newCount;
+
   const { count } = await supabase
     .from('intelligence_logs')
     .select('id', { count: 'exact', head: true })
@@ -191,6 +200,72 @@ export async function saveTargetProfile(
     .update({ behavioral_profile: profile })
     .eq('id', targetId);
   if (error) console.error('[DARKO] saveTargetProfile error:', error.message);
+}
+
+// ── V3 Conversation Messages — Supabase ───────────────────────────────────────
+
+export type ConversationMessage = {
+  id: string;
+  role: 'user' | 'darko';
+  content: string;
+  structured_data?: any;
+  entry_type: 'message' | 'campaign_brief' | 'alert';
+  created_at: string;
+};
+
+export async function saveMessage(
+  targetId: string,
+  role: 'user' | 'darko',
+  content: string,
+  structuredData?: any,
+  entryType: 'message' | 'campaign_brief' | 'alert' = 'message',
+): Promise<string | null> {
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) return null;
+
+  const { data, error } = await supabase
+    .from('conversation_messages')
+    .insert({
+      user_id: session.user.id,
+      target_id: targetId,
+      role,
+      content,
+      structured_data: structuredData ?? null,
+      entry_type: entryType,
+    })
+    .select('id')
+    .single();
+
+  if (error) {
+    console.error('[DARKO] saveMessage error:', error.message);
+    return null;
+  }
+  return data?.id ?? null;
+}
+
+export async function getConversation(
+  targetId: string,
+  limit = 100,
+): Promise<ConversationMessage[]> {
+  const { data, error } = await supabase
+    .from('conversation_messages')
+    .select('id, role, content, structured_data, entry_type, created_at')
+    .eq('target_id', targetId)
+    .order('created_at', { ascending: true })
+    .limit(limit);
+
+  if (error) {
+    console.error('[DARKO] getConversation error:', error.message);
+    return [];
+  }
+  return (data ?? []).map((row) => ({
+    id: row.id,
+    role: row.role as 'user' | 'darko',
+    content: row.content,
+    structured_data: row.structured_data,
+    entry_type: (row.entry_type ?? 'message') as 'message' | 'campaign_brief' | 'alert',
+    created_at: row.created_at,
+  }));
 }
 
 // ── Mission phase — Supabase ──────────────────────────────────────────────────

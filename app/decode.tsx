@@ -15,28 +15,30 @@ import {
   Alert,
   Modal,
 } from 'react-native';
+import Markdown from 'react-native-markdown-display';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as ImagePicker from 'expo-image-picker';
 import { useAudioRecorder, AudioModule, RecordingPresets } from 'expo-audio';
 import * as Clipboard from 'expo-clipboard';
 import {
-  decodeMessage,
+  sendMessage,
   transcribeAudio,
   generateTargetProfile,
-  type DecoderResult,
-  type CampaignBriefResult,
-} from '../services/decoder';
+  parseDarkoResponse,
+  stripStreamMarkers,
+  type DarkoResponse,
+  type MessageInput,
+} from '../services/darko';
 import {
-  getHistory,
-  addDecodeEntry,
-  updateDecodeEntry,
+  saveMessage,
+  getConversation,
   getTargetProfile,
   saveTargetProfile,
   getTarget,
   getMissionPhase,
   saveMissionPhase,
-  type DecodeEntry,
+  type ConversationMessage,
   type TargetProfile,
 } from '../services/storage';
 
@@ -55,12 +57,28 @@ const SANS = Platform.select({ ios: 'System', android: 'sans-serif', default: 's
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const PANEL_WIDTH = SCREEN_WIDTH * 0.85;
 
+// react-native-markdown-display style overrides to match app design
+const markdownStyles = {
+  body: { color: TEXT_PRIMARY, fontFamily: SANS, fontSize: 14, lineHeight: 22 },
+  strong: { color: TEXT_PRIMARY, fontWeight: '700' as const },
+  em: { color: TEXT_PRIMARY, fontStyle: 'italic' as const },
+  bullet_list: { marginVertical: 4 },
+  ordered_list: { marginVertical: 4 },
+  list_item: { color: TEXT_PRIMARY, fontFamily: SANS, fontSize: 14, lineHeight: 22 },
+  paragraph: { color: TEXT_PRIMARY, fontFamily: SANS, fontSize: 14, lineHeight: 22, marginVertical: 2 },
+  code_inline: { color: ACCENT, fontFamily: MONO, fontSize: 13, backgroundColor: 'transparent' },
+  fence: { color: TEXT_DIM, fontFamily: MONO, fontSize: 13, backgroundColor: CARD_BG, padding: 8, borderRadius: 4 },
+  heading1: { color: TEXT_PRIMARY, fontFamily: MONO, fontSize: 16, fontWeight: '700' as const, marginVertical: 4 },
+  heading2: { color: TEXT_PRIMARY, fontFamily: MONO, fontSize: 15, fontWeight: '700' as const, marginVertical: 4 },
+  heading3: { color: TEXT_DIM, fontFamily: MONO, fontSize: 14, fontWeight: '700' as const, marginVertical: 2 },
+};
+
 const LOADER_MESSAGES = [
-  '> INTERCEPTING PAYLOAD...',
-  '> SCANNING BEHAVIORAL VECTORS...',
+  '> ANALYZING...',
   '> CROSS-REFERENCING FRAMEWORK LIBRARY...',
-  '> ISOLATING VULNERABILITY...',
-  '> COMPILING TACTICAL RESPONSE...',
+  '> READING BEHAVIORAL VECTORS...',
+  '> COMPILING STRATEGIC ASSESSMENT...',
+  '> DRAFTING RESPONSE...',
 ];
 
 const PHASE_NAMES = [
@@ -82,57 +100,53 @@ const PHASE_UNLOCK_LINE1: Record<number, string> = {
 
 // ─── Phase computation ────────────────────────────────────────────────────────
 
-function computePhase(history: DecodeEntry[]): number {
-  const count = history.length;
-  if (count === 0) return 1;
-  if (count >= 20) return 5;
-  if (count >= 10) return 4;
-  if (count >= 5) return 3;
-  if (count >= 2) return 2;
+function computePhase(msgCount: number): number {
+  if (msgCount === 0) return 1;
+  if (msgCount >= 20) return 5;
+  if (msgCount >= 10) return 4;
+  if (msgCount >= 5) return 3;
+  if (msgCount >= 2) return 2;
   return 1;
 }
 
 // ─── Chat message types ───────────────────────────────────────────────────────
 
 type ChatMsg =
-  | { id: string; type: 'user'; text: string; timestamp: string; isEdited?: boolean }
-  | { id: string; type: 'darko'; result: DecoderResult; phase: number; timestamp: string }
-  | { id: string; type: 'campaign_brief'; data: CampaignBriefResult; timestamp: string };
+  | { id: string; type: 'user'; text: string; imageUri?: string; timestamp: string }
+  | {
+      id: string;
+      type: 'darko';
+      response: DarkoResponse;
+      isStreaming?: boolean;
+      streamText?: string;
+      timestamp: string;
+    };
 
-function historyToChatMsgs(history: DecodeEntry[]): ChatMsg[] {
-  const msgs: ChatMsg[] = [];
-  history.forEach((entry, idx) => {
-    if (entry.entryType === 'campaign_brief') {
-      msgs.push({
-        id: entry.id + '_u',
-        type: 'user',
-        text: '// CAMPAIGN BRIEF SUBMITTED',
-        timestamp: entry.timestamp,
-      });
-      msgs.push({
-        id: entry.id + '_d',
-        type: 'campaign_brief',
-        data: entry.result as unknown as CampaignBriefResult,
-        timestamp: entry.timestamp,
-      });
-    } else {
-      msgs.push({
-        id: entry.id + '_u',
-        type: 'user',
-        text: entry.inputMessage || '[ image / audio input ]',
-        timestamp: entry.timestamp,
-        isEdited: entry.isEdited,
-      });
-      msgs.push({
-        id: entry.id + '_d',
-        type: 'darko',
-        result: entry.result,
-        phase: computePhase(history.slice(0, idx + 1)),
-        timestamp: entry.timestamp,
-      });
+function conversationToChatMsgs(messages: ConversationMessage[]): ChatMsg[] {
+  return messages.map((msg) => {
+    if (msg.role === 'user') {
+      return {
+        id: msg.id + '_u',
+        type: 'user' as const,
+        text: msg.content,
+        timestamp: msg.created_at,
+      };
     }
+    const response: DarkoResponse = {
+      text: msg.content,
+      scripts: (msg.structured_data?.scripts ?? []).filter(Boolean),
+      alerts: (msg.structured_data?.alerts ?? []).filter(Boolean),
+      phaseUpdate: msg.structured_data?.phaseUpdate ?? null,
+      reads: (msg.structured_data?.reads ?? []).filter(Boolean),
+      isCampaign: msg.entry_type === 'campaign_brief',
+    };
+    return {
+      id: msg.id + '_d',
+      type: 'darko' as const,
+      response,
+      timestamp: msg.created_at,
+    };
   });
-  return msgs;
 }
 
 // ─── Phase bar ────────────────────────────────────────────────────────────────
@@ -197,25 +211,24 @@ function PhaseUnlockOverlay({ phase, onComplete }: { phase: number; onComplete: 
 
 // ─── User bubble ──────────────────────────────────────────────────────────────
 
-function UserBubble({
-  msg,
-  onLongPress,
-}: {
-  msg: Extract<ChatMsg, { type: 'user' }>;
-  onLongPress: () => void;
-}) {
+function UserBubble({ msg }: { msg: Extract<ChatMsg, { type: 'user' }> }) {
   return (
-    <TouchableOpacity
-      style={styles.userBubbleContainer}
-      onLongPress={onLongPress}
-      delayLongPress={400}
-      activeOpacity={0.9}
-    >
+    <View style={styles.userBubbleContainer}>
       <View style={styles.userBubble}>
-        <Text style={styles.userBubbleText}>{msg.text}</Text>
-        {msg.isEdited && <Text style={styles.userBubbleEdited}>{'// EDITED'}</Text>}
+        {msg.imageUri ? (
+          <Image
+            source={{ uri: msg.imageUri }}
+            style={styles.userBubbleImage}
+            resizeMode="cover"
+          />
+        ) : null}
+        {msg.text && msg.text !== '[ image input ]' ? (
+          <Text style={[styles.userBubbleText, msg.imageUri ? styles.userBubbleTextWithImage : null]}>
+            {msg.text}
+          </Text>
+        ) : null}
       </View>
-    </TouchableOpacity>
+    </View>
   );
 }
 
@@ -259,72 +272,65 @@ const DarkoBubble = React.memo(function DarkoBubble({
   msg: Extract<ChatMsg, { type: 'darko' }>;
   onLongPress: () => void;
 }) {
-  const { result, phase } = msg;
-  const phaseName = PHASE_NAMES[phase] ?? 'INITIAL RECONNAISSANCE';
-  const rt = result.response_type ?? 'strategic';
+  const { response, isStreaming, streamText } = msg;
 
-  // Border color: red for warnings, accent for everything else
-  const bubbleBorderColor = rt === 'warning' ? ERROR_RED : ACCENT;
+  // Streaming: strip block markers, render cleaned prose + cursor
+  if (isStreaming) {
+    const displayText = stripStreamMarkers(streamText ?? '');
+    return (
+      <View style={[styles.darkoBubble, { borderLeftColor: BORDER }]}>
+        {displayText ? (
+          <Markdown style={markdownStyles}>{displayText}</Markdown>
+        ) : null}
+        <Text style={styles.streamingCursor}>▊</Text>
+      </View>
+    );
+  }
 
-  // Primary response text style varies by type
-  const primaryTextStyle =
-    rt === 'warning'
-      ? [styles.primaryResponse, styles.primaryResponseWarning]
-      : rt === 'silence'
-      ? [styles.primaryResponse, styles.primaryResponseSilence]
-      : rt === 'interrogation'
-      ? [styles.primaryResponse, styles.primaryResponseInterrogation]
-      : [styles.primaryResponse];
-
-  const nextProtocol =
-    phase < 5
-      ? `\uD83D\uDD12 ${PHASE_NAMES[phase + 1]} — STAND BY`
-      : 'MAXIMUM CLEARANCE ACTIVE — ALL PROTOCOLS UNLOCKED';
+  const borderColor = response.alerts.length > 0 ? ERROR_RED : ACCENT;
 
   return (
     <TouchableOpacity
-      style={[styles.darkoBubble, { borderLeftColor: bubbleBorderColor }]}
+      style={[styles.darkoBubble, { borderLeftColor: borderColor }]}
       onLongPress={onLongPress}
       delayLongPress={400}
       activeOpacity={0.9}
     >
-      {/* Mission status */}
-      <Text style={styles.missionStatusLabel}>
-        {result.mission_status || '// ANALYSIS COMPILED'}
-      </Text>
+      {/* Main prose with markdown rendering */}
+      {response.text ? (
+        <Markdown style={markdownStyles}>{response.text}</Markdown>
+      ) : null}
 
-      <View style={styles.darkoBubbleDivider} />
+      {/* Reads — psychological analysis callouts */}
+      {response.reads.map((read, i) => (
+        <View key={i} style={styles.readBlock}>
+          <Text style={styles.readLabel}>{'// READ'}</Text>
+          <Text style={styles.readText}>{read}</Text>
+        </View>
+      ))}
 
-      {/* Primary response */}
-      <Text style={primaryTextStyle as any}>{result.primary_response}</Text>
-
-      {/* Scripts — only for tactical */}
-      {rt === 'tactical' && result.scripts && result.scripts.length > 0 && (
+      {/* Scripts */}
+      {response.scripts.length > 0 && (
         <View style={styles.scriptsContainer}>
-          {result.scripts.map((script: string, i: number) => (
+          {response.scripts.map((script, i) => (
             <ScriptCard key={i} script={script} index={i} />
           ))}
         </View>
       )}
 
-      {/* Handler note — unsolicited observation */}
-      {result.handler_note && (
-        <View style={styles.handlerNoteBox}>
-          <Text style={styles.handlerNoteText}>
-            {result.handler_note}
-          </Text>
+      {/* Alerts */}
+      {response.alerts.map((alert, i) => (
+        <View key={i} style={styles.alertBlock}>
+          <Text style={styles.alertLabel}>{'// ALERT'}</Text>
+          <Text style={styles.alertText}>{alert}</Text>
         </View>
-      )}
+      ))}
 
-      <View style={styles.darkoBubbleDivider} />
-
-      {/* Next directive */}
-      {result.next_directive ? (
-        <Text style={rt === 'validation' ? styles.nextDirectiveAccent : styles.nextDirective}>
-          {result.next_directive}
-        </Text>
-      ) : (
-        <Text style={styles.nextProtocol}>{'// NEXT PROTOCOL: ' + nextProtocol}</Text>
+      {/* Phase update */}
+      {response.phaseUpdate !== null && (
+        <View style={styles.phaseUpdateBlock}>
+          <Text style={styles.phaseUpdateText}>{`// PHASE ${response.phaseUpdate} INITIATED`}</Text>
+        </View>
       )}
     </TouchableOpacity>
   );
@@ -350,7 +356,7 @@ type DossierPanelProps = {
   leverage?: string;
   objective?: string;
   currentPhase: number;
-  profile: import('../services/storage').TargetProfile | null;
+  profile: TargetProfile | null;
 };
 
 function DossierSection({
@@ -546,7 +552,7 @@ function DossierPanel({ visible, onClose, loading, targetName, leverage, objecti
               </View>
               <DossierSection title="KEY TURNING POINTS" items={profile?.key_turning_points ?? []} sentiment="neutral" />
 
-              {/* ── RELATIONSHIP BRIEF (full) ── */}
+              {/* ── HANDLER ASSESSMENT ── */}
               {profile?.relationship_brief ? (
                 <>
                   <Text style={styles.dossierSectionHeader}>{'// HANDLER ASSESSMENT'}</Text>
@@ -661,168 +667,6 @@ function CampaignBriefModal({ visible, submitting, onSubmit, onClose }: Campaign
   );
 }
 
-// ─── Campaign brief bubble ────────────────────────────────────────────────────
-
-function RoadmapPhaseCard({ item, isCurrent }: { item: CampaignBriefResult['campaign_roadmap'][0]; isCurrent: boolean }) {
-  const [expanded, setExpanded] = useState(isCurrent);
-  const accentColor = isCurrent ? ACCENT : TEXT_DIM;
-  const borderColor = isCurrent ? ACCENT : BORDER;
-
-  return (
-    <View style={[styles.roadmapCard, { borderLeftColor: borderColor }]}>
-      <TouchableOpacity onPress={() => setExpanded((e) => !e)} activeOpacity={0.8} style={styles.roadmapCardHeader}>
-        <View style={{ flex: 1 }}>
-          <Text style={[styles.roadmapPhaseLabel, { color: accentColor }]}>
-            {`PHASE ${item.phase} — ${item.phase_name}`}
-          </Text>
-          <Text style={styles.roadmapDuration}>{item.estimated_duration} · {item.key_tactic}</Text>
-        </View>
-        <Text style={[styles.roadmapChevron, { color: accentColor }]}>{expanded ? '▾' : '▸'}</Text>
-      </TouchableOpacity>
-
-      {expanded && (
-        <View style={styles.roadmapExpanded}>
-          <Text style={styles.roadmapObjective}>{item.objective}</Text>
-
-          {item.behavioral_directives?.length > 0 && (
-            <View style={styles.roadmapSection}>
-              <Text style={styles.roadmapSectionLabel}>DIRECTIVES</Text>
-              {item.behavioral_directives.map((d, i) => (
-                <Text key={i} style={styles.roadmapBullet}>{'› ' + d}</Text>
-              ))}
-            </View>
-          )}
-
-          {item.message_scripts?.length > 0 && (
-            <View style={styles.roadmapSection}>
-              <Text style={styles.roadmapSectionLabel}>SCRIPTS</Text>
-              {item.message_scripts.map((s, i) => (
-                <ScriptBlock key={i} situation={s.situation} message={s.message} effect={s.effect} />
-              ))}
-            </View>
-          )}
-
-          {item.advancement_signals?.length > 0 && (
-            <View style={styles.roadmapSection}>
-              <Text style={styles.roadmapSectionLabel}>ADVANCEMENT SIGNALS</Text>
-              {item.advancement_signals.map((s, i) => (
-                <Text key={i} style={[styles.roadmapBullet, { color: ACCENT }]}>{'✓ ' + s}</Text>
-              ))}
-            </View>
-          )}
-
-          {item.mistakes_to_avoid?.length > 0 && (
-            <View style={styles.roadmapSection}>
-              <Text style={styles.roadmapSectionLabel}>AVOID</Text>
-              {item.mistakes_to_avoid.map((m, i) => (
-                <Text key={i} style={[styles.roadmapBullet, { color: ERROR_RED }]}>{'✕ ' + m}</Text>
-              ))}
-            </View>
-          )}
-        </View>
-      )}
-    </View>
-  );
-}
-
-function ScriptBlock({ situation, message, effect }: { situation: string; message: string; effect: string }) {
-  const [copied, setCopied] = useState(false);
-  const handleCopy = useCallback(async () => {
-    await Clipboard.setStringAsync(message);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
-  }, [message]);
-
-  return (
-    <View style={styles.roadmapScriptBlock}>
-      <Text style={styles.roadmapScriptSituation}>{situation}</Text>
-      <TouchableOpacity onPress={handleCopy} activeOpacity={0.85} style={styles.roadmapScriptMsgBox}>
-        <Text style={styles.roadmapScriptMsg}>{message}</Text>
-        <Text style={[styles.roadmapScriptCopy, copied && { color: ACCENT }]}>{copied ? 'copied' : 'copy'}</Text>
-      </TouchableOpacity>
-      <Text style={styles.roadmapScriptEffect}>{effect}</Text>
-    </View>
-  );
-}
-
-const CampaignBriefBubble = React.memo(function CampaignBriefBubble({ data }: { data: CampaignBriefResult }) {
-  const [firstMsgCopied, setFirstMsgCopied] = useState(false);
-
-  const handleCopyFirstMsg = useCallback(async () => {
-    await Clipboard.setStringAsync(data.first_message_to_send);
-    setFirstMsgCopied(true);
-    setTimeout(() => setFirstMsgCopied(false), 1500);
-  }, [data.first_message_to_send]);
-
-  return (
-    <View style={styles.campaignBubble}>
-      <Text style={styles.campaignMissionStatus}>{data.mission_status || '// CAMPAIGN INITIALIZED'}</Text>
-      <View style={styles.campaignDivider} />
-
-      {/* Target profile */}
-      <View style={styles.campaignProfileCard}>
-        <Text style={styles.campaignSectionLabel}>TARGET PROFILE</Text>
-        {data.target_profile?.psychological_type ? (
-          <Text style={styles.campaignProfileRow}><Text style={styles.campaignProfileKey}>TYPE  </Text>{data.target_profile.psychological_type}</Text>
-        ) : null}
-        {data.target_profile?.attachment_style ? (
-          <Text style={styles.campaignProfileRow}><Text style={styles.campaignProfileKey}>ATTACH  </Text>{data.target_profile.attachment_style}</Text>
-        ) : null}
-        {data.target_profile?.seduction_archetype_to_deploy ? (
-          <Text style={styles.campaignProfileRow}><Text style={styles.campaignProfileKey}>DEPLOY  </Text>{data.target_profile.seduction_archetype_to_deploy}</Text>
-        ) : null}
-        {data.target_profile?.key_insight ? (
-          <Text style={styles.campaignKeyInsight}>{data.target_profile.key_insight}</Text>
-        ) : null}
-      </View>
-
-      {/* Current position */}
-      <View style={styles.campaignSection}>
-        <Text style={styles.campaignSectionLabel}>CURRENT POSITION</Text>
-        <Text style={styles.campaignPhaseLabel}>{`PHASE ${data.current_phase} — ${data.phase_name}`}</Text>
-        <Text style={styles.campaignBodyText}>{data.phase_assessment}</Text>
-      </View>
-
-      <View style={styles.campaignDivider} />
-
-      {/* Immediate action */}
-      <View style={styles.campaignSection}>
-        <Text style={styles.campaignSectionLabel}>{'// DO THIS NOW'}</Text>
-        <Text style={styles.campaignImmediateMove}>{data.immediate_next_move}</Text>
-      </View>
-
-      {/* First message */}
-      <View style={styles.campaignSection}>
-        <Text style={styles.campaignSectionLabel}>{'// SEND THIS'}</Text>
-        <TouchableOpacity style={styles.campaignFirstMsgBox} onPress={handleCopyFirstMsg} activeOpacity={0.85}>
-          <Text style={styles.campaignFirstMsgText}>{data.first_message_to_send}</Text>
-          <Text style={[styles.campaignFirstMsgCopy, firstMsgCopied && { color: ACCENT }]}>{firstMsgCopied ? 'copied' : 'copy'}</Text>
-        </TouchableOpacity>
-        {data.first_message_rationale ? (
-          <Text style={styles.campaignRationale}>{data.first_message_rationale}</Text>
-        ) : null}
-      </View>
-
-      <View style={styles.campaignDivider} />
-
-      {/* Roadmap */}
-      <View style={styles.campaignSection}>
-        <Text style={styles.campaignSectionLabel}>CAMPAIGN ROADMAP</Text>
-        {(data.campaign_roadmap ?? []).map((phase) => (
-          <RoadmapPhaseCard key={phase.phase} item={phase} isCurrent={phase.phase === data.current_phase} />
-        ))}
-      </View>
-
-      {/* Handler note */}
-      {data.handler_note ? (
-        <View style={styles.campaignHandlerNote}>
-          <Text style={styles.campaignHandlerNoteText}>{data.handler_note}</Text>
-        </View>
-      ) : null}
-    </View>
-  );
-});
-
 // ─── Main screen ──────────────────────────────────────────────────────────────
 
 const DARKO_ALERT_BODIES: Record<string, string> = {
@@ -836,11 +680,10 @@ export default function DecodeScreen() {
   const { targetId, targetName, darkoAlert } = useLocalSearchParams<{ targetId: string; targetName: string; darkoAlert?: string }>();
   const router = useRouter();
 
-  const [history, setHistory] = useState<DecodeEntry[]>([]);
   const [chatMessages, setChatMessages] = useState<ChatMsg[]>([]);
   const [currentPhase, setCurrentPhase] = useState(1);
   const [phaseUnlocking, setPhaseUnlocking] = useState<number | null>(null);
-  const pendingResultRef = useRef<{ result: DecoderResult; newPhase: number } | null>(null);
+  const pendingResultRef = useRef<{ newPhase: number } | null>(null);
 
   const [profile, setProfile] = useState<TargetProfile | null>(null);
   const [inputText, setInputText] = useState('');
@@ -859,9 +702,6 @@ export default function DecodeScreen() {
   const [campaignBriefOpen, setCampaignBriefOpen] = useState(false);
   const [briefSubmitting, setBriefSubmitting] = useState(false);
 
-  const [editingEntry, setEditingEntry] = useState<{ id: string; text: string } | null>(null);
-  const [editText, setEditText] = useState('');
-
   const [loading, setLoading] = useState(false);
   const [loaderText, setLoaderText] = useState(LOADER_MESSAGES[0]);
   const [error, setError] = useState<string | null>(null);
@@ -870,46 +710,55 @@ export default function DecodeScreen() {
 
   const flatListRef = useRef<FlatList>(null);
   const recordPulse = useRef(new Animated.Value(1)).current;
+  const cancelStreamRef = useRef<(() => void) | null>(null);
+
+  // ── Unmount — cancel any in-flight stream ───────────────────────────────────
+
+  useEffect(() => {
+    return () => {
+      cancelStreamRef.current?.();
+    };
+  }, []);
 
   // ── Mount ──────────────────────────────────────────────────────────────────
 
   useEffect(() => {
     if (!targetId) return;
     (async () => {
-      const [hist, storedPhase, tgt, prof] = await Promise.all([
-        getHistory(targetId),
+      const [msgs, storedPhase, tgt, prof] = await Promise.all([
+        getConversation(targetId),
         getMissionPhase(targetId),
         getTarget(targetId),
         getTargetProfile(targetId),
       ]);
-      setHistory(hist);
-      const computedPhase = computePhase(hist);
+
+      const userMsgCount = msgs.filter((m) => m.role === 'user').length;
+      const computedPhase = computePhase(userMsgCount);
       const effectivePhase = Math.max(storedPhase, computedPhase);
       setCurrentPhase(effectivePhase);
-      const msgs = historyToChatMsgs(hist);
 
-      // If navigated from a push notification, inject DARKO alert as the newest message
+      const chatMsgs = conversationToChatMsgs(msgs);
+
+      // If navigated from a push notification, inject DARKO alert as newest message
       if (darkoAlert) {
         const alertBody = DARKO_ALERT_BODIES[darkoAlert] ?? 'Proactive alert from DARKO handler.';
         const alertMsg: ChatMsg = {
           id: 'darko_push_alert_' + Date.now(),
           type: 'darko',
-          result: {
-            response_type: 'warning',
-            mission_status: '// DARKO ALERT — ' + darkoAlert.replace(/_/g, ' '),
-            primary_response: alertBody,
-            scripts: null,
-            handler_note: null,
-            next_directive: 'Assess the situation and decode your next move.',
-            phase_update: null,
+          response: {
+            text: `Operative — ${alertBody}`,
+            scripts: [],
+            alerts: [alertBody],
+            phaseUpdate: null,
+            reads: [],
+            isCampaign: false,
           },
-          phase: effectivePhase,
           timestamp: new Date().toISOString(),
         };
-        msgs.push(alertMsg);
+        chatMsgs.push(alertMsg);
       }
 
-      setChatMessages(msgs);
+      setChatMessages(chatMsgs);
       if (tgt) {
         setTargetLeverage(tgt.leverage);
         setTargetObjective(tgt.objective);
@@ -950,21 +799,8 @@ export default function DecodeScreen() {
   // ── Phase unlock complete ──────────────────────────────────────────────────
 
   const handlePhaseUnlockComplete = useCallback(() => {
-    const pending = pendingResultRef.current;
     pendingResultRef.current = null;
     setPhaseUnlocking(null);
-    if (!pending) return;
-    setChatMessages((prev) => [
-      ...prev,
-      {
-        id: Date.now().toString() + '_d',
-        type: 'darko',
-        result: pending.result,
-        phase: pending.newPhase,
-        timestamp: new Date().toISOString(),
-      },
-    ]);
-    setTimeout(() => flatListRef.current?.scrollToOffset({ offset: 0, animated: true }), 80);
   }, []);
 
   // ── Image picker ───────────────────────────────────────────────────────────
@@ -975,7 +811,7 @@ export default function DecodeScreen() {
       Alert.alert('Permission needed', 'Photo library access required.');
       return;
     }
-    const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], base64: true, quality: 0.6 });
+    const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], base64: true, quality: 0.4, exif: false });
     if (!res.canceled && res.assets[0]) {
       const a = res.assets[0];
       setSelectedImage({ base64: a.base64!, mimeType: a.mimeType ?? 'image/jpeg', uri: a.uri });
@@ -1055,92 +891,109 @@ export default function DecodeScreen() {
     }
   };
 
-  // ── Decode ─────────────────────────────────────────────────────────────────
+  // ── Send message ───────────────────────────────────────────────────────────
 
-  const handleDecode = async () => {
+  const handleSend = async () => {
     if (loading || phaseUnlocking || (!inputText.trim() && !selectedImage)) return;
     setLoading(true);
     setError(null);
     setLoaderText(LOADER_MESSAGES[0]);
 
-    // Optimistic user bubble
     const msgId = Date.now().toString();
-    const userMsg: ChatMsg = {
-      id: msgId + '_u',
-      type: 'user',
-      text: inputText.trim() || '[ image input ]',
-      timestamp: new Date().toISOString(),
-    };
-    setChatMessages((prev) => [...prev, userMsg]);
-    setTimeout(() => flatListRef.current?.scrollToOffset({ offset: 0, animated: true }), 50);
-
     const inputSnapshot = inputText.trim();
     const imageSnapshot = selectedImage;
     setInputText('');
     setSelectedImage(null);
 
-    const result = await decodeMessage({
-      text: inputSnapshot || undefined,
-      imageBase64: imageSnapshot?.base64,
-      imageMimeType: imageSnapshot?.mimeType,
-      historyContext: history,
-      leverage: targetLeverage,
-      objective: targetObjective,
-      relationshipBrief: profile?.relationship_brief,
-      missionPhase: currentPhase,
-    });
+    const userContent = inputSnapshot || '[ image input ]';
 
-    setLoading(false);
+    // Persist user message
+    await saveMessage(targetId, 'user', userContent);
 
-    if (!result) {
-      setError('// signal lost');
-      return;
-    }
-
-    // Persist
-    const entry: DecodeEntry = {
-      id: msgId,
-      inputMessage: inputSnapshot,
-      result,
+    // Add user bubble optimistically
+    const userMsg: ChatMsg = {
+      id: msgId + '_u',
+      type: 'user',
+      text: userContent,
+      imageUri: imageSnapshot?.uri,
       timestamp: new Date().toISOString(),
     };
-    await addDecodeEntry(targetId, entry);
-    const updatedHistory = await getHistory(targetId);
-    setHistory(updatedHistory);
+    setChatMessages((prev) => [...prev, userMsg]);
+    setTimeout(() => flatListRef.current?.scrollToOffset({ offset: 0, animated: true }), 50);
 
-    // Phase advancement check — count-based OR Gemini-suggested OR phase_advance response type
-    const countPhase = computePhase(updatedHistory);
-    const suggestedPhase = result.phase_update ?? 0;
-    const newPhase = Math.max(countPhase, suggestedPhase);
-    const phaseAdvanced = newPhase > currentPhase || result.response_type === 'phase_advance';
+    // Add streaming DARKO bubble placeholder
+    const darkoMsgId = msgId + '_d';
+    const streamingMsg: ChatMsg = {
+      id: darkoMsgId,
+      type: 'darko',
+      response: { text: '', scripts: [], alerts: [], phaseUpdate: null, reads: [], isCampaign: false },
+      isStreaming: true,
+      streamText: '',
+      timestamp: new Date().toISOString(),
+    };
+    setChatMessages((prev) => [...prev, streamingMsg]);
 
-    if (phaseAdvanced) {
-      setCurrentPhase(newPhase);
-      saveMissionPhase(targetId, newPhase);
-      pendingResultRef.current = { result, newPhase };
-      setPhaseUnlocking(newPhase);
-    } else {
-      setChatMessages((prev) => [
-        ...prev,
-        {
-          id: msgId + '_d',
-          type: 'darko',
-          result,
-          phase: newPhase,
-          timestamp: new Date().toISOString(),
-        },
-      ]);
-      setTimeout(() => flatListRef.current?.scrollToOffset({ offset: 0, animated: true }), 80);
-    }
+    cancelStreamRef.current = sendMessage(
+      {
+        message: inputSnapshot,
+        targetId,
+        leverage: targetLeverage,
+        objective: targetObjective,
+        missionPhase: currentPhase,
+        targetCommunicationStyle: profile?.target_communication_style,
+        imageBase64: imageSnapshot?.base64,
+        imageMimeType: imageSnapshot?.mimeType,
+      },
+      // onChunk — update streaming bubble with accumulated text
+      (accumulatedText) => {
+        setChatMessages((prev) =>
+          prev.map((m) =>
+            m.id === darkoMsgId ? { ...m, streamText: accumulatedText } : m,
+          ),
+        );
+        flatListRef.current?.scrollToOffset({ offset: 0, animated: false });
+      },
+      // onComplete — upgrade streaming bubble to full render
+      async (darkoResponse) => {
+        setLoading(false);
 
-    // Profile update every 3 decodes
-    if (updatedHistory.length % 3 === 0) {
-      const newProfile = await generateTargetProfile(updatedHistory, targetLeverage, targetObjective);
-      if (newProfile) {
-        saveTargetProfile(targetId, newProfile);
-        setProfile(newProfile);
-      }
-    }
+        // Persist DARKO response
+        await saveMessage(targetId, 'darko', darkoResponse.text, {
+          scripts: darkoResponse.scripts.filter(Boolean),
+          alerts: darkoResponse.alerts.filter(Boolean),
+          phaseUpdate: darkoResponse.phaseUpdate,
+          reads: darkoResponse.reads.filter(Boolean),
+        });
+
+        setChatMessages((prev) =>
+          prev.map((m) =>
+            m.id === darkoMsgId
+              ? { ...m, response: darkoResponse, isStreaming: false, streamText: undefined }
+              : m,
+          ),
+        );
+
+        // Phase update
+        if (darkoResponse.phaseUpdate && darkoResponse.phaseUpdate > currentPhase) {
+          const newPhase = darkoResponse.phaseUpdate;
+          setCurrentPhase(newPhase);
+          saveMissionPhase(targetId, newPhase);
+          pendingResultRef.current = { newPhase };
+          setPhaseUnlocking(newPhase);
+        }
+
+        setTimeout(() => flatListRef.current?.scrollToOffset({ offset: 0, animated: true }), 80);
+      },
+      // onError
+      (errMsg) => {
+        setLoading(false);
+        setChatMessages((prev) => prev.filter((m) => m.id !== darkoMsgId));
+        const display = errMsg.startsWith('RATE LIMIT')
+          ? '// ' + errMsg.slice(0, 60).toLowerCase() + '...'
+          : '// signal lost';
+        setError(display);
+      },
+    );
   };
 
   // ── Dossier ────────────────────────────────────────────────────────────────
@@ -1152,20 +1005,21 @@ export default function DecodeScreen() {
       !profile?.generatedAt ||
       !profile?.strengths ||
       Date.now() - new Date(profile.generatedAt).getTime() > 3600000;
-    if (isStale && history.length > 0) {
-      setDossierLoading(true);
-      const newProfile = await generateTargetProfile(history, targetLeverage, targetObjective);
-      if (newProfile) {
-        saveTargetProfile(targetId, newProfile);
-        setProfile(newProfile);
+    if (isStale) {
+      const history = await getConversation(targetId, 30);
+      if (history.length > 0) {
+        setDossierLoading(true);
+        const newProfile = await generateTargetProfile(history, targetLeverage, targetObjective);
+        if (newProfile) {
+          saveTargetProfile(targetId, newProfile);
+          setProfile(newProfile);
+        }
+        setDossierLoading(false);
       }
-      setDossierLoading(false);
     }
-  }, [profile, history, targetId, targetLeverage, targetObjective]);
+  }, [profile, targetId, targetLeverage, targetObjective]);
 
-  const closeDossier = useCallback(() => {
-    setDossierOpen(false);
-  }, []);
+  const closeDossier = useCallback(() => setDossierOpen(false), []);
 
   // ── Campaign brief ──────────────────────────────────────────────────────────
 
@@ -1177,6 +1031,11 @@ export default function DecodeScreen() {
     setLoaderText('> ANALYZING CAMPAIGN BRIEF...');
 
     const msgId = Date.now().toString();
+    const briefMessage = `CAMPAIGN BRIEF REQUEST:\n${briefContent}`;
+
+    // Persist user message
+    await saveMessage(targetId, 'user', '// CAMPAIGN BRIEF SUBMITTED', null, 'campaign_brief');
+
     const userMsg: ChatMsg = {
       id: msgId + '_u',
       type: 'user',
@@ -1186,129 +1045,65 @@ export default function DecodeScreen() {
     setChatMessages((prev) => [...prev, userMsg]);
     setTimeout(() => flatListRef.current?.scrollToOffset({ offset: 0, animated: true }), 50);
 
-    const result = await decodeMessage({
-      text: briefContent,
-      historyContext: history,
-      leverage: targetLeverage,
-      objective: targetObjective,
-      missionPhase: currentPhase,
-      targetId,
-      briefMode: true,
-    });
-
-    setLoading(false);
-    setBriefSubmitting(false);
-
-    if (!result || !('intent' in result) || result.intent !== 'campaign_brief') {
-      setError('// campaign brief failed — retry');
-      return;
-    }
-
-    const campaignResult = result as CampaignBriefResult;
-    const entry: DecodeEntry = {
-      id: msgId,
-      inputMessage: briefContent,
-      result: campaignResult as unknown as DecoderResult,
+    const darkoMsgId = msgId + '_d';
+    const streamingMsg: ChatMsg = {
+      id: darkoMsgId,
+      type: 'darko',
+      response: { text: '', scripts: [], alerts: [], phaseUpdate: null, reads: [], isCampaign: false },
+      isStreaming: true,
+      streamText: '',
       timestamp: new Date().toISOString(),
-      entryType: 'campaign_brief',
     };
-    await addDecodeEntry(targetId, entry);
-    setHistory((prev) => [...prev, entry]);
+    setChatMessages((prev) => [...prev, streamingMsg]);
 
-    setChatMessages((prev) => [
-      ...prev,
-      { id: msgId + '_d', type: 'campaign_brief', data: campaignResult, timestamp: new Date().toISOString() },
-    ]);
-    setTimeout(() => flatListRef.current?.scrollToOffset({ offset: 0, animated: true }), 80);
-  }, [history, targetId, targetLeverage, targetObjective, currentPhase]);
-
-  // ── Edit user message ──────────────────────────────────────────────────────
-
-  const handleUserBubbleLongPress = useCallback((msg: Extract<ChatMsg, { type: 'user' }>) => {
-    const entryId = msg.id.replace(/_u$/, '');
-    setEditingEntry({ id: entryId, text: msg.text });
-    setEditText(msg.text);
-  }, []);
-
-  const handleEditSave = useCallback(async () => {
-    if (!editingEntry || !editText.trim() || loading) return;
-    const entryId = editingEntry.id;
-    const newText = editText.trim();
-    setEditingEntry(null);
-
-    // Optimistic update of user bubble
-    setChatMessages((prev) =>
-      prev.map((m) =>
-        m.id === entryId + '_u' ? { ...m, text: newText, isEdited: true } : m,
-      ),
+    cancelStreamRef.current = sendMessage(
+      {
+        message: briefMessage,
+        targetId,
+        leverage: targetLeverage,
+        objective: targetObjective,
+        missionPhase: currentPhase,
+        targetCommunicationStyle: profile?.target_communication_style,
+      },
+      (accumulatedText) => {
+        setChatMessages((prev) =>
+          prev.map((m) => m.id === darkoMsgId ? { ...m, streamText: accumulatedText } : m),
+        );
+      },
+      async (darkoResponse) => {
+        setLoading(false);
+        setBriefSubmitting(false);
+        await saveMessage(targetId, 'darko', darkoResponse.text, {
+          scripts: darkoResponse.scripts.filter(Boolean),
+          alerts: darkoResponse.alerts.filter(Boolean),
+        }, 'campaign_brief');
+        setChatMessages((prev) =>
+          prev.map((m) =>
+            m.id === darkoMsgId
+              ? { ...m, response: darkoResponse, isStreaming: false, streamText: undefined }
+              : m,
+          ),
+        );
+        setTimeout(() => flatListRef.current?.scrollToOffset({ offset: 0, animated: true }), 80);
+      },
+      (errMsg) => {
+        setLoading(false);
+        setBriefSubmitting(false);
+        setChatMessages((prev) => prev.filter((m) => m.id !== darkoMsgId));
+        setError('// campaign brief failed — retry');
+      },
     );
-
-    // History context up to (not including) this entry
-    const entryIndex = history.findIndex((e) => e.id === entryId);
-    const contextHistory = entryIndex > 0 ? history.slice(0, entryIndex) : [];
-
-    setLoading(true);
-    setError(null);
-    setLoaderText(LOADER_MESSAGES[0]);
-
-    const result = await decodeMessage({
-      text: newText,
-      historyContext: contextHistory,
-      leverage: targetLeverage,
-      objective: targetObjective,
-      relationshipBrief: profile?.relationship_brief,
-      missionPhase: currentPhase,
-    });
-
-    setLoading(false);
-
-    if (!result) {
-      setError('// signal lost');
-      return;
-    }
-
-    // Replace the adjacent DARKO bubble
-    setChatMessages((prev) =>
-      prev.map((m) =>
-        m.id === entryId + '_d' ? { ...m, result, phase: currentPhase } : m,
-      ),
-    );
-
-    // Persist updated entry
-    const updatedEntry: DecodeEntry = {
-      id: entryId,
-      inputMessage: newText,
-      result,
-      timestamp: new Date().toISOString(),
-      isEdited: true,
-    };
-    await updateDecodeEntry(targetId, updatedEntry);
-    setHistory((prev) => prev.map((e) => (e.id === entryId ? updatedEntry : e)));
-
-    setTimeout(() => flatListRef.current?.scrollToOffset({ offset: 0, animated: true }), 80);
-  }, [editingEntry, editText, loading, history, targetId, targetLeverage, targetObjective, profile, currentPhase]);
+  }, [targetId, targetLeverage, targetObjective, currentPhase, profile]);
 
   // ── Long press copy ────────────────────────────────────────────────────────
 
   const handleDarkoBubbleLongPress = useCallback(async (msg: Extract<ChatMsg, { type: 'darko' }>) => {
-    const { result } = msg;
-    const lines: string[] = [
-      `[ ${result.mission_status || 'DARKO'} ]`,
-      '',
-      result.primary_response,
-    ];
-    if (result.scripts && result.scripts.length > 0) {
-      lines.push('');
-      result.scripts.forEach((s: string, i: number) => {
-        lines.push(`// SCRIPT ${String(i + 1).padStart(2, '0')}`);
-        lines.push(s);
+    const { response } = msg;
+    const lines: string[] = [response.text ?? ''];
+    if (response.scripts.length > 0) {
+      response.scripts.forEach((s, i) => {
+        lines.push(`\n// SCRIPT ${String(i + 1).padStart(2, '0')}\n${s}`);
       });
-    }
-    if (result.handler_note) {
-      lines.push('', `[ HANDLER NOTE ]: ${result.handler_note}`);
-    }
-    if (result.next_directive) {
-      lines.push('', `> ${result.next_directive}`);
     }
     await Clipboard.setStringAsync(lines.join('\n'));
     Alert.alert('COPIED', 'Intelligence copied to clipboard.');
@@ -1318,18 +1113,15 @@ export default function DecodeScreen() {
 
   const renderItem = useCallback(({ item }: { item: ChatMsg }) => {
     if (item.type === 'user') {
-      return <UserBubble msg={item} onLongPress={() => handleUserBubbleLongPress(item)} />;
+      return <UserBubble msg={item} />;
     }
     if (item.type === 'darko') {
       return <DarkoBubble msg={item} onLongPress={() => handleDarkoBubbleLongPress(item)} />;
     }
-    if (item.type === 'campaign_brief') {
-      return <CampaignBriefBubble data={item.data} />;
-    }
     return null;
-  }, [handleUserBubbleLongPress, handleDarkoBubbleLongPress]);
+  }, [handleDarkoBubbleLongPress]);
 
-  const canDecode = (!!inputText.trim() || !!selectedImage) && !loading && !phaseUnlocking;
+  const canSend = (!!inputText.trim() || !!selectedImage) && !loading && !phaseUnlocking;
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
@@ -1379,12 +1171,12 @@ export default function DecodeScreen() {
         removeClippedSubviews
         maxToRenderPerBatch={10}
         windowSize={10}
-        ListHeaderComponent={loading ? <LoadingBubble text={loaderText} /> : null}
+        ListHeaderComponent={loading && !chatMessages.some((m) => m.type === 'darko' && (m as any).isStreaming) ? <LoadingBubble text={loaderText} /> : null}
         ListEmptyComponent={
           !loading ? (
             <View style={styles.emptyChat}>
               <Text style={styles.emptyChatText}>// OPERATIVE ONLINE</Text>
-              <Text style={styles.emptyChatSubtext}>&gt; TARGET ACQUIRED. BEGIN RECONNAISSANCE.</Text>
+              <Text style={styles.emptyChatSubtext}>&gt; BRIEF DARKO ON THE TARGET. BEGIN RECONNAISSANCE.</Text>
             </View>
           ) : null
         }
@@ -1417,12 +1209,12 @@ export default function DecodeScreen() {
               style={styles.cmdInput}
               value={inputText}
               onChangeText={setInputText}
-              placeholder={selectedImage ? 'add context...' : 'paste message or describe situation...'}
+              placeholder={selectedImage ? 'add context...' : '// talk to darko'}
               placeholderTextColor={BORDER}
               multiline={true}
               scrollEnabled={true}
               returnKeyType="send"
-              onSubmitEditing={canDecode ? handleDecode : undefined}
+              onSubmitEditing={canSend ? handleSend : undefined}
               blurOnSubmit={false}
             />
           </View>
@@ -1455,12 +1247,12 @@ export default function DecodeScreen() {
             )}
 
             <TouchableOpacity
-              style={[styles.decodeButton, !canDecode && styles.decodeButtonDisabled]}
-              onPress={handleDecode}
+              style={[styles.decodeButton, !canSend && styles.decodeButtonDisabled]}
+              onPress={handleSend}
               activeOpacity={0.85}
-              disabled={!canDecode}
+              disabled={!canSend}
             >
-              <Text style={styles.decodeButtonText}>{loading ? 'DECODING...' : 'DECODE'}</Text>
+              <Text style={styles.decodeButtonText}>{loading ? 'SENDING...' : 'SEND'}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -1492,43 +1284,6 @@ export default function DecodeScreen() {
         onSubmit={handleSubmitBrief}
         onClose={() => setCampaignBriefOpen(false)}
       />
-
-      {/* Edit message modal */}
-      <Modal
-        visible={!!editingEntry}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setEditingEntry(null)}
-      >
-        <View style={styles.editModalOverlay}>
-          <View style={styles.editModalBox}>
-            <Text style={styles.editModalTitle}>{'// EDIT MESSAGE'}</Text>
-            <TextInput
-              style={styles.editModalInput}
-              value={editText}
-              onChangeText={setEditText}
-              multiline
-              autoFocus
-              placeholderTextColor={TEXT_DIM}
-            />
-            <View style={styles.editModalButtons}>
-              <TouchableOpacity
-                onPress={() => setEditingEntry(null)}
-                style={styles.editModalCancelBtn}
-              >
-                <Text style={styles.editModalCancelText}>{'cancel'}</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={handleEditSave}
-                style={[styles.editModalSaveBtn, (!editText.trim() || loading) && styles.editModalSaveBtnDisabled]}
-                disabled={!editText.trim() || loading}
-              >
-                <Text style={styles.editModalSaveText}>{loading ? 'decoding...' : 're-decode'}</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
     </View>
   );
 }
@@ -1536,7 +1291,7 @@ export default function DecodeScreen() {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: BG, paddingTop: 60 },
+  root: { flex: 1, backgroundColor: BG, paddingTop: 60, ...(Platform.OS === 'web' ? { maxWidth: 600, alignSelf: 'center' as const, width: '100%' } : {}) },
 
   header: { paddingHorizontal: 20, marginBottom: 8 },
   headerTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
@@ -1568,6 +1323,13 @@ const styles = StyleSheet.create({
     padding: 12,
     maxWidth: '78%',
   },
+  userBubbleImage: {
+    width: 200,
+    height: 150,
+    borderRadius: 2,
+    marginBottom: 0,
+  },
+  userBubbleTextWithImage: { marginTop: 8 },
   userBubbleText: { fontFamily: SANS, fontSize: 15, color: TEXT_PRIMARY, lineHeight: 22 },
   userBubbleEdited: {
     fontFamily: MONO,
@@ -1597,7 +1359,6 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
 
-  // Primary response — varies by type
   primaryResponse: {
     fontFamily: SANS,
     fontSize: 15,
@@ -1619,7 +1380,36 @@ const styles = StyleSheet.create({
     fontStyle: 'italic' as const,
   },
 
-  // Scripts (tactical only)
+  // Streaming cursor
+  streamingCursor: { color: ACCENT, fontSize: 16 },
+
+  // Read blocks
+  readBlock: {
+    backgroundColor: '#0F0F12',
+    borderLeftWidth: 2,
+    borderLeftColor: TEXT_DIM,
+    padding: 10,
+    marginTop: 10,
+  },
+  readLabel: { fontFamily: MONO, fontSize: 9, color: TEXT_DIM, letterSpacing: 2, marginBottom: 4 },
+  readText: { fontFamily: SANS, fontSize: 14, color: TEXT_DIM, lineHeight: 20 },
+
+  // Alert blocks
+  alertBlock: {
+    backgroundColor: '#1A0808',
+    borderLeftWidth: 2,
+    borderLeftColor: ERROR_RED,
+    padding: 10,
+    marginTop: 10,
+  },
+  alertLabel: { fontFamily: MONO, fontSize: 9, color: ERROR_RED, letterSpacing: 2, marginBottom: 4 },
+  alertText: { fontFamily: SANS, fontSize: 14, color: ERROR_RED, lineHeight: 20 },
+
+  // Phase update block
+  phaseUpdateBlock: { marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: BORDER },
+  phaseUpdateText: { fontFamily: MONO, fontSize: 10, color: ACCENT, letterSpacing: 2 },
+
+  // Scripts
   scriptsContainer: { marginTop: 12 },
   scriptBox: {
     backgroundColor: CARD_BG,
@@ -1635,7 +1425,7 @@ const styles = StyleSheet.create({
   scriptCopyBtnCopied: { color: ACCENT },
   scriptBoxText: { fontFamily: SANS, fontSize: 15, color: TEXT_PRIMARY, lineHeight: 22 },
 
-  // Handler note
+  // Handler note (kept for style compat)
   handlerNoteBox: {
     marginTop: 10,
     paddingTop: 10,
@@ -1650,7 +1440,7 @@ const styles = StyleSheet.create({
     fontStyle: 'italic' as const,
   },
 
-  // Next directive
+  // Next directive (kept for style compat)
   nextDirective: {
     fontFamily: MONO,
     fontSize: 11,
@@ -1887,76 +1677,6 @@ const styles = StyleSheet.create({
     letterSpacing: 2,
   },
 
-  // ── Edit modal ──
-  editModalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.85)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-  },
-  editModalBox: {
-    width: '100%',
-    backgroundColor: CARD_BG,
-    borderWidth: 1,
-    borderColor: ACCENT,
-    padding: 16,
-  },
-  editModalTitle: {
-    fontFamily: MONO,
-    fontSize: 10,
-    color: ACCENT,
-    letterSpacing: 2,
-    marginBottom: 12,
-  },
-  editModalInput: {
-    fontFamily: MONO,
-    fontSize: 13,
-    color: TEXT_PRIMARY,
-    borderWidth: 1,
-    borderColor: BORDER,
-    backgroundColor: BG,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    minHeight: 80,
-    maxHeight: 200,
-    marginBottom: 14,
-    lineHeight: 20,
-  },
-  editModalButtons: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  editModalCancelBtn: {
-    flex: 1,
-    height: 42,
-    borderWidth: 1,
-    borderColor: BORDER,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  editModalCancelText: {
-    fontFamily: SANS,
-    fontSize: 13,
-    color: TEXT_DIM,
-  },
-  editModalSaveBtn: {
-    flex: 1,
-    height: 42,
-    backgroundColor: ACCENT,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  editModalSaveBtnDisabled: {
-    backgroundColor: BORDER,
-  },
-  editModalSaveText: {
-    fontFamily: SANS,
-    fontSize: 13,
-    color: BG,
-    fontWeight: '700',
-  },
-
   // ── Campaign brief modal ──
   briefHeader: {
     flexDirection: 'row',
@@ -2037,229 +1757,5 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: BG,
     letterSpacing: 3,
-  },
-
-  // ── Campaign brief bubble ──
-  campaignBubble: {
-    backgroundColor: BG,
-    borderLeftWidth: 2,
-    borderLeftColor: ACCENT,
-    padding: 14,
-    marginBottom: 8,
-    marginRight: 0,
-  },
-  campaignMissionStatus: {
-    fontFamily: MONO,
-    fontSize: 10,
-    color: ACCENT,
-    letterSpacing: 3,
-    marginBottom: 4,
-  },
-  campaignDivider: {
-    height: 1,
-    backgroundColor: BORDER,
-    marginVertical: 12,
-  },
-  campaignSection: {
-    marginBottom: 14,
-  },
-  campaignSectionLabel: {
-    fontFamily: MONO,
-    fontSize: 9,
-    color: TEXT_DIM,
-    letterSpacing: 2,
-    marginBottom: 8,
-  },
-  campaignProfileCard: {
-    backgroundColor: CARD_BG,
-    borderLeftWidth: 2,
-    borderLeftColor: ACCENT,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    marginBottom: 14,
-  },
-  campaignProfileRow: {
-    fontFamily: SANS,
-    fontSize: 13,
-    color: TEXT_PRIMARY,
-    lineHeight: 20,
-    marginBottom: 4,
-  },
-  campaignProfileKey: {
-    fontFamily: MONO,
-    fontSize: 9,
-    color: TEXT_DIM,
-    letterSpacing: 1,
-  },
-  campaignKeyInsight: {
-    fontFamily: SANS,
-    fontSize: 14,
-    color: ACCENT,
-    lineHeight: 21,
-    marginTop: 8,
-    fontStyle: 'italic' as const,
-  },
-  campaignPhaseLabel: {
-    fontFamily: MONO,
-    fontSize: 12,
-    color: TEXT_PRIMARY,
-    letterSpacing: 1,
-    marginBottom: 6,
-  },
-  campaignBodyText: {
-    fontFamily: SANS,
-    fontSize: 14,
-    color: TEXT_PRIMARY,
-    lineHeight: 21,
-  },
-  campaignImmediateMove: {
-    fontFamily: SANS,
-    fontSize: 15,
-    color: TEXT_PRIMARY,
-    lineHeight: 22,
-    fontWeight: '600' as const,
-  },
-  campaignFirstMsgBox: {
-    borderWidth: 1,
-    borderColor: ACCENT,
-    backgroundColor: CARD_BG,
-    padding: 12,
-    marginBottom: 8,
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 8,
-  },
-  campaignFirstMsgText: {
-    fontFamily: SANS,
-    fontSize: 15,
-    color: TEXT_PRIMARY,
-    lineHeight: 22,
-    flex: 1,
-  },
-  campaignFirstMsgCopy: {
-    fontFamily: MONO,
-    fontSize: 10,
-    color: TEXT_DIM,
-    paddingTop: 2,
-  },
-  campaignRationale: {
-    fontFamily: SANS,
-    fontSize: 12,
-    color: TEXT_DIM,
-    lineHeight: 18,
-    fontStyle: 'italic' as const,
-  },
-  campaignHandlerNote: {
-    marginTop: 4,
-    paddingTop: 10,
-    borderTopWidth: 1,
-    borderTopColor: BORDER,
-  },
-  campaignHandlerNoteText: {
-    fontFamily: MONO,
-    fontSize: 11,
-    color: TEXT_DIM,
-    lineHeight: 18,
-    fontStyle: 'italic' as const,
-  },
-
-  // ── Roadmap cards ──
-  roadmapCard: {
-    borderLeftWidth: 2,
-    borderLeftColor: BORDER,
-    backgroundColor: CARD_BG,
-    marginBottom: 8,
-  },
-  roadmapCardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 12,
-  },
-  roadmapPhaseLabel: {
-    fontFamily: MONO,
-    fontSize: 11,
-    letterSpacing: 1,
-    marginBottom: 2,
-  },
-  roadmapDuration: {
-    fontFamily: MONO,
-    fontSize: 9,
-    color: TEXT_DIM,
-    letterSpacing: 1,
-  },
-  roadmapChevron: {
-    fontFamily: MONO,
-    fontSize: 14,
-    marginLeft: 8,
-  },
-  roadmapExpanded: {
-    paddingHorizontal: 12,
-    paddingBottom: 12,
-  },
-  roadmapObjective: {
-    fontFamily: SANS,
-    fontSize: 13,
-    color: TEXT_DIM,
-    lineHeight: 19,
-    marginBottom: 12,
-    fontStyle: 'italic' as const,
-  },
-  roadmapSection: {
-    marginBottom: 12,
-  },
-  roadmapSectionLabel: {
-    fontFamily: MONO,
-    fontSize: 8,
-    color: TEXT_DIM,
-    letterSpacing: 2,
-    marginBottom: 6,
-  },
-  roadmapBullet: {
-    fontFamily: SANS,
-    fontSize: 13,
-    color: TEXT_PRIMARY,
-    lineHeight: 20,
-    marginBottom: 3,
-  },
-  roadmapScriptBlock: {
-    marginBottom: 10,
-  },
-  roadmapScriptSituation: {
-    fontFamily: MONO,
-    fontSize: 9,
-    color: TEXT_DIM,
-    letterSpacing: 1,
-    marginBottom: 4,
-    fontStyle: 'italic' as const,
-  },
-  roadmapScriptMsgBox: {
-    borderWidth: 1,
-    borderColor: BORDER,
-    backgroundColor: BG,
-    padding: 10,
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 8,
-    marginBottom: 4,
-  },
-  roadmapScriptMsg: {
-    fontFamily: SANS,
-    fontSize: 14,
-    color: TEXT_PRIMARY,
-    lineHeight: 20,
-    flex: 1,
-  },
-  roadmapScriptCopy: {
-    fontFamily: MONO,
-    fontSize: 9,
-    color: TEXT_DIM,
-    paddingTop: 2,
-  },
-  roadmapScriptEffect: {
-    fontFamily: SANS,
-    fontSize: 11,
-    color: TEXT_DIM,
-    lineHeight: 16,
-    fontStyle: 'italic' as const,
   },
 });

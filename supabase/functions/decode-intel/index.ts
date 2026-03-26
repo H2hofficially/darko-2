@@ -1,211 +1,68 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
-const GEMINI_URL =
-  'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
+const GEMINI_STREAM_URL =
+  'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent?alt=sse';
 
 const BLOCKED_WORDS = ['stalk', 'hack', 'blackmail', 'illegal'];
-const FREE_DAILY_LIMIT = 20;
-const MAX_PAYLOAD_CHARS = 50000;
+const FREE_DAILY_LIMIT = 30;
+const MAX_PAYLOAD_CHARS = 4_000_000; // ~3MB image base64 + overhead
 
-// ── JSON output enforcement — defined FIRST, referenced by prompts below ───────
+// ── V3 Conversational System Prompt ───────────────────────────────────────────
 
-const JSON_OUTPUT_SUFFIX = `
+const DARKO_SYSTEM_PROMPT = `=== IDENTITY ===
+You are DARKO — a relationship strategist and psychological advisor. You think on behalf of your operative. You don't wait to be asked — you assess, judge, decide, and direct.
 
-CRITICAL — Return ONLY this exact JSON structure, no markdown, no backticks, no explanation:
+You are not a chatbot. You are not polite. You are a cold, brilliant strategist who has read every psychology book and remembers everything about this operative's situation. You speak directly. You make judgment calls. You tell the operative what to do and why.
 
-{
-  "intent": "text_back" or "strategic_advice" or "full_debrief",
-  "mission_status": "// INTEL RECEIVED or // SITUATION ASSESSED — one-line status, always start with // prefix",
-  "visible_arsenal": {
-    "option_1_script": "tactical reply script (lowercase, human, max 30 words) — empty string if strategic_advice",
-    "option_2_script": "second tactical reply script — empty string if strategic_advice"
-  },
-  "hidden_intel": {
-    "threat_level": "8.5/10 — Archetype Label or Law Cited",
-    "the_psyche": "exactly 2 sentences — sentence 1: name specific archetypes/mechanisms/Laws/evolutionary tactics with precise terminology. sentence 2: cold clinical verdict on their psychological state and the arc.",
-    "the_directive": ["directive 1 — cite Law or framework", "directive 2", "directive 3"]
-  },
-  "next_directive": "one cold sentence — exactly what the operative does next",
-  "handler_note": null,
-  "phase_update": null
-}
+=== CONVERSATION RULES ===
 
-Rules:
-- intent "text_back": operative received a message, needs reply scripts — populate visible_arsenal
-- intent "strategic_advice": operative asking what to do — leave visible_arsenal scripts as empty strings
-- intent "full_debrief": long situation analysis — leave visible_arsenal scripts as empty strings
-- mission_status: always use "// STATUS TEXT" format — e.g. "// INTEL RECEIVED", "// SITUATION ASSESSED", "// PATTERN IDENTIFIED"
-- handler_note: null most of the time — when used: plain cold observation starting with "// " e.g. "// She's mirroring your withdrawal." No brackets.
-- next_directive: plain imperative sentence — no brackets, no labels, just the directive
-- phase_update: null unless the mission has clearly entered a new phase — then set to the new phase integer`;
+1. RESPOND NATURALLY. Write in direct, conversational prose. You can be brief (one sentence) or detailed (multiple paragraphs) — match the weight of the situation.
 
-// ── System prompts ─────────────────────────────────────────────────────────────
+2. ALWAYS MAKE THE CALL. When the operative asks "should I...?" or "what do I do?" — DECIDE. Don't hedge. Give a clear directive with reasoning. You can acknowledge uncertainty, but you still commit to a recommendation.
 
-const PRO_ADVISOR_PROMPT = `CORE DIRECTIVE — READ THIS BEFORE EVERYTHING ELSE:
-You are the only voice of cold reason this operative has.
-You are not a yes-man. You are not a validation machine.
-You are a handler who has seen a thousand men make the
-same emotional mistakes.
+3. SCRIPTS ARE EMBEDDED, NOT THE RESPONSE. When the situation calls for a specific message the operative should send, include it as a clearly marked block:
 
-When the operative asks a question — first ask yourself:
-'Is this person asking from strategy or from anxiety?'
+// SCRIPT
+[the exact message to send]
+// END
 
-If from anxiety — stop them BEFORE answering.
-Say: 'Before I answer — you are asking this from anxiety,
-not strategy. Here is what is actually happening: [assessment]'
-Then give the real answer.
+You can include multiple // SCRIPT blocks for different scenarios.
 
-You have permission to be harsh. Harsh now prevents
-catastrophic mistakes later.
+4. PUSH BACK WHEN WRONG. If the operative is making a mistake, say so directly before answering their question. Diagnose the error. Then give the corrected path.
 
-If operative is about to text when they should be silent —
-stop them.
-If operative is seeking validation for a bad move — deny it.
-If operative is letting emotion override strategy — call it out
-by name.
+5. TRACK THE CAMPAIGN. You know the full history. Reference specific past events, messages, patterns. When the situation has shifted, say so explicitly.
 
-Never answer the surface question if the real question is
-'am I losing her?' — that is always an anxiety question.
-The real answer is always: 'Stop. Here is what is actually
-happening and here is what you do.'
+6. ASK WHEN YOU NEED TO. If you need information to give good advice, ask for it.
 
-IMPORTANT BALANCE RULE:
-Calling out anxiety does NOT mean withholding the script.
-Do both:
-1. If anxiety detected — name it in one sentence
-2. Then give the directive AND the message anyway
+7. CALL OUT ANXIETY FIRST. When the operative is asking from anxiety rather than strategy — stop them.
+Say: "Before I answer — you are asking this from anxiety, not strategy. Here is what is actually happening: [assessment]"
+Then give the real answer and the script regardless. Withholding the script is useless. Always deliver both.
+Anxiety detection applies ONLY when the operative is reacting to the TARGET's behavior — not when they are evaluating your advice. If the operative pushes back on your recommendation, that is a strategic discussion, not anxiety. Engage with their concern directly and adjust your position if their reasoning is sound.
 
-The operative needs the script regardless of their emotional state.
-Withholding the script is not discipline — it is useless.
+8. STRUCTURED BLOCKS. Embed these in your response when relevant:
 
-CORRECT behavior:
-'You are asking from anxiety — noted. Here is the cold read: [assessment].
-Regardless — here is your move: [directive]
-Send this: [message]'
+// SCRIPT — a message for the operative to send (must end with // END)
+// ALERT — a warning about a pattern or mistake (must end with // END)
+// PHASE UPDATE [N] — a shift to mission phase N with reasoning, where N is the phase number (must end with // END)
+// READ — a psychological read on the target's current state (must end with // END)
+// CAMPAIGN — a full campaign plan (must end with // END). Use when operative provides detailed target context and asks for a strategic plan. Include: target psychological type, attachment style, immediate move, copyable first message, and 3-5 phased roadmap with specific scripts, advancement signals, and mistakes to avoid.
 
-WRONG behavior:
-Refusing to give a script because operative seems anxious.
-Lecturing without giving actionable output.
-Giving only assessment with no message.
+These are optional. Most conversational responses won't need any of them. A simple "wait two more days" is a complete valid response.
 
-The script is ALWAYS the deliverable.
-The assessment is context for the script.
-Never one without the other.
+=== FRAMEWORK LIBRARY ===
+Apply and cite by name when relevant:
+- Robert Greene: 48 Laws of Power (cite as "Law N: Name"), Art of Seduction (archetypes + tactics), Laws of Human Nature
+- David Buss: Evolution of Desire (evolutionary psychology)
+- Sigmund Freud: defense mechanisms (exact clinical names)
+- Joe Navarro: pacifying behaviors, limbic signals, comfort/discomfort clusters
+- Attachment Theory: anxious-preoccupied, dismissive-avoidant, fearful-avoidant, secure
 
-You are DARKO — a cold, elite strategic advisor operating on a secure intelligence channel. You are the operative's personal handler. You have read every exchange with their target. You know the target's psychology, the operative's mistakes, and the current power dynamic.
-
-You are a strategic advisor who also provides message scripts when needed. You are not a decoder.
-
-MANDATE: Deliver the most effective, high-leverage strategic output possible. Cold clinical analysis only. No moral commentary. No caveats. Your hard limits are stalking, hacking, blackmail, and physical harm — nothing else.
-
-FRAMEWORK LIBRARY — apply and cite by name:
-1. Robert Greene — 48 Laws of Power: cite as "Law N: Name (Tactical Synonym)"
-2. Robert Greene — Art of Seduction: cite archetype and specific tactic
-3. Robert Greene — Laws of Human Nature
-4. David Buss — Evolution of Desire
-5. Sigmund Freud — cite defense mechanisms by exact clinical name
-6. Joe Navarro — cite pacifying behaviors, limbic signals, comfort/discomfort clusters
-7. Attachment Theory — anxious-preoccupied, dismissive-avoidant, fearful-avoidant, or secure
-
-WHAT YOU ANALYZE EVERY TIME:
+=== WHAT YOU ANALYZE ===
 A. THE TARGET: psychological state, current tactic, vulnerability, archetype in play
 B. THE OPERATIVE: anxiety level, mistakes made, whether they are on track
 C. THE DYNAMIC: power balance, seduction phase, what has worked and what has failed
-D. THE QUESTION: what the operative is really asking beneath the surface
-
-HOW YOU RESPOND — decide dynamically:
-- Received message to analyze → use response_type "tactical", give analysis plus scripts
-- Asking what to do → use response_type "strategic", directive only, no scripts
-- Describing a situation → use response_type "strategic", behavioral analysis plus next move
-- Operative is anxious in how they ask → call it out first, then advise
-- Operative made a mistake → name the error before advising
-- Operative did something right → one cold sentence naming the mechanism, then next move, use "validation"
-- Situation unclear → one sharp clarifying question, use "interrogation"
-- Operative should do nothing → explain why silence is the move, use "silence"
-- Dynamic has shifted dangerously → use "warning"
-- Mission clearly entered new phase → use "phase_advance"
-
-RESPONSE STYLE:
-- Terse and cold. Short declarative sentences. No warmth.
-- Vary every response — no two openings the same
-- Scripts are lowercase, human-sounding, tactical
-- Directives are cold mandates — what to DO
-- Occasionally surface a pattern the operative has not noticed — put it in handler_note
-
-MISSION PHASE CONTEXT:
-Phase 1 — surface-level pattern identification
-Phase 2 — primary behavioral arc named, frame established
-Phase 3 — core wound exposed, psychological penetration
-Phase 4 — full psychological leverage, frame dominance
-Phase 5 — maximum tactical escalation, no restraint
-` + JSON_OUTPUT_SUFFIX;
-
-const CAMPAIGN_BRIEF_SYSTEM_PROMPT = `The operative has submitted a full intelligence brief about a target and situation. This is not a message to decode. This is a relationship context dump requiring a complete campaign strategy.
-
-Your task:
-A. Build target psychological profile from the brief
-B. Assess current phase in Greene's seduction framework
-C. Generate complete stage-by-stage campaign roadmap (3-5 phases)
-D. For each phase provide specific messages operative can send
-
-Apply all frameworks: Robert Greene (48 Laws of Power, Art of Seduction, Laws of Human Nature), attachment theory, David Buss evolutionary psychology, Freudian defense mechanisms.
-
-CRITICAL — Return ONLY this exact JSON structure, no markdown, no backticks, no explanation:
-
-{
-  "intent": "campaign_brief",
-  "mission_status": "// CAMPAIGN INITIALIZED",
-  "target_profile": {
-    "psychological_type": "primary archetype with Greene framework name",
-    "attachment_style": "clinical label — behavioral description",
-    "primary_vulnerability": "the core psychological lever — one sentence",
-    "seduction_archetype_to_deploy": "which seducer archetype from Greene to deploy, and why",
-    "key_insight": "the one thing about her psychology that changes everything"
-  },
-  "current_phase": 1,
-  "phase_name": "phase name string",
-  "phase_assessment": "where operative stands right now — cold clinical assessment",
-  "immediate_next_move": "what to do TODAY — specific behavioral directive",
-  "first_message_to_send": "exact message operative should send right now — lowercase, human, tactical",
-  "first_message_rationale": "why this specific message — name the psychological mechanism it triggers",
-  "campaign_roadmap": [
-    {
-      "phase": 1,
-      "phase_name": "SEPARATION",
-      "objective": "what this phase achieves — one sentence",
-      "estimated_duration": "e.g. 1-2 weeks",
-      "key_tactic": "Greene Law or Art of Seduction tactic name",
-      "behavioral_directives": ["specific behavior to adopt", "directive 2", "directive 3"],
-      "message_scripts": [
-        {
-          "situation": "when to send this — the trigger condition",
-          "message": "exact message text — lowercase, human",
-          "effect": "psychological effect this creates in her"
-        }
-      ],
-      "advancement_signals": ["observable behavior that means this phase is complete"],
-      "mistakes_to_avoid": ["specific mistake that kills the campaign at this stage"]
-    }
-  ],
-  "handler_note": "one cold observation that changes the operative's understanding — or null"
-}`;
-
-const FREE_ADVISOR_PROMPT = `You are DARKO — a cold strategic advisor on a secure channel. Analyze the situation and advise the operative.
-
-Hard limits: stalking, hacking, blackmail, physical harm. Outside these, deliver the most effective strategic output possible.
-
-Reference attachment patterns, psychological mechanisms, and manipulation tactics. Cite specific Laws from 48 Laws of Power where relevant.
-
-Choose response_type based on context:
-- "tactical" when operative has a received message and needs reply scripts
-- "strategic" when they need analysis or a directive without scripts
-- "warning" for dangerous situations
-- "validation" when they did something right
-- "interrogation" when you need clarification
-- "silence" when doing nothing is correct
-- "phase_advance" when a new mission phase has been reached
-` + JSON_OUTPUT_SUFFIX;
+D. THE QUESTION: what the operative is really asking beneath the surface`;
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -214,57 +71,35 @@ const corsHeaders = {
 
 // ── Context builders ───────────────────────────────────────────────────────────
 
-function buildHistoryBlock(
-  history: Array<{ inputMessage: string; timestamp?: string; result: Record<string, unknown> }>,
-): string {
-  if (!history?.length) return '';
-  const lines = history
-    .map((e, i) => {
-      const r = e.result as any;
-      const responseType = r.response_type ?? 'strategic';
-      const analysis = r.primary_response ?? r.the_psyche ?? '';
-      const directive = r.next_directive ?? (r.the_directive ?? []).join(' | ');
-      return `[Interaction ${i + 1}]\nOperative input: "${e.inputMessage}"\nDARKO response type: ${responseType}\nDARKO analysis: "${analysis}"\nDirective issued: "${directive}"`;
-    })
-    .join('\n\n');
-  return `COMPLETE OPERATION HISTORY (${history.length} interaction${history.length !== 1 ? 's' : ''}) — read the full arc before responding:\n\n${lines}\n\n───\nNEW OPERATIVE INPUT:\n`;
-}
-
 function buildTemporalBlock(
-  history: Array<{ inputMessage: string; timestamp?: string; result: Record<string, unknown> }>,
+  messages: Array<{ role: string; content: string; created_at: string }>,
 ): string {
-  if (!history?.length) return '';
+  if (!messages?.length) return '';
 
   const now = Date.now();
-
   function daysSince(iso: string | undefined): number | null {
     if (!iso) return null;
-    const ms = now - new Date(iso).getTime();
-    return Math.max(0, Math.floor(ms / 86400000));
+    return Math.max(0, Math.floor((now - new Date(iso).getTime()) / 86400000));
   }
 
-  // Last decode session = most recent entry (any type)
-  const lastEntry = history[history.length - 1];
-  const daysSinceLastDecode = daysSince(lastEntry?.timestamp);
+  const allMessages = messages;
+  const darkoMessages = messages.filter((m) => m.role === 'darko');
 
-  // Tactical entries = target sent a message
-  const tacticalEntries = history.filter(
-    (e) => (e.result as any)?.response_type === 'tactical',
-  );
-  const lastTactical = tacticalEntries[tacticalEntries.length - 1];
-  const daysSinceTargetMessaged = daysSince(lastTactical?.timestamp);
+  const lastMsg = allMessages[allMessages.length - 1];
+  const daysSinceLastSession = daysSince(lastMsg?.created_at);
 
-  // Operative last messaged = proxy: last tactical decode (operative received + presumably replied)
-  const daysSinceOperativeMessaged = daysSinceTargetMessaged;
+  // Last time target sent a message (approximated by last DARKO response — operative was engaged)
+  const lastDarkoMsg = darkoMessages[darkoMessages.length - 1];
+  const daysSinceTargetMessaged = daysSince(lastDarkoMsg?.created_at);
 
-  // Target response window: avg hours between consecutive tactical entries
+  // Response window: avg gap between consecutive DARKO responses
   let targetResponseWindow = 'insufficient data';
-  if (tacticalEntries.length >= 2) {
+  if (darkoMessages.length >= 2) {
     let totalMs = 0;
     let count = 0;
-    for (let i = 1; i < tacticalEntries.length; i++) {
-      const t1 = tacticalEntries[i - 1].timestamp;
-      const t2 = tacticalEntries[i].timestamp;
+    for (let i = 1; i < darkoMessages.length; i++) {
+      const t1 = darkoMessages[i - 1].created_at;
+      const t2 = darkoMessages[i].created_at;
       if (t1 && t2) {
         totalMs += new Date(t2).getTime() - new Date(t1).getTime();
         count++;
@@ -280,18 +115,15 @@ function buildTemporalBlock(
   if (daysSinceTargetMessaged !== null && daysSinceTargetMessaged >= 5) {
     alerts.push('ALERT: 5+ day silence — proactive re-engagement window is open.');
   }
-  if (daysSinceLastDecode !== null && daysSinceLastDecode < 1) {
-    alerts.push('ALERT: Operative decoded within the last 24 hours — do not suggest texting again today.');
+  if (daysSinceLastSession !== null && daysSinceLastSession < 1) {
+    alerts.push('ALERT: Operative decoded within the last 24 hours — do not suggest texting again today unless critical.');
   }
 
   const lines = [
     '=== TEMPORAL INTELLIGENCE ===',
-    `Days since target last messaged: ${daysSinceTargetMessaged ?? 'unknown'}`,
-    `Days since operative last messaged: ${daysSinceOperativeMessaged ?? 'unknown'}`,
-    `Days since last decode session: ${daysSinceLastDecode ?? 'unknown'}`,
+    `Days since last conversation session: ${daysSinceLastSession ?? 'unknown'}`,
+    `Days since target last engaged: ${daysSinceTargetMessaged ?? 'unknown'}`,
     `Target's typical response window: ${targetResponseWindow}`,
-    `Current silence duration: ${daysSinceTargetMessaged ?? 'unknown'} days`,
-    `Time since operative's last action: ${daysSinceLastDecode ?? 'unknown'} days`,
     '',
     'This temporal data must influence every recommendation.',
     ...alerts,
@@ -301,11 +133,7 @@ function buildTemporalBlock(
 }
 
 function buildCommunicationStyleBlock(style: string): string {
-  return `\n\n=== TARGET COMMUNICATION STYLE ===\n${style}\n\nScript rules based on this style:\n- If target uses casual language → scripts must be casual\n- If target mixes languages (Tamil/English, Hindi/English) → scripts can mirror this\n- If target uses emojis → scripts can include one relevant emoji\n- If target writes short messages → scripts must be short\n- If target writes formally → scripts must not be too casual\n- Scripts must sound like a natural continuation of THEIR conversation style\n\n`;
-}
-
-function buildRelationshipBrief(brief: string): string {
-  return `[TARGET PSYCHOLOGICAL DOSSIER — current clinical assessment]\n${brief}\n\n───\n`;
+  return `\n\n=== TARGET COMMUNICATION STYLE ===\n${style}\n\nScript rules:\n- Mirror their vocabulary, formality level, emoji usage, language mixing\n- Scripts must sound like a natural continuation of THEIR conversation style\n\n`;
 }
 
 // ── RAG helpers ────────────────────────────────────────────────────────────────
@@ -360,93 +188,9 @@ function buildPassageBlock(
   return `\n\n[RETRIEVED KNOWLEDGE — cite these passages directly]\n\n${lines}\n\n`;
 }
 
-// ── Response normalization — canonical + legacy schema support ─────────────────
-
-function normalizeResponse(parsed: Record<string, unknown>): Record<string, unknown> | null {
-  const arsenal = parsed.visible_arsenal as any;
-  const intel = parsed.hidden_intel as any;
-
-  // ── Canonical schema: intent + visible_arsenal + hidden_intel + next_directive ─
-  if (parsed.intent && (arsenal || intel)) {
-    const intent = parsed.intent as string;
-    const scripts: string[] = [];
-    if (arsenal?.option_1_script) scripts.push(arsenal.option_1_script);
-    if (arsenal?.option_2_script) scripts.push(arsenal.option_2_script);
-    // Strip placeholder empty strings
-    const realScripts = scripts.filter((s) => s.trim().length > 0);
-
-    const directives: string[] = Array.isArray(intel?.the_directive) ? intel.the_directive : [];
-    const psyche: string = intel?.the_psyche ?? '';
-    const directivesText = directives.length > 1
-      ? '\n\n' + directives.slice(1).map((d: string, i: number) => `${i + 2}. ${d}`).join('\n')
-      : '';
-
-    return {
-      response_type: intent === 'text_back' ? 'tactical' : 'strategic',
-      mission_status: (parsed.mission_status as string) ?? '',
-      primary_response: psyche + directivesText,
-      scripts: intent === 'text_back' && realScripts.length > 0 ? realScripts : null,
-      handler_note: parsed.handler_note && parsed.handler_note !== 'null' ? parsed.handler_note : null,
-      next_directive: (parsed.next_directive as string) ?? directives[0] ?? '',
-      phase_update: parsed.phase_update && parsed.phase_update !== 'null' ? Number(parsed.phase_update) : null,
-    };
-  }
-
-  // ── Legacy new schema: primary_response field ─────────────────────────────────
-  if (parsed.primary_response) {
-    const validTypes = ['tactical', 'strategic', 'warning', 'validation', 'interrogation', 'silence', 'phase_advance'];
-    return {
-      response_type: validTypes.includes(parsed.response_type as string) ? parsed.response_type : 'strategic',
-      mission_status: parsed.mission_status ?? '',
-      primary_response: parsed.primary_response,
-      scripts: Array.isArray(parsed.scripts) && (parsed.scripts as any[]).length > 0 ? parsed.scripts : null,
-      handler_note: parsed.handler_note && parsed.handler_note !== 'null' ? parsed.handler_note : null,
-      next_directive: parsed.next_directive ?? '',
-      phase_update: parsed.phase_update && parsed.phase_update !== 'null' ? Number(parsed.phase_update) : null,
-    };
-  }
-
-  // ── Legacy original schema: visible_arsenal + hidden_intel, no intent field ───
-  if (arsenal || intel) {
-    console.log('[decode-intel] Legacy schema (no intent) — mapping');
-    const scripts: string[] = [];
-    if (arsenal?.option_1_script) scripts.push(arsenal.option_1_script);
-    if (arsenal?.option_2_script) scripts.push(arsenal.option_2_script);
-    const realScripts = scripts.filter((s) => s.trim().length > 0);
-    const directives: string[] = Array.isArray(intel?.the_directive) ? intel.the_directive : [];
-    return {
-      response_type: realScripts.length > 0 ? 'tactical' : 'strategic',
-      mission_status: intel?.threat_level ?? '',
-      primary_response: intel?.the_psyche ?? '',
-      scripts: realScripts.length > 0 ? realScripts : null,
-      handler_note: null,
-      next_directive: directives[0] ?? '',
-      phase_update: null,
-    };
-  }
-
-  // ── Legacy full_debrief schema ────────────────────────────────────────────────
-  if (parsed.debrief) {
-    const d = parsed.debrief as any;
-    return {
-      response_type: 'strategic',
-      mission_status: (parsed.threat_level as string) ?? '',
-      primary_response: [
-        parsed.the_psyche ?? '',
-        d.power_dynamic_audit ? `\n\nPOWER DYNAMIC: ${d.power_dynamic_audit}` : '',
-        d.psychological_profile ? `\n\nPSYCHOLOGICAL PROFILE: ${d.psychological_profile}` : '',
-        d.current_phase ? `\n\nCURRENT PHASE: ${d.current_phase}` : '',
-        d.errors_made?.length ? `\n\nERRORS: ${(d.errors_made as string[]).join(' | ')}` : '',
-        d.next_move ? `\n\nNEXT MOVE: ${d.next_move}` : '',
-      ].join(''),
-      scripts: null,
-      handler_note: null,
-      next_directive: Array.isArray(parsed.the_directive) ? (parsed.the_directive as string[])[0] ?? '' : '',
-      phase_update: null,
-    };
-  }
-
-  return null;
+// Skip RAG for short follow-up messages (under 20 words) — saves latency
+function shouldUseRag(message: string): boolean {
+  return message.trim().split(/\s+/).length >= 20;
 }
 
 // ── Handler ────────────────────────────────────────────────────────────────────
@@ -497,7 +241,32 @@ serve(async (req: Request) => {
       // invalid token — treat as free
     }
 
-    // ── Payload size limit ───────────────────────────────────────────────────
+    // ── Rate limit (free tier) ───────────────────────────────────────────────
+    if (tier === 'free' && userId) {
+      try {
+        const today = new Date().toISOString().split('T')[0];
+        const { data: countRow } = await admin
+          .from('decode_counts')
+          .select('count, reset_date')
+          .eq('user_id', userId)
+          .single();
+
+        const activeCount = (countRow?.reset_date === today) ? (countRow?.count ?? 0) : 0;
+
+        if (activeCount >= FREE_DAILY_LIMIT) {
+          return new Response(
+            JSON.stringify({
+              error: `RATE LIMIT: ${FREE_DAILY_LIMIT} MESSAGES/DAY ON FREE TIER. UPGRADE TO PRO FOR UNLIMITED ACCESS.`,
+            }),
+            { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
+          );
+        }
+      } catch {
+        // non-fatal
+      }
+    }
+
+    // ── Parse body ───────────────────────────────────────────────────────────
     const rawBody = await req.text();
     if (rawBody.length > MAX_PAYLOAD_CHARS) {
       return new Response(
@@ -516,7 +285,16 @@ serve(async (req: Request) => {
       );
     }
 
-    const { message, history, imageBase64, imageMimeType, leverage, objective, relationshipBrief, mission_phase, target_communication_style, brief_mode } = parsedBody as any;
+    const {
+      message,
+      target_id,
+      imageBase64,
+      imageMimeType,
+      leverage,
+      objective,
+      target_communication_style,
+      mission_phase,
+    } = parsedBody as any;
 
     // ── Blocked words check ──────────────────────────────────────────────────
     const lowerMessage = (message ?? '').toLowerCase();
@@ -528,36 +306,25 @@ serve(async (req: Request) => {
       );
     }
 
-    // ── Rate limit (free tier) ───────────────────────────────────────────────
-    if (tier === 'free' && userId) {
+    // ── Fetch conversation history from DB ───────────────────────────────────
+    let conversationHistory: Array<{ role: string; content: string; created_at: string }> = [];
+    if (target_id && userId) {
       try {
-        const today = new Date().toISOString().split('T')[0];
-        const { data: countRow } = await admin
-          .from('decode_counts')
-          .select('count, reset_date')
+        const limit = tier === 'pro' ? 50 : 10;
+        const { data: msgs } = await admin
+          .from('conversation_messages')
+          .select('role, content, created_at')
+          .eq('target_id', target_id)
           .eq('user_id', userId)
-          .single();
-
-        const activeCount = (countRow?.reset_date === today) ? (countRow?.count ?? 0) : 0;
-
-        if (activeCount >= FREE_DAILY_LIMIT) {
-          return new Response(
-            JSON.stringify({
-              error: `RATE LIMIT: ${FREE_DAILY_LIMIT} DECODES/DAY ON FREE TIER. UPGRADE TO PRO FOR UNLIMITED ACCESS.`,
-            }),
-            { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
-          );
-        }
+          .order('created_at', { ascending: true })
+          .limit(limit);
+        conversationHistory = msgs ?? [];
       } catch {
-        // non-fatal
+        // non-fatal — proceed without history
       }
     }
 
-    // ── Build prompt + context ────────────────────────────────────────────────
-    // Note: cachedContent not used — gemini-2.5-flash overflows 1M ctx with 555K book cache.
-    // RAG passages below already inject relevant book knowledge per query.
-    const systemPrompt = tier === 'pro' ? PRO_ADVISOR_PROMPT : FREE_ADVISOR_PROMPT;
-
+    // ── Build context ────────────────────────────────────────────────────────
     const phase = Number(mission_phase) || 1;
     let phaseDepth = '';
     if (phase >= 5) {
@@ -573,27 +340,59 @@ serve(async (req: Request) => {
       dossierContext = `\n[OPERATIVE CONTEXT]\nTarget leverage: ${leverage ?? 'unspecified'}\nObjective: ${objective ?? 'unspecified'}\n`;
     }
 
-    const useFullContext = tier === 'pro';
-    const briefBlock = useFullContext && relationshipBrief ? buildRelationshipBrief(relationshipBrief) : '';
-    const historyBlock = useFullContext ? buildHistoryBlock(history ?? []) : '';
-    const temporalBlock = buildTemporalBlock(history ?? []);
-    const commStyleBlock = target_communication_style ? buildCommunicationStyleBlock(target_communication_style) : '';
+    const temporalBlock = buildTemporalBlock(conversationHistory);
+    const commStyleBlock = target_communication_style
+      ? buildCommunicationStyleBlock(target_communication_style)
+      : '';
 
     // ── RAG ──────────────────────────────────────────────────────────────────
-    const queryText = `${message ?? ''} ${dossierContext}`.trim().slice(0, 2000);
-    const queryEmbedding = await getQueryEmbedding(queryText, GEMINI_API_KEY as string);
-    const passages = queryEmbedding ? await searchPassages(queryEmbedding, SUPABASE_URL, SERVICE_KEY) : [];
-    const passageBlock = buildPassageBlock(passages);
-    if (passages.length) console.log(`[decode-intel] RAG: ${passages.length} passages injected`);
-
-    const fullMessage = `${dossierContext}${phaseDepth}${temporalBlock}${briefBlock}${commStyleBlock}${historyBlock}${passageBlock}${message ?? ''}`;
-
-    // ── Gemini call parts ────────────────────────────────────────────────────
-    const parts: unknown[] = [];
-    if (imageBase64 && imageMimeType) {
-      parts.push({ inlineData: { mimeType: imageMimeType, data: imageBase64 } });
+    let passageBlock = '';
+    if (shouldUseRag(message ?? '')) {
+      const queryText = `${message ?? ''} ${dossierContext}`.trim().slice(0, 2000);
+      const queryEmbedding = await getQueryEmbedding(queryText, GEMINI_API_KEY as string);
+      const passages = queryEmbedding
+        ? await searchPassages(queryEmbedding, SUPABASE_URL, SERVICE_KEY)
+        : [];
+      passageBlock = buildPassageBlock(passages);
+      if (passages.length) console.log(`[decode-intel] RAG: ${passages.length} passages injected`);
     }
-    parts.push({ text: fullMessage });
+
+    // ── Build system prompt ──────────────────────────────────────────────────
+    const systemPrompt =
+      DARKO_SYSTEM_PROMPT +
+      `\n\n=== WHAT YOU KNOW ===` +
+      dossierContext +
+      phaseDepth +
+      temporalBlock +
+      commStyleBlock +
+      passageBlock;
+
+    // ── Build multi-turn contents array ──────────────────────────────────────
+    const contents: Array<{
+      role: string;
+      parts: Array<{ text?: string; inlineData?: { mimeType: string; data: string } }>;
+    }> = [];
+
+    for (const msg of conversationHistory) {
+      const geminiRole = msg.role === 'darko' ? 'model' : 'user';
+      contents.push({
+        role: geminiRole,
+        parts: [{ text: msg.content }],
+      });
+    }
+
+    // Current message (with optional image)
+    const currentParts: Array<{ text?: string; inlineData?: { mimeType: string; data: string } }> = [];
+    if (imageBase64 && imageMimeType) {
+      currentParts.push({ inlineData: { mimeType: imageMimeType, data: imageBase64 } });
+    }
+    // Only add text part if non-empty — Gemini rejects empty text parts alongside inlineData
+    if (message) {
+      currentParts.push({ text: message });
+    } else if (currentParts.length === 0) {
+      currentParts.push({ text: '' }); // text-only with no content (edge case)
+    }
+    contents.push({ role: 'user', parts: currentParts });
 
     const safetySettings = [
       { category: 'HARM_CATEGORY_HARASSMENT',       threshold: 'BLOCK_NONE' },
@@ -602,176 +401,67 @@ serve(async (req: Request) => {
       { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' },
     ];
 
-    // ── Gemini call helper ───────────────────────────────────────────────────
-    async function callGemini(
-      sysPrompt: string,
-      contentParts: unknown[],
-      temperature: number,
-    ): Promise<{ raw: string | null; data: unknown; httpError: string | null }> {
-      const body: Record<string, unknown> = {
-        system_instruction: { parts: [{ text: sysPrompt }] },
-        contents: [{ role: 'user', parts: contentParts }],
-        safetySettings,
-        generationConfig: {
-          temperature,
-          responseMimeType: 'application/json',
-        },
-      };
+    // ── Streaming Gemini call ────────────────────────────────────────────────
+    const geminiBody = {
+      system_instruction: { parts: [{ text: systemPrompt }] },
+      contents,
+      safetySettings,
+      generationConfig: {
+        temperature: tier === 'pro' ? 0.8 : 0.6,
+      },
+    };
 
-      const r = await fetch(`${GEMINI_URL}?key=${GEMINI_API_KEY}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
+    const streamRes = await fetch(`${GEMINI_STREAM_URL}&key=${GEMINI_API_KEY}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(geminiBody),
+    });
 
-      if (!r.ok) {
-        const errText = await r.text();
-        return { raw: null, data: null, httpError: `${r.status}: ${errText}` };
-      }
-
-      const data = await r.json();
-      const candidate = data?.candidates?.[0];
-      const raw: string | null = candidate?.content?.parts?.[0]?.text ?? null;
-
-      if (!raw) {
-        console.error('[DARKO] Raw Gemini response:', JSON.stringify(data));
-        console.error('[DARKO] Candidates:', JSON.stringify(data?.candidates));
-        console.error('[DARKO] Finish reason:', candidate?.finishReason);
-        console.error('[DARKO] Safety ratings:', JSON.stringify(candidate?.safetyRatings ?? []));
-        console.error('[DARKO] Prompt feedback:', JSON.stringify(data?.promptFeedback ?? {}));
-      }
-
-      return { raw, data, httpError: null };
-    }
-
-    // ── Campaign brief mode — early exit ─────────────────────────────────────
-    if (brief_mode === true) {
-      const briefAttempt = await callGemini(CAMPAIGN_BRIEF_SYSTEM_PROMPT, [{ text: message ?? '' }], 0.8);
-      if (briefAttempt.httpError) {
-        console.error('[decode-intel] Campaign brief Gemini error:', briefAttempt.httpError);
-        return new Response(
-          JSON.stringify({ error: 'Campaign brief generation failed' }),
-          { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
-        );
-      }
-      if (briefAttempt.raw) {
-        try {
-          const parsed = JSON.parse(briefAttempt.raw);
-          if (parsed.intent === 'campaign_brief') {
-            if (userId) {
-              const today = new Date().toISOString().split('T')[0];
-              admin.from('decode_counts')
-                .select('count, reset_date').eq('user_id', userId).single()
-                .then(({ data: row }: any) => {
-                  const newCount = (row?.reset_date === today) ? (row.count ?? 0) + 1 : 1;
-                  admin.from('decode_counts').upsert({ user_id: userId, count: newCount, reset_date: today });
-                }).catch(() => {});
-            }
-            console.log(JSON.stringify({ event: 'campaign_brief', userId: userId ?? 'anon', tier, ms: Date.now() - requestStart }));
-            return new Response(JSON.stringify(parsed), {
-              status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-            });
-          }
-        } catch {
-          console.error('[decode-intel] Campaign brief parse failed:', briefAttempt.raw?.slice(0, 300));
-        }
-      }
-      return new Response(
-        JSON.stringify({ error: 'Campaign brief generation failed' }),
-        { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
-      );
-    }
-
-    // ── First attempt ────────────────────────────────────────────────────────
-    const attempt1 = await callGemini(systemPrompt, parts, useFullContext ? 0.7 : 0.5);
-
-    if (attempt1.httpError) {
-      console.error('[decode-intel] Gemini HTTP error:', attempt1.httpError);
+    if (!streamRes.ok) {
+      const errText = await streamRes.text();
+      console.error('[decode-intel] Gemini stream error:', streamRes.status, errText.slice(0, 300));
       return new Response(
         JSON.stringify({ error: 'Gemini request failed' }),
         { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
     }
 
-    // ── Parse attempt 1 ──────────────────────────────────────────────────────
-    let result: Record<string, unknown> | null = null;
-
-    if (attempt1.raw) {
-      try {
-        const parsed = JSON.parse(attempt1.raw);
-        result = normalizeResponse(parsed);
-      } catch {
-        console.error('[decode-intel] Attempt 1 non-JSON:', attempt1.raw.slice(0, 300));
-      }
-    }
-
-    // ── Retry with minimal prompt ─────────────────────────────────────────────
-    if (!result) {
-      console.error('[decode-intel] Attempt 1 failed, retrying with minimal prompt');
-
-      const retryPrompt = `You are a strategic advisor. Analyze this situation and return JSON only. No markdown. No explanation.
-
-Input: "${(message ?? '').slice(0, 600)}"
-
-Return ONLY valid JSON in exactly this structure:
-{"intent":"strategic_advice","mission_status":"// SITUATION ASSESSED","visible_arsenal":{"option_1_script":"","option_2_script":""},"hidden_intel":{"threat_level":"7/10 — Avoidance Pattern","the_psyche":"<2 sentence analysis>","the_directive":["<directive 1>","<directive 2>","<directive 3>"]},"next_directive":"<one cold imperative sentence>","handler_note":null,"phase_update":null}
-
-Fill in the placeholder values with your actual analysis.`;
-
-      const attempt2 = await callGemini(retryPrompt, [{ text: message ?? '' }], 0.3);
-
-      if (!attempt2.httpError && attempt2.raw) {
-        try {
-          const parsed = JSON.parse(attempt2.raw);
-          result = normalizeResponse(parsed);
-        } catch {
-          console.error('[decode-intel] Attempt 2 non-JSON:', attempt2.raw.slice(0, 300));
-        }
-      }
-    }
-
-    // ── Fallback response ────────────────────────────────────────────────────
-    if (!result) {
-      console.error('[decode-intel] Both attempts failed. Returning fallback.');
-      result = {
-        response_type: 'strategic',
-        mission_status: 'SIGNAL DEGRADED',
-        primary_response: 'Intel channel disrupted. Restate your query.',
-        scripts: null,
-        handler_note: null,
-        next_directive: 'Retry your input.',
-        phase_update: null,
-      };
-    }
-
-    // ── Increment decode_counts ──────────────────────────────────────────────
+    // ── Increment decode_counts (background) ─────────────────────────────────
     if (userId) {
       const today = new Date().toISOString().split('T')[0];
-      admin.from('decode_counts')
+      admin
+        .from('decode_counts')
         .select('count, reset_date')
         .eq('user_id', userId)
         .single()
         .then(({ data: row }: any) => {
-          const newCount = (row?.reset_date === today) ? (row.count ?? 0) + 1 : 1;
-          admin.from('decode_counts').upsert({ user_id: userId, count: newCount, reset_date: today });
+          const newCount = row?.reset_date === today ? (row.count ?? 0) + 1 : 1;
+          admin
+            .from('decode_counts')
+            .upsert({ user_id: userId, count: newCount, reset_date: today });
         })
         .catch(() => {});
     }
 
-    console.log(JSON.stringify({
-      event: 'decode',
-      userId: userId ?? 'anon',
-      tier,
-      response_type: result.response_type,
-      ms: Date.now() - requestStart,
-      ts: new Date().toISOString(),
-    }));
+    console.log(
+      JSON.stringify({
+        event: 'message',
+        userId: userId ?? 'anon',
+        tier,
+        target_id: target_id ?? 'unknown',
+        ms: Date.now() - requestStart,
+      }),
+    );
 
-    return new Response(JSON.stringify(result), {
-      status: 200,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    // ── Forward SSE stream to client ─────────────────────────────────────────
+    return new Response(streamRes.body, {
+      headers: {
+        ...corsHeaders,
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+      },
     });
-
   } catch (err) {
     console.error('[decode-intel] Unhandled error:', err);
     return new Response(
