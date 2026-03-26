@@ -24,24 +24,45 @@ const TEXT_DIM = '#666666';
 const ERROR_RED = '#FF4444';
 const MONO = Platform.select({ ios: 'Courier New', android: 'monospace', default: 'monospace' });
 
+type Mode = 'login' | 'signup';
+
 export default function AuthScreen() {
   const router = useRouter();
+  const [mode, setMode] = useState<Mode>('login');
+
+  // Shared fields
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+
+  // Signup-only fields
+  const [fullName, setFullName] = useState('');
+  const [age, setAge] = useState('');
+  const [phone, setPhone] = useState('');
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmPending, setConfirmPending] = useState(false);
 
-  // Focus states for web input highlight
+  // Focus states
+  const [nameFocused, setNameFocused] = useState(false);
+  const [ageFocused, setAgeFocused] = useState(false);
   const [emailFocused, setEmailFocused] = useState(false);
+  const [phoneFocused, setPhoneFocused] = useState(false);
   const [passFocused, setPassFocused] = useState(false);
 
-  // If already logged in, skip straight to home
+  // Already logged in → skip to home
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) router.replace('/');
     });
   }, []);
+
+  const switchMode = (next: Mode) => {
+    setMode(next);
+    setError(null);
+  };
+
+  // ── Login ────────────────────────────────────────────────────────────────────
 
   const handleLogin = async () => {
     if (!email.trim() || !password) return;
@@ -63,14 +84,35 @@ export default function AuthScreen() {
     }
   };
 
+  // ── Signup ───────────────────────────────────────────────────────────────────
+
   const handleSignup = async () => {
-    if (!email.trim() || !password) return;
+    const name = fullName.trim();
+    const ageNum = parseInt(age.trim(), 10);
+
+    if (!name) { setError('FULL NAME IS REQUIRED'); return; }
+    if (!age.trim() || isNaN(ageNum)) { setError('ENTER YOUR AGE'); return; }
+    if (ageNum < 18) {
+      setError('YOU MUST BE 18 OR OLDER TO USE DARKO');
+      return;
+    }
+    if (!email.trim()) { setError('EMAIL IS REQUIRED'); return; }
+    if (!phone.trim()) { setError('PHONE NUMBER IS REQUIRED'); return; }
+    if (!password) { setError('PASSWORD IS REQUIRED'); return; }
+
     setLoading(true);
     setError(null);
 
     const { data, error: err } = await supabase.auth.signUp({
       email: email.trim(),
       password,
+      options: {
+        data: {
+          full_name: name,
+          age: ageNum,
+          phone: phone.trim(),
+        },
+      },
     });
 
     setLoading(false);
@@ -85,124 +127,254 @@ export default function AuthScreen() {
     }
   };
 
+  // ── Confirm pending screen ────────────────────────────────────────────────────
+
+  if (confirmPending) {
+    return (
+      <View style={styles.root}>
+        <StatusBar style="light" />
+        <View style={[styles.flex, Platform.OS === 'web' && styles.webColumn]}>
+          <ScrollView
+            contentContainerStyle={[styles.scroll, Platform.OS === 'web' && styles.scrollWeb]}
+            showsVerticalScrollIndicator={false}
+          >
+            <View style={styles.header}>
+              <Text style={styles.logo}>[ DARKO ]</Text>
+              <Text style={styles.logoSub}>psychological intelligence system</Text>
+            </View>
+            <View style={styles.divider} />
+            <Text style={styles.confirmTitle}>CHECK YOUR EMAIL</Text>
+            <Text style={styles.confirmBody}>
+              A verification link has been sent to{'\n'}
+              <Text style={styles.confirmEmail}>{email.trim()}</Text>
+              {'\n\n'}Click the link to activate your account, then return here to sign in.
+            </Text>
+            <Pressable
+              style={({ pressed }) => [styles.secondaryButton, pressed && { opacity: 0.75 }]}
+              onPress={() => { setConfirmPending(false); switchMode('login'); }}
+            >
+              <Text style={styles.secondaryButtonText}>[ BACK TO SIGN IN ]</Text>
+            </Pressable>
+          </ScrollView>
+        </View>
+      </View>
+    );
+  }
+
+  // ── Login form ────────────────────────────────────────────────────────────────
+
+  if (mode === 'login') {
+    return (
+      <View style={styles.root}>
+        <StatusBar style="light" />
+        <View style={[styles.flex, Platform.OS === 'web' && styles.webColumn]}>
+          <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+            <ScrollView
+              contentContainerStyle={[styles.scroll, Platform.OS === 'web' && styles.scrollWeb]}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
+              <View style={styles.header}>
+                <Text style={styles.logo}>[ DARKO ]</Text>
+                <Text style={styles.logoSub}>psychological intelligence system</Text>
+              </View>
+
+              <View style={styles.divider} />
+              <Text style={styles.sectionLabel}>SYSTEM ACCESS</Text>
+
+              <Text style={styles.fieldLabel}>EMAIL</Text>
+              <View style={[styles.inputWrapper, emailFocused && styles.inputWrapperFocused]}>
+                <TextInput
+                  style={styles.input}
+                  value={email}
+                  onChangeText={setEmail}
+                  placeholder="operator@domain.com"
+                  placeholderTextColor={TEXT_DIM}
+                  autoCapitalize="none"
+                  keyboardType="email-address"
+                  autoComplete="email"
+                  onFocus={() => setEmailFocused(true)}
+                  onBlur={() => setEmailFocused(false)}
+                />
+              </View>
+
+              <Text style={styles.fieldLabel}>PASSWORD</Text>
+              <View style={[styles.inputWrapper, passFocused && styles.inputWrapperFocused]}>
+                <TextInput
+                  style={styles.input}
+                  value={password}
+                  onChangeText={setPassword}
+                  placeholder="••••••••••••"
+                  placeholderTextColor={TEXT_DIM}
+                  secureTextEntry
+                  autoComplete="password"
+                  onFocus={() => setPassFocused(true)}
+                  onBlur={() => setPassFocused(false)}
+                  onSubmitEditing={handleLogin}
+                />
+              </View>
+
+              {error && <Text style={styles.errorText}>[ {error} ]</Text>}
+
+              <Pressable
+                style={({ pressed, hovered }: any) => [
+                  styles.primaryButton,
+                  loading && styles.buttonDisabled,
+                  Platform.OS === 'web' && hovered && !loading && styles.primaryButtonHovered,
+                  pressed && { opacity: 0.85 },
+                ]}
+                onPress={handleLogin}
+                disabled={loading}
+              >
+                {loading ? <ActivityIndicator color={BG} /> : <Text style={styles.primaryButtonText}>[ ACCESS SYSTEM ]</Text>}
+              </Pressable>
+
+              <View style={styles.divider} />
+
+              <Text style={styles.switchLabel}>Don't have an account?</Text>
+              <Pressable
+                style={({ pressed }) => [styles.secondaryButton, pressed && { opacity: 0.75 }]}
+                onPress={() => switchMode('signup')}
+              >
+                <Text style={styles.secondaryButtonText}>[ CREATE ACCOUNT ]</Text>
+              </Pressable>
+
+              <Text style={styles.disclaimer}>unauthorized access is logged and analyzed.</Text>
+            </ScrollView>
+          </KeyboardAvoidingView>
+        </View>
+      </View>
+    );
+  }
+
+  // ── Signup form ───────────────────────────────────────────────────────────────
+
   return (
     <View style={styles.root}>
       <StatusBar style="light" />
       <View style={[styles.flex, Platform.OS === 'web' && styles.webColumn]}>
-        <KeyboardAvoidingView
-          style={styles.flex}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        >
+        <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <ScrollView
             contentContainerStyle={[styles.scroll, Platform.OS === 'web' && styles.scrollWeb]}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
           >
-            {/* Header */}
             <View style={styles.header}>
               <Text style={styles.logo}>[ DARKO ]</Text>
               <Text style={styles.logoSub}>psychological intelligence system</Text>
             </View>
 
-            {/* Email confirmation pending */}
-            {confirmPending ? (
-              <>
-                <View style={styles.divider} />
-                <Text style={styles.confirmTitle}>CHECK YOUR EMAIL</Text>
-                <Text style={styles.confirmBody}>
-                  A confirmation link has been sent to{'\n'}
-                  <Text style={styles.confirmEmail}>{email.trim()}</Text>
-                  {'\n\n'}Click the link to activate your account, then return here to sign in.
-                </Text>
-                <Pressable
-                  style={({ pressed }) => [styles.secondaryButton, pressed && { opacity: 0.75 }]}
-                  onPress={() => setConfirmPending(false)}
-                >
-                  <Text style={styles.secondaryButtonText}>[ BACK TO SIGN IN ]</Text>
-                </Pressable>
-              </>
-            ) : (
-              <>
-                <View style={styles.divider} />
+            <View style={styles.divider} />
+            <Text style={styles.sectionLabel}>INITIALIZE PROFILE</Text>
 
-                <Text style={styles.sectionLabel}>SYSTEM ACCESS</Text>
+            {/* Full Name */}
+            <Text style={styles.fieldLabel}>FULL NAME</Text>
+            <View style={[styles.inputWrapper, nameFocused && styles.inputWrapperFocused]}>
+              <TextInput
+                style={styles.input}
+                value={fullName}
+                onChangeText={setFullName}
+                placeholder="your full name"
+                placeholderTextColor={TEXT_DIM}
+                autoCapitalize="words"
+                autoComplete="name"
+                onFocus={() => setNameFocused(true)}
+                onBlur={() => setNameFocused(false)}
+              />
+            </View>
 
-                {/* Email */}
-                <Text style={styles.fieldLabel}>EMAIL</Text>
-                <View style={[styles.inputWrapper, emailFocused && styles.inputWrapperFocused]}>
-                  <TextInput
-                    style={styles.input}
-                    value={email}
-                    onChangeText={setEmail}
-                    placeholder="operator@domain.com"
-                    placeholderTextColor={TEXT_DIM}
-                    autoCapitalize="none"
-                    keyboardType="email-address"
-                    autoComplete="email"
-                    onFocus={() => setEmailFocused(true)}
-                    onBlur={() => setEmailFocused(false)}
-                  />
-                </View>
+            {/* Age */}
+            <Text style={styles.fieldLabel}>AGE</Text>
+            <View style={[styles.inputWrapper, ageFocused && styles.inputWrapperFocused]}>
+              <TextInput
+                style={styles.input}
+                value={age}
+                onChangeText={(t) => setAge(t.replace(/[^0-9]/g, ''))}
+                placeholder="must be 18 or older"
+                placeholderTextColor={TEXT_DIM}
+                keyboardType="number-pad"
+                maxLength={3}
+                onFocus={() => setAgeFocused(true)}
+                onBlur={() => setAgeFocused(false)}
+              />
+            </View>
 
-                {/* Password */}
-                <Text style={styles.fieldLabel}>PASSWORD</Text>
-                <View style={[styles.inputWrapper, passFocused && styles.inputWrapperFocused]}>
-                  <TextInput
-                    style={styles.input}
-                    value={password}
-                    onChangeText={setPassword}
-                    placeholder="••••••••••••"
-                    placeholderTextColor={TEXT_DIM}
-                    secureTextEntry
-                    autoComplete="password"
-                    onFocus={() => setPassFocused(true)}
-                    onBlur={() => setPassFocused(false)}
-                    onSubmitEditing={handleLogin}
-                  />
-                </View>
+            {/* Email */}
+            <Text style={styles.fieldLabel}>EMAIL</Text>
+            <View style={[styles.inputWrapper, emailFocused && styles.inputWrapperFocused]}>
+              <TextInput
+                style={styles.input}
+                value={email}
+                onChangeText={setEmail}
+                placeholder="operator@domain.com"
+                placeholderTextColor={TEXT_DIM}
+                autoCapitalize="none"
+                keyboardType="email-address"
+                autoComplete="email"
+                onFocus={() => setEmailFocused(true)}
+                onBlur={() => setEmailFocused(false)}
+              />
+            </View>
 
-                {/* Error */}
-                {error && <Text style={styles.errorText}>[ {error} ]</Text>}
+            {/* Phone */}
+            <Text style={styles.fieldLabel}>PHONE</Text>
+            <View style={[styles.inputWrapper, phoneFocused && styles.inputWrapperFocused]}>
+              <TextInput
+                style={styles.input}
+                value={phone}
+                onChangeText={setPhone}
+                placeholder="+1 (555) 000-0000"
+                placeholderTextColor={TEXT_DIM}
+                keyboardType="phone-pad"
+                autoComplete="tel"
+                onFocus={() => setPhoneFocused(true)}
+                onBlur={() => setPhoneFocused(false)}
+              />
+            </View>
 
-                {/* Login */}
-                <Pressable
-                  style={({ pressed, hovered }: any) => [
-                    styles.primaryButton,
-                    loading && styles.buttonDisabled,
-                    Platform.OS === 'web' && hovered && !loading && styles.primaryButtonHovered,
-                    pressed && { opacity: 0.85 },
-                  ]}
-                  onPress={handleLogin}
-                  disabled={loading}
-                >
-                  {loading ? (
-                    <ActivityIndicator color={BG} />
-                  ) : (
-                    <Text style={styles.primaryButtonText}>[ ACCESS SYSTEM ]</Text>
-                  )}
-                </Pressable>
+            {/* Password */}
+            <Text style={styles.fieldLabel}>PASSWORD</Text>
+            <View style={[styles.inputWrapper, passFocused && styles.inputWrapperFocused]}>
+              <TextInput
+                style={styles.input}
+                value={password}
+                onChangeText={setPassword}
+                placeholder="••••••••••••"
+                placeholderTextColor={TEXT_DIM}
+                secureTextEntry
+                autoComplete="new-password"
+                onFocus={() => setPassFocused(true)}
+                onBlur={() => setPassFocused(false)}
+                onSubmitEditing={handleSignup}
+              />
+            </View>
 
-                {/* Signup */}
-                <Pressable
-                  style={({ pressed, hovered }: any) => [
-                    styles.secondaryButton,
-                    loading && styles.buttonDisabled,
-                    Platform.OS === 'web' && hovered && !loading && styles.secondaryButtonHovered,
-                    pressed && { opacity: 0.75 },
-                  ]}
-                  onPress={handleSignup}
-                  disabled={loading}
-                >
-                  <Text style={styles.secondaryButtonText}>[ INITIALIZE PROFILE ]</Text>
-                </Pressable>
+            {error && <Text style={styles.errorText}>[ {error} ]</Text>}
 
-                <View style={styles.divider} />
+            <Pressable
+              style={({ pressed, hovered }: any) => [
+                styles.primaryButton,
+                loading && styles.buttonDisabled,
+                Platform.OS === 'web' && hovered && !loading && styles.primaryButtonHovered,
+                pressed && { opacity: 0.85 },
+              ]}
+              onPress={handleSignup}
+              disabled={loading}
+            >
+              {loading ? <ActivityIndicator color={BG} /> : <Text style={styles.primaryButtonText}>[ INITIALIZE PROFILE ]</Text>}
+            </Pressable>
 
-                <Text style={styles.disclaimer}>
-                  unauthorized access is logged and analyzed.
-                </Text>
-              </>
-            )}
+            <View style={styles.divider} />
+
+            <Text style={styles.switchLabel}>Already have an account?</Text>
+            <Pressable
+              style={({ pressed }) => [styles.secondaryButton, pressed && { opacity: 0.75 }]}
+              onPress={() => switchMode('login')}
+            >
+              <Text style={styles.secondaryButtonText}>[ SIGN IN ]</Text>
+            </Pressable>
+
+            <Text style={styles.disclaimer}>unauthorized access is logged and analyzed.</Text>
           </ScrollView>
         </KeyboardAvoidingView>
       </View>
@@ -235,14 +407,14 @@ const styles = StyleSheet.create({
   },
   header: { marginBottom: 8 },
   logo: {
-    fontFamily: MONO,
+    fontFamily: MONO as any,
     fontSize: 28,
     fontWeight: '700',
     color: ACCENT,
     letterSpacing: 6,
   },
   logoSub: {
-    fontFamily: MONO,
+    fontFamily: MONO as any,
     fontSize: 10,
     color: TEXT_DIM,
     letterSpacing: 2,
@@ -254,14 +426,14 @@ const styles = StyleSheet.create({
     marginVertical: 28,
   },
   sectionLabel: {
-    fontFamily: MONO,
+    fontFamily: MONO as any,
     fontSize: 10,
     color: TEXT_DIM,
     letterSpacing: 4,
     marginBottom: 24,
   },
   fieldLabel: {
-    fontFamily: MONO,
+    fontFamily: MONO as any,
     fontSize: 9,
     color: TEXT_DIM,
     letterSpacing: 3,
@@ -278,14 +450,14 @@ const styles = StyleSheet.create({
     borderColor: ACCENT,
   },
   input: {
-    fontFamily: MONO,
+    fontFamily: MONO as any,
     fontSize: 14,
     color: TEXT_PRIMARY,
     padding: 14,
     letterSpacing: 1,
   },
   errorText: {
-    fontFamily: MONO,
+    fontFamily: MONO as any,
     fontSize: 11,
     color: ERROR_RED,
     letterSpacing: 2,
@@ -303,7 +475,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#D4FF00',
   },
   primaryButtonText: {
-    fontFamily: MONO,
+    fontFamily: MONO as any,
     fontSize: 13,
     fontWeight: '700',
     color: BG,
@@ -316,11 +488,8 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     alignItems: 'center' as const,
   },
-  secondaryButtonHovered: {
-    backgroundColor: 'rgba(204,255,0,0.08)',
-  },
   secondaryButtonText: {
-    fontFamily: MONO,
+    fontFamily: MONO as any,
     fontSize: 13,
     color: ACCENT,
     letterSpacing: 3,
@@ -328,15 +497,24 @@ const styles = StyleSheet.create({
   buttonDisabled: {
     opacity: 0.5,
   },
+  switchLabel: {
+    fontFamily: MONO as any,
+    fontSize: 10,
+    color: TEXT_DIM,
+    letterSpacing: 1,
+    textAlign: 'center' as const,
+    marginBottom: 12,
+  },
   disclaimer: {
-    fontFamily: MONO,
+    fontFamily: MONO as any,
     fontSize: 9,
     color: '#2A2A2A',
     letterSpacing: 2,
     textAlign: 'center' as const,
+    marginTop: 24,
   },
   confirmTitle: {
-    fontFamily: MONO,
+    fontFamily: MONO as any,
     fontSize: 13,
     fontWeight: '700',
     color: ACCENT,
@@ -344,7 +522,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   confirmBody: {
-    fontFamily: MONO,
+    fontFamily: MONO as any,
     fontSize: 11,
     color: TEXT_DIM,
     letterSpacing: 1,

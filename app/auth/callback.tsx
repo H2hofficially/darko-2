@@ -36,11 +36,23 @@ export default function AuthCallbackScreen() {
       }
 
       setStatus('EXCHANGING TOKEN...');
-      const { error: exchangeErr } = await supabase.auth.exchangeCodeForSession(code);
+      const { data: exchangeData, error: exchangeErr } = await supabase.auth.exchangeCodeForSession(code);
 
       if (exchangeErr) {
         setError(`[ ${exchangeErr.message.toUpperCase()} ]`);
         return;
+      }
+
+      // Sync signup metadata → profiles table
+      const meta = exchangeData.session?.user?.user_metadata;
+      if (meta && exchangeData.session?.user?.id) {
+        const update: Record<string, any> = {};
+        if (meta.full_name) update.full_name = meta.full_name;
+        if (meta.age)       update.age       = meta.age;
+        if (meta.phone)     update.phone     = meta.phone;
+        if (Object.keys(update).length > 0) {
+          await supabase.from('profiles').update(update).eq('id', exchangeData.session.user.id);
+        }
       }
 
       setStatus('ACCESS GRANTED');
