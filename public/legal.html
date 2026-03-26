@@ -1,0 +1,939 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DARKO — Legal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #09090B;
+    --surface: #111113;
+    --surface-elevated: #18181B;
+    --border: #27272A;
+    --border-accent: #CCFF00;
+    --text-primary: #FAFAFA;
+    --text-secondary: #A1A1AA;
+    --text-muted: #71717A;
+    --accent: #CCFF00;
+    --accent-dim: rgba(204, 255, 0, 0.08);
+    --danger: #EF4444;
+    --warning: #F59E0B;
+    --mono: 'JetBrains Mono', monospace;
+    --sans: 'Space Grotesk', sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html {
+    scroll-behavior: smooth;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) var(--bg);
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text-primary);
+    font-family: var(--mono);
+    font-size: 14px;
+    line-height: 1.75;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ── NAV ── */
+  .legal-nav {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: rgba(9, 9, 11, 0.92);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+    padding: 0 24px;
+  }
+
+  .legal-nav-inner {
+    max-width: 960px;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 56px;
+    overflow-x: auto;
+  }
+
+  .legal-nav .brand {
+    font-family: var(--sans);
+    font-weight: 700;
+    font-size: 18px;
+    color: var(--accent);
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    margin-right: 24px;
+    flex-shrink: 0;
+  }
+
+  .legal-nav a {
+    color: var(--text-muted);
+    text-decoration: none;
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.5px;
+    padding: 6px 12px;
+    border-radius: 4px;
+    transition: all 0.2s;
+    white-space: nowrap;
+    text-transform: uppercase;
+  }
+
+  .legal-nav a:hover,
+  .legal-nav a.active {
+    color: var(--accent);
+    background: var(--accent-dim);
+  }
+
+  .nav-divider {
+    width: 1px;
+    height: 20px;
+    background: var(--border);
+    flex-shrink: 0;
+  }
+
+  /* ── MAIN CONTAINER ── */
+  .legal-container {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 48px 24px 120px;
+  }
+
+  /* ── DOCUMENT HEADER ── */
+  .doc-header {
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    background: var(--surface);
+    padding: 32px;
+    margin-bottom: 48px;
+  }
+
+  .doc-header h1 {
+    font-family: var(--sans);
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--text-primary);
+    letter-spacing: 1px;
+    margin-bottom: 12px;
+  }
+
+  .doc-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 24px;
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+
+  .doc-meta span {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .doc-meta .label {
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-weight: 600;
+  }
+
+  .doc-meta .accent-val {
+    color: var(--accent);
+    font-weight: 500;
+  }
+
+  /* ── SECTION DIVIDERS ── */
+  .section-divider {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 64px 0 48px;
+    position: relative;
+  }
+
+  .section-divider::after {
+    content: attr(data-label);
+    position: absolute;
+    top: -10px;
+    left: 0;
+    background: var(--bg);
+    padding-right: 16px;
+    font-family: var(--sans);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+
+  /* ── CONTENT TYPOGRAPHY ── */
+  .legal-section {
+    margin-bottom: 40px;
+  }
+
+  .legal-section h2 {
+    font-family: var(--sans);
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 16px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .legal-section h2 .sec-num {
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--accent);
+    background: var(--accent-dim);
+    padding: 2px 8px;
+    border-radius: 3px;
+    letter-spacing: 1px;
+  }
+
+  .legal-section h3 {
+    font-family: var(--sans);
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin: 24px 0 10px;
+  }
+
+  .legal-section p {
+    color: var(--text-secondary);
+    margin-bottom: 14px;
+    font-size: 13.5px;
+  }
+
+  .legal-section ul,
+  .legal-section ol {
+    padding-left: 24px;
+    margin-bottom: 14px;
+  }
+
+  .legal-section li {
+    color: var(--text-secondary);
+    margin-bottom: 8px;
+    font-size: 13.5px;
+  }
+
+  .legal-section li::marker {
+    color: var(--text-muted);
+  }
+
+  /* ── CALLOUT BOXES ── */
+  .callout {
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--accent);
+    background: var(--accent-dim);
+    padding: 16px 20px;
+    margin: 20px 0;
+    font-size: 13px;
+  }
+
+  .callout.warning {
+    border-left-color: var(--warning);
+    background: rgba(245, 158, 11, 0.06);
+  }
+
+  .callout.danger {
+    border-left-color: var(--danger);
+    background: rgba(239, 68, 68, 0.06);
+  }
+
+  .callout .callout-title {
+    font-family: var(--sans);
+    font-weight: 700;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    margin-bottom: 6px;
+  }
+
+  .callout .callout-title.accent { color: var(--accent); }
+  .callout .callout-title.warn { color: var(--warning); }
+  .callout .callout-title.err { color: var(--danger); }
+
+  .callout p {
+    color: var(--text-secondary);
+    margin: 0;
+    font-size: 13px;
+  }
+
+  /* ── TABLE OF CONTENTS ── */
+  .toc {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 24px 28px;
+    margin-bottom: 48px;
+  }
+
+  .toc-title {
+    font-family: var(--sans);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: 16px;
+  }
+
+  .toc-columns {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 8px 32px;
+  }
+
+  .toc a {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--text-secondary);
+    text-decoration: none;
+    font-size: 13px;
+    padding: 5px 0;
+    transition: color 0.2s;
+  }
+
+  .toc a:hover { color: var(--accent); }
+
+  .toc a .toc-num {
+    color: var(--text-muted);
+    font-size: 11px;
+    min-width: 28px;
+    font-weight: 600;
+  }
+
+  /* ── FOOTER ── */
+  .legal-footer {
+    border-top: 1px solid var(--border);
+    padding-top: 32px;
+    margin-top: 64px;
+    text-align: center;
+  }
+
+  .legal-footer p {
+    color: var(--text-muted);
+    font-size: 12px;
+    margin-bottom: 6px;
+  }
+
+  .legal-footer .copyright {
+    color: var(--text-secondary);
+    font-weight: 500;
+  }
+
+  /* ── RESPONSIVE ── */
+  @media (max-width: 640px) {
+    .legal-container { padding: 32px 16px 80px; }
+    .doc-header { padding: 20px; }
+    .doc-header h1 { font-size: 22px; }
+    .doc-meta { gap: 12px; flex-direction: column; }
+    .toc-columns { grid-template-columns: 1fr; }
+    .legal-nav-inner { gap: 4px; }
+    .legal-nav a { font-size: 11px; padding: 6px 8px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════
+     NAVIGATION
+     ═══════════════════════════════════════════ -->
+<nav class="legal-nav">
+  <div class="legal-nav-inner">
+    <span class="brand">DARKO</span>
+    <div class="nav-divider"></div>
+    <a href="#tos">Terms of Service</a>
+    <a href="#privacy">Privacy Policy</a>
+    <a href="#aup">Acceptable Use</a>
+  </div>
+</nav>
+
+<div class="legal-container">
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     I. TERMS OF SERVICE
+     ═══════════════════════════════════════════════════════════════════════════ -->
+<div id="tos">
+  <div class="doc-header">
+    <h1>Terms of Service</h1>
+    <div class="doc-meta">
+      <span><span class="label">Entity</span> Nxgen Media LLC</span>
+      <span><span class="label">Product</span> <span class="accent-val">DARKO</span></span>
+      <span><span class="label">Effective</span> March 26, 2026</span>
+      <span><span class="label">Version</span> 1.0</span>
+    </div>
+  </div>
+
+  <div class="toc">
+    <div class="toc-title">Table of Contents</div>
+    <div class="toc-columns">
+      <a href="#tos-1"><span class="toc-num">01</span> Acceptance of Terms</a>
+      <a href="#tos-2"><span class="toc-num">02</span> Description of Service</a>
+      <a href="#tos-3"><span class="toc-num">03</span> No Professional Advice</a>
+      <a href="#tos-4"><span class="toc-num">04</span> Eligibility</a>
+      <a href="#tos-5"><span class="toc-num">05</span> Account Registration</a>
+      <a href="#tos-6"><span class="toc-num">06</span> Subscription &amp; Payment</a>
+      <a href="#tos-7"><span class="toc-num">07</span> User Content &amp; Conduct</a>
+      <a href="#tos-8"><span class="toc-num">08</span> Intellectual Property</a>
+      <a href="#tos-9"><span class="toc-num">09</span> Third-Party Services</a>
+      <a href="#tos-10"><span class="toc-num">10</span> Limitation of Liability</a>
+      <a href="#tos-11"><span class="toc-num">11</span> Indemnification</a>
+      <a href="#tos-12"><span class="toc-num">12</span> Disclaimers of Warranties</a>
+      <a href="#tos-13"><span class="toc-num">13</span> Termination</a>
+      <a href="#tos-14"><span class="toc-num">14</span> Dispute Resolution</a>
+      <a href="#tos-15"><span class="toc-num">15</span> General Provisions</a>
+    </div>
+  </div>
+
+  <!-- § 1 -->
+  <div id="tos-1" class="legal-section">
+    <h2><span class="sec-num">§ 01</span> Acceptance of Terms</h2>
+    <p>These Terms of Service ("Terms") constitute a legally binding agreement between you ("User," "you," or "your") and <strong>Nxgen Media LLC</strong>, a limited liability company organized under the laws of the State of Georgia ("Company," "we," "us," or "our"), governing your access to and use of the DARKO application, website, and all related services (collectively, the "Service").</p>
+    <p>By creating an account, accessing, or using the Service in any manner, you acknowledge that you have read, understood, and agree to be bound by these Terms, our Privacy Policy, and our Acceptable Use Policy, each of which is incorporated herein by reference. If you do not agree to these Terms, you must immediately discontinue all use of the Service.</p>
+    <p>We reserve the right to modify these Terms at any time. Material changes will be communicated via email or in-app notice at least thirty (30) days prior to taking effect. Continued use of the Service after such changes constitutes acceptance of the revised Terms.</p>
+  </div>
+
+  <!-- § 2 -->
+  <div id="tos-2" class="legal-section">
+    <h2><span class="sec-num">§ 02</span> Description of Service</h2>
+    <p>DARKO is an AI-powered communication analysis tool that processes user-submitted text messages, screenshots, and conversational data to generate strategic communication suggestions, psychological pattern observations, and tactical interpersonal guidance (collectively, "AI Outputs").</p>
+    <p>The Service utilizes third-party artificial intelligence models and APIs, including those provided by Anthropic, PBC, to generate AI Outputs. AI Outputs are produced algorithmically and are not reviewed, verified, or endorsed by any human professional prior to delivery.</p>
+    <div class="callout danger">
+      <div class="callout-title err">Critical Disclaimer</div>
+      <p>AI Outputs are provided for <strong>entertainment and informational purposes only</strong>. They are generated by machine learning models that may produce inaccurate, incomplete, biased, or inappropriate content. You should never rely solely on AI Outputs as a basis for making decisions that affect your relationships, career, safety, health, or wellbeing.</p>
+    </div>
+  </div>
+
+  <!-- § 3 -->
+  <div id="tos-3" class="legal-section">
+    <h2><span class="sec-num">§ 03</span> No Professional Advice</h2>
+    <div class="callout warning">
+      <div class="callout-title warn">Important Notice</div>
+      <p>DARKO does not provide, and nothing within the Service shall be construed as, licensed psychological, psychiatric, therapeutic, counseling, medical, legal, or other professional advice of any kind.</p>
+    </div>
+    <p>The Company is not a licensed mental health provider, counseling service, therapy platform, or medical practice. No employee, contractor, agent, or affiliate of the Company holds themselves out as providing professional psychological or therapeutic services through the Service.</p>
+    <p>The AI Outputs generated by the Service are computational pattern analyses, not clinical assessments. They are not diagnoses, treatment plans, therapeutic interventions, or substitutes for professional care. No doctor-patient, therapist-client, attorney-client, or other fiduciary relationship is created between you and the Company through your use of the Service.</p>
+    <p>If you are experiencing a mental health crisis, emotional distress, domestic violence, abuse, or any situation requiring professional intervention, you should immediately contact a licensed professional, call emergency services (911), or contact the National Suicide Prevention Lifeline (988). Do not rely on DARKO in any emergency or crisis situation.</p>
+    <p>You expressly acknowledge and agree that:</p>
+    <ul>
+      <li>All AI Outputs are speculative and algorithmic in nature and do not constitute professional opinions;</li>
+      <li>You bear sole responsibility for any actions you take or decisions you make based on AI Outputs;</li>
+      <li>The Company expressly disclaims any and all liability for outcomes, consequences, or damages arising from your reliance on AI Outputs;</li>
+      <li>You will not use the Service as a replacement for professional psychological, therapeutic, or medical care.</li>
+    </ul>
+  </div>
+
+  <!-- § 4 -->
+  <div id="tos-4" class="legal-section">
+    <h2><span class="sec-num">§ 04</span> Eligibility</h2>
+    <p>You must be at least eighteen (18) years of age to use the Service. By creating an account, you represent and warrant that you are at least 18 years old, have the legal capacity to enter into a binding agreement, and are not barred from using the Service under applicable law. The Company does not knowingly provide the Service to individuals under the age of 18. If we learn that a user is under 18, we will immediately terminate their account and delete their data.</p>
+  </div>
+
+  <!-- § 5 -->
+  <div id="tos-5" class="legal-section">
+    <h2><span class="sec-num">§ 05</span> Account Registration</h2>
+    <p>To access certain features, you must register for an account by providing accurate, current, and complete information. You are solely responsible for maintaining the confidentiality of your account credentials and for all activity that occurs under your account. You agree to notify us immediately of any unauthorized use of your account at <strong>legal@nxgenmedia.com</strong>.</p>
+    <p>The Company reserves the right to suspend or terminate any account that we reasonably believe has been compromised, is being used fraudulently, or is in violation of these Terms.</p>
+  </div>
+
+  <!-- § 6 -->
+  <div id="tos-6" class="legal-section">
+    <h2><span class="sec-num">§ 06</span> Subscription, Payment &amp; Billing</h2>
+    <h3>6.1 Subscription Tiers</h3>
+    <p>The Service is offered in multiple subscription tiers, which may include a free tier with limited functionality and paid tiers with enhanced features. The specific features, pricing, and limitations of each tier are described on the Service's pricing page and may be updated from time to time at our sole discretion.</p>
+    <h3>6.2 Payment Processing</h3>
+    <p>All payments are processed through <strong>Stripe, Inc.</strong> ("Stripe"), a third-party payment processor. By subscribing to a paid tier, you agree to Stripe's <a href="https://stripe.com/legal" style="color: var(--accent);" target="_blank" rel="noopener">Terms of Service</a> and authorize recurring charges to your designated payment method. The Company does not directly store, process, or handle credit card numbers or bank account information.</p>
+    <h3>6.3 Billing Cycle &amp; Renewals</h3>
+    <p>Paid subscriptions automatically renew at the end of each billing period (monthly or annual, as selected) unless canceled before the renewal date. You may cancel your subscription at any time through your account settings. Cancellation takes effect at the end of the current billing period; no prorated refunds will be issued for partial periods.</p>
+    <h3>6.4 Refund Policy</h3>
+    <p>All fees are non-refundable except where required by applicable law. The Company may, at its sole discretion, issue refunds or credits on a case-by-case basis. Refund requests should be directed to <strong>billing@nxgenmedia.com</strong>.</p>
+    <h3>6.5 Price Changes</h3>
+    <p>The Company reserves the right to change subscription pricing upon thirty (30) days' prior notice. Price changes will take effect at the start of the next billing cycle following the notice period.</p>
+  </div>
+
+  <!-- § 7 -->
+  <div id="tos-7" class="legal-section">
+    <h2><span class="sec-num">§ 07</span> User Content &amp; Conduct</h2>
+    <h3>7.1 User Content</h3>
+    <p>"User Content" means any text, images, screenshots, audio recordings, transcriptions, or other material that you submit, upload, or transmit through the Service. You retain all ownership rights in your User Content. By submitting User Content, you grant the Company a limited, non-exclusive, royalty-free, worldwide license to process, analyze, and transmit your User Content solely for the purpose of providing and improving the Service.</p>
+    <h3>7.2 Content Representations</h3>
+    <p>You represent and warrant that you have all necessary rights, consents, and permissions to submit your User Content, and that your User Content does not violate the rights of any third party, including privacy and intellectual property rights.</p>
+    <h3>7.3 Prohibited Conduct</h3>
+    <p>Your use of the Service is subject to our Acceptable Use Policy (see Section III of this document). Violations may result in immediate account suspension or termination without refund.</p>
+  </div>
+
+  <!-- § 8 -->
+  <div id="tos-8" class="legal-section">
+    <h2><span class="sec-num">§ 08</span> Intellectual Property</h2>
+    <p>The Service, including its design, branding, code, algorithms, user interface, documentation, and all related intellectual property, is owned by Nxgen Media LLC and is protected by copyright, trademark, and other intellectual property laws. "DARKO" is a trademark of Nxgen Media LLC.</p>
+    <p>You are granted a limited, non-exclusive, non-transferable, revocable license to access and use the Service for its intended purposes in accordance with these Terms. You may not copy, modify, distribute, sell, lease, reverse-engineer, decompile, or create derivative works based on the Service or any part thereof.</p>
+    <p>AI Outputs generated in response to your User Content are provided to you for your personal, non-commercial use. The Company makes no claim of ownership over AI Outputs but retains the right to use aggregated, anonymized output patterns for the purpose of improving the Service.</p>
+  </div>
+
+  <!-- § 9 -->
+  <div id="tos-9" class="legal-section">
+    <h2><span class="sec-num">§ 09</span> Third-Party Services</h2>
+    <p>The Service integrates with and relies upon third-party services, including but not limited to:</p>
+    <ul>
+      <li><strong>Anthropic, PBC</strong> — AI model inference and natural language processing;</li>
+      <li><strong>Stripe, Inc.</strong> — Payment processing and subscription management;</li>
+      <li><strong>Supabase, Inc.</strong> — Database infrastructure, authentication, and backend services;</li>
+      <li><strong>Apple Inc. / Google LLC</strong> — Mobile application distribution via App Store and Google Play.</li>
+    </ul>
+    <p>These third-party services operate under their own terms of service and privacy policies, which are outside the Company's control. The Company is not responsible for the availability, accuracy, security practices, or conduct of any third-party service. Your interactions with third-party services are governed by those services' respective terms.</p>
+  </div>
+
+  <!-- § 10 -->
+  <div id="tos-10" class="legal-section">
+    <h2><span class="sec-num">§ 10</span> Limitation of Liability</h2>
+    <div class="callout danger">
+      <div class="callout-title err">Read Carefully — Limitation of Liability</div>
+      <p>This section substantially limits the Company's liability to you. Please read it in its entirety.</p>
+    </div>
+    <p><strong>10.1</strong> TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, IN NO EVENT SHALL NXGEN MEDIA LLC, ITS OFFICERS, DIRECTORS, MEMBERS, MANAGERS, EMPLOYEES, AGENTS, CONTRACTORS, AFFILIATES, SUCCESSORS, OR ASSIGNS (COLLECTIVELY, THE "COMPANY PARTIES") BE LIABLE TO YOU OR ANY THIRD PARTY FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, PUNITIVE, OR EXEMPLARY DAMAGES, INCLUDING BUT NOT LIMITED TO DAMAGES FOR:</p>
+    <ul>
+      <li>LOSS OF PROFITS, REVENUE, GOODWILL, OR DATA;</li>
+      <li>THE OUTCOME, QUALITY, OR CONSEQUENCES OF ANY INTERPERSONAL COMMUNICATION, RELATIONSHIP, OR INTERACTION INFLUENCED BY OR BASED ON AI OUTPUTS;</li>
+      <li>EMOTIONAL DISTRESS, MENTAL ANGUISH, OR PSYCHOLOGICAL HARM ALLEGEDLY ARISING FROM AI OUTPUTS OR YOUR USE OF THE SERVICE;</li>
+      <li>DAMAGE TO OR DETERIORATION OF ANY PERSONAL, ROMANTIC, PROFESSIONAL, FAMILIAL, OR OTHER RELATIONSHIP;</li>
+      <li>ACTIONS TAKEN OR NOT TAKEN BY YOU OR ANY THIRD PARTY IN RELIANCE ON AI OUTPUTS;</li>
+      <li>INTERRUPTION OF SERVICE, DATA LOSS, OR SYSTEM FAILURES;</li>
+      <li>INACCURACIES, ERRORS, OMISSIONS, OR HARMFUL CONTENT WITHIN AI OUTPUTS;</li>
+    </ul>
+    <p>REGARDLESS OF THE THEORY OF LIABILITY (CONTRACT, TORT, NEGLIGENCE, STRICT LIABILITY, OR OTHERWISE), EVEN IF THE COMPANY PARTIES HAVE BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.</p>
+    <p><strong>10.2</strong> TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, THE AGGREGATE LIABILITY OF THE COMPANY PARTIES FOR ALL CLAIMS ARISING OUT OF OR RELATING TO THESE TERMS OR THE SERVICE SHALL NOT EXCEED THE GREATER OF: (A) THE TOTAL AMOUNT PAID BY YOU TO THE COMPANY IN THE SIX (6) MONTHS IMMEDIATELY PRECEDING THE EVENT GIVING RISE TO THE CLAIM, OR (B) FIFTY U.S. DOLLARS ($50.00).</p>
+    <p><strong>10.3</strong> YOU EXPRESSLY ACKNOWLEDGE AND AGREE THAT THE COMPANY IS NOT RESPONSIBLE FOR AND SHALL BEAR NO LIABILITY WHATSOEVER FOR THE OUTCOME OF ANY CONVERSATION, INTERACTION, OR RELATIONSHIP IN WHICH YOU USE, APPLY, OR OTHERWISE RELY UPON AI OUTPUTS. THE SERVICE PROVIDES ALGORITHMICALLY GENERATED SUGGESTIONS, NOT GUARANTEES. YOU USE THE SERVICE AND ACT ON AI OUTPUTS ENTIRELY AT YOUR OWN RISK.</p>
+    <p><strong>10.4</strong> SOME JURISDICTIONS DO NOT ALLOW THE EXCLUSION OR LIMITATION OF CERTAIN DAMAGES. IF SUCH LAWS APPLY TO YOU, SOME OR ALL OF THE ABOVE EXCLUSIONS OR LIMITATIONS MAY NOT APPLY, AND YOU MAY HAVE ADDITIONAL RIGHTS. IN SUCH CASES, THE COMPANY'S LIABILITY SHALL BE LIMITED TO THE FULLEST EXTENT PERMITTED BY APPLICABLE LAW.</p>
+  </div>
+
+  <!-- § 11 -->
+  <div id="tos-11" class="legal-section">
+    <h2><span class="sec-num">§ 11</span> Indemnification</h2>
+    <p>You agree to defend, indemnify, and hold harmless the Company Parties from and against any and all claims, damages, losses, liabilities, costs, and expenses (including reasonable attorneys' fees) arising out of or relating to:</p>
+    <ul>
+      <li>Your use of, or inability to use, the Service;</li>
+      <li>Your User Content, including any claims that your User Content infringes the rights of a third party;</li>
+      <li>Any actions you take or decisions you make based on AI Outputs;</li>
+      <li>Your violation of these Terms, the Privacy Policy, or the Acceptable Use Policy;</li>
+      <li>Your violation of any applicable law, regulation, or the rights of any third party;</li>
+      <li>Any disputes between you and any third party arising from or related to your use of the Service.</li>
+    </ul>
+  </div>
+
+  <!-- § 12 -->
+  <div id="tos-12" class="legal-section">
+    <h2><span class="sec-num">§ 12</span> Disclaimers of Warranties</h2>
+    <p>THE SERVICE, INCLUDING ALL AI OUTPUTS, IS PROVIDED ON AN "AS IS" AND "AS AVAILABLE" BASIS WITHOUT WARRANTIES OF ANY KIND, WHETHER EXPRESS, IMPLIED, OR STATUTORY. THE COMPANY PARTIES EXPRESSLY DISCLAIM ALL WARRANTIES, INCLUDING BUT NOT LIMITED TO IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, NON-INFRINGEMENT, ACCURACY, AND COMPLETENESS.</p>
+    <p>WITHOUT LIMITING THE FOREGOING, THE COMPANY DOES NOT WARRANT THAT:</p>
+    <ul>
+      <li>THE SERVICE WILL BE UNINTERRUPTED, TIMELY, SECURE, OR ERROR-FREE;</li>
+      <li>AI OUTPUTS WILL BE ACCURATE, RELIABLE, COMPLETE, OR APPROPRIATE FOR ANY PURPOSE;</li>
+      <li>AI OUTPUTS WILL ACHIEVE ANY PARTICULAR RESULT IN YOUR COMMUNICATIONS OR RELATIONSHIPS;</li>
+      <li>DEFECTS IN THE SERVICE WILL BE CORRECTED;</li>
+      <li>THE SERVICE IS FREE OF VIRUSES OR OTHER HARMFUL COMPONENTS.</li>
+    </ul>
+  </div>
+
+  <!-- § 13 -->
+  <div id="tos-13" class="legal-section">
+    <h2><span class="sec-num">§ 13</span> Termination</h2>
+    <p>The Company may suspend or terminate your account and access to the Service at any time, with or without cause, with or without notice, including but not limited to cases where we reasonably believe you have violated these Terms or the Acceptable Use Policy.</p>
+    <p>Upon termination: (a) your license to use the Service immediately ceases; (b) you must discontinue all use of the Service; (c) the Company may delete your account data in accordance with the Privacy Policy. Sections that by their nature should survive termination (including Sections 3, 10, 11, 12, and 14) shall survive.</p>
+  </div>
+
+  <!-- § 14 -->
+  <div id="tos-14" class="legal-section">
+    <h2><span class="sec-num">§ 14</span> Dispute Resolution</h2>
+    <h3>14.1 Governing Law</h3>
+    <p>These Terms shall be governed by and construed in accordance with the laws of the State of Georgia, without regard to its conflict-of-laws principles.</p>
+    <h3>14.2 Mandatory Arbitration</h3>
+    <p>Any dispute, claim, or controversy arising out of or relating to these Terms or the Service ("Dispute") shall be resolved exclusively through final and binding individual arbitration administered by the American Arbitration Association ("AAA") under its Consumer Arbitration Rules, except that you may bring qualifying claims in small claims court. The arbitration shall be conducted in Atlanta, Georgia, or at another mutually agreed location.</p>
+    <h3>14.3 Class Action Waiver</h3>
+    <p>YOU AND THE COMPANY AGREE THAT EACH MAY BRING CLAIMS AGAINST THE OTHER ONLY IN YOUR OR ITS INDIVIDUAL CAPACITY AND NOT AS A PLAINTIFF OR CLASS MEMBER IN ANY PURPORTED CLASS, CONSOLIDATED, OR REPRESENTATIVE ACTION. THE ARBITRATOR MAY NOT CONSOLIDATE MORE THAN ONE PERSON'S CLAIMS AND MAY NOT PRESIDE OVER ANY FORM OF CLASS OR REPRESENTATIVE PROCEEDING.</p>
+    <h3>14.4 Jury Trial Waiver</h3>
+    <p>TO THE EXTENT PERMITTED BY LAW, YOU AND THE COMPANY WAIVE THE RIGHT TO A TRIAL BY JURY IN ANY ACTION OR PROCEEDING ARISING OUT OF OR RELATING TO THESE TERMS OR THE SERVICE.</p>
+  </div>
+
+  <!-- § 15 -->
+  <div id="tos-15" class="legal-section">
+    <h2><span class="sec-num">§ 15</span> General Provisions</h2>
+    <h3>15.1 Entire Agreement</h3>
+    <p>These Terms, together with the Privacy Policy and Acceptable Use Policy, constitute the entire agreement between you and the Company regarding the Service and supersede all prior agreements, representations, and understandings.</p>
+    <h3>15.2 Severability</h3>
+    <p>If any provision of these Terms is held to be invalid, illegal, or unenforceable, the remaining provisions shall continue in full force and effect.</p>
+    <h3>15.3 Waiver</h3>
+    <p>The Company's failure to enforce any right or provision of these Terms shall not constitute a waiver of such right or provision.</p>
+    <h3>15.4 Assignment</h3>
+    <p>You may not assign or transfer these Terms or your account without the Company's prior written consent. The Company may assign these Terms without restriction.</p>
+    <h3>15.5 Force Majeure</h3>
+    <p>The Company shall not be liable for any failure or delay in performance resulting from causes beyond its reasonable control, including natural disasters, war, terrorism, pandemic, government action, power failure, internet or telecommunications failure, or third-party service outages.</p>
+    <h3>15.6 Contact</h3>
+    <p>For questions regarding these Terms, contact us at: <strong>legal@nxgenmedia.com</strong></p>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     II. PRIVACY POLICY
+     ═══════════════════════════════════════════════════════════════════════════ -->
+<hr class="section-divider" data-label="Document II" id="privacy">
+
+<div class="doc-header">
+  <h1>Privacy Policy</h1>
+  <div class="doc-meta">
+    <span><span class="label">Entity</span> Nxgen Media LLC</span>
+    <span><span class="label">Product</span> <span class="accent-val">DARKO</span></span>
+    <span><span class="label">Effective</span> March 26, 2026</span>
+    <span><span class="label">Version</span> 1.0</span>
+  </div>
+</div>
+
+<div class="toc">
+  <div class="toc-title">Table of Contents</div>
+  <div class="toc-columns">
+    <a href="#pp-1"><span class="toc-num">01</span> Information We Collect</a>
+    <a href="#pp-2"><span class="toc-num">02</span> How We Use Your Information</a>
+    <a href="#pp-3"><span class="toc-num">03</span> How We Share Your Information</a>
+    <a href="#pp-4"><span class="toc-num">04</span> Third-Party AI Processing</a>
+    <a href="#pp-5"><span class="toc-num">05</span> Data Retention</a>
+    <a href="#pp-6"><span class="toc-num">06</span> Data Security</a>
+    <a href="#pp-7"><span class="toc-num">07</span> Your Rights &amp; Choices</a>
+    <a href="#pp-8"><span class="toc-num">08</span> Children's Privacy</a>
+    <a href="#pp-9"><span class="toc-num">09</span> State-Specific Disclosures</a>
+    <a href="#pp-10"><span class="toc-num">10</span> International Users</a>
+    <a href="#pp-11"><span class="toc-num">11</span> Changes to This Policy</a>
+    <a href="#pp-12"><span class="toc-num">12</span> Contact</a>
+  </div>
+</div>
+
+<div id="pp-1" class="legal-section">
+  <h2><span class="sec-num">§ 01</span> Information We Collect</h2>
+  <h3>1.1 Information You Provide</h3>
+  <ul>
+    <li><strong>Account Data:</strong> Name, email address, and authentication credentials provided during registration.</li>
+    <li><strong>User Content:</strong> Text messages, screenshots, images, audio recordings, and transcriptions that you upload or submit to the Service for analysis.</li>
+    <li><strong>Payment Data:</strong> Billing information is collected and processed by Stripe. We receive only a tokenized reference, transaction amount, subscription status, and the last four digits of your payment method. We do not store full credit card numbers.</li>
+    <li><strong>Communications:</strong> Correspondence you send to us via email or in-app support channels.</li>
+  </ul>
+  <h3>1.2 Information Collected Automatically</h3>
+  <ul>
+    <li><strong>Device &amp; Usage Data:</strong> Device type, operating system, app version, IP address, browser type, referring URLs, pages/screens viewed, session duration, and interaction logs.</li>
+    <li><strong>Analytics Data:</strong> Feature usage patterns, frequency of use, crash reports, and performance metrics.</li>
+    <li><strong>Cookies &amp; Similar Technologies:</strong> We use essential cookies for authentication and session management. We may use analytics cookies with your consent where required by law.</li>
+  </ul>
+  <h3>1.3 Information from Third Parties</h3>
+  <ul>
+    <li><strong>Authentication Providers:</strong> If you sign in via a third-party identity provider (e.g., Google, Apple), we receive your name, email, and profile image as authorized by you.</li>
+    <li><strong>Payment Processor:</strong> Stripe may provide us with transaction status, payment failure notifications, and subscription lifecycle events.</li>
+  </ul>
+</div>
+
+<div id="pp-2" class="legal-section">
+  <h2><span class="sec-num">§ 02</span> How We Use Your Information</h2>
+  <p>We use the information we collect for the following purposes:</p>
+  <ul>
+    <li><strong>Service Delivery:</strong> To operate the Service, process your User Content through AI models, generate AI Outputs, and deliver them to you.</li>
+    <li><strong>Account Management:</strong> To create, maintain, and secure your account.</li>
+    <li><strong>Billing:</strong> To process payments, manage subscriptions, and send billing-related communications.</li>
+    <li><strong>Improvement:</strong> To analyze usage patterns, diagnose technical issues, and improve the Service's functionality, accuracy, and user experience.</li>
+    <li><strong>Safety &amp; Compliance:</strong> To detect, prevent, and address fraud, abuse, security incidents, and violations of our Terms and Acceptable Use Policy.</li>
+    <li><strong>Communication:</strong> To send you service-related notices, updates, security alerts, and support responses.</li>
+    <li><strong>Legal Obligations:</strong> To comply with applicable laws, regulations, legal processes, or governmental requests.</li>
+  </ul>
+  <div class="callout">
+    <div class="callout-title accent">No Sale of Data</div>
+    <p>We do not sell, rent, or trade your personal information or User Content to third parties for their marketing purposes.</p>
+  </div>
+</div>
+
+<div id="pp-3" class="legal-section">
+  <h2><span class="sec-num">§ 03</span> How We Share Your Information</h2>
+  <p>We may share your information only in the following circumstances:</p>
+  <ul>
+    <li><strong>AI Processing Providers:</strong> User Content is transmitted to Anthropic, PBC for AI model inference. See Section 4 for details.</li>
+    <li><strong>Payment Processor:</strong> Payment data is shared with Stripe for transaction processing.</li>
+    <li><strong>Infrastructure Providers:</strong> Data is stored and processed using Supabase and related cloud infrastructure providers under contractual data protection obligations.</li>
+    <li><strong>Legal Requirements:</strong> We may disclose information when required by law, subpoena, court order, or governmental request, or when we believe disclosure is necessary to protect our rights, your safety, or the safety of others.</li>
+    <li><strong>Business Transfers:</strong> In connection with a merger, acquisition, reorganization, or sale of assets, your information may be transferred as part of the transaction. We will notify you of any such transfer.</li>
+    <li><strong>With Your Consent:</strong> We may share information for purposes not described here with your explicit consent.</li>
+  </ul>
+</div>
+
+<div id="pp-4" class="legal-section">
+  <h2><span class="sec-num">§ 04</span> Third-Party AI Processing</h2>
+  <div class="callout warning">
+    <div class="callout-title warn">AI Data Disclosure</div>
+    <p>User Content you submit for analysis is transmitted to third-party AI providers for processing. Please read this section carefully.</p>
+  </div>
+  <p>To generate AI Outputs, your User Content is transmitted to Anthropic, PBC's API infrastructure for processing by large language models. This transmission is necessary to provide the core functionality of the Service.</p>
+  <p>Key disclosures regarding third-party AI processing:</p>
+  <ul>
+    <li>User Content is transmitted via encrypted channels (TLS 1.2+) to Anthropic's API endpoints;</li>
+    <li>We utilize Anthropic's API under their commercial terms, which, as of the effective date of this policy, state that API inputs are not used to train their models. However, we do not control Anthropic's data practices, and you should review <a href="https://www.anthropic.com/privacy" style="color: var(--accent);" target="_blank" rel="noopener">Anthropic's Privacy Policy</a> independently;</li>
+    <li>We do not control the retention, processing, or deletion practices of our AI providers beyond what is specified in our commercial agreements with them;</li>
+    <li>You should not submit User Content containing information you are not comfortable being transmitted to third-party AI infrastructure, including highly sensitive personal data such as Social Security numbers, financial account numbers, or medical records.</li>
+  </ul>
+</div>
+
+<div id="pp-5" class="legal-section">
+  <h2><span class="sec-num">§ 05</span> Data Retention</h2>
+  <p>We retain your information as follows:</p>
+  <ul>
+    <li><strong>Account Data:</strong> Retained for the duration of your account and for up to thirty (30) days following account deletion, after which it is permanently purged from active systems.</li>
+    <li><strong>User Content &amp; AI Outputs:</strong> Conversation history and associated AI Outputs are retained for the duration of your account to provide continuity of service. Upon account deletion, User Content is queued for deletion and permanently purged within thirty (30) days.</li>
+    <li><strong>Payment Records:</strong> Transaction records are retained for seven (7) years as required by tax and financial regulations.</li>
+    <li><strong>Usage &amp; Analytics Data:</strong> Retained in aggregated, anonymized form indefinitely for service improvement purposes. Identifiable usage data is deleted within ninety (90) days of account deletion.</li>
+    <li><strong>Backup Systems:</strong> Copies of data may persist in encrypted backup systems for up to ninety (90) days after deletion from active systems.</li>
+  </ul>
+</div>
+
+<div id="pp-6" class="legal-section">
+  <h2><span class="sec-num">§ 06</span> Data Security</h2>
+  <p>We implement industry-standard technical and organizational measures to protect your information, including:</p>
+  <ul>
+    <li>Encryption in transit (TLS 1.2+) and at rest (AES-256);</li>
+    <li>Row-level security policies on database tables to isolate user data;</li>
+    <li>JWT-based authentication with secure token management;</li>
+    <li>Rate limiting and abuse detection mechanisms;</li>
+    <li>Regular security reviews of infrastructure and application code.</li>
+  </ul>
+  <p>No method of transmission or electronic storage is 100% secure. While we strive to protect your information, we cannot guarantee absolute security. You are responsible for maintaining the security of your account credentials.</p>
+</div>
+
+<div id="pp-7" class="legal-section">
+  <h2><span class="sec-num">§ 07</span> Your Rights &amp; Choices</h2>
+  <p>Depending on your jurisdiction, you may have the following rights regarding your personal information:</p>
+  <ul>
+    <li><strong>Access:</strong> Request a copy of the personal information we hold about you.</li>
+    <li><strong>Correction:</strong> Request correction of inaccurate or incomplete personal information.</li>
+    <li><strong>Deletion:</strong> Request deletion of your personal information, subject to legal retention obligations.</li>
+    <li><strong>Portability:</strong> Request an export of your data in a structured, machine-readable format.</li>
+    <li><strong>Opt-Out:</strong> Opt out of non-essential data collection and analytics cookies where applicable.</li>
+    <li><strong>Withdraw Consent:</strong> Where processing is based on consent, you may withdraw consent at any time without affecting prior processing.</li>
+  </ul>
+  <p>To exercise any of these rights, contact us at <strong>privacy@nxgenmedia.com</strong>. We will respond within thirty (30) days, or within the timeframe required by applicable law.</p>
+</div>
+
+<div id="pp-8" class="legal-section">
+  <h2><span class="sec-num">§ 08</span> Children's Privacy</h2>
+  <p>The Service is not intended for individuals under the age of eighteen (18). We do not knowingly collect personal information from children. If you believe that a child under 18 has provided us with personal information, please contact us at <strong>privacy@nxgenmedia.com</strong>, and we will promptly delete the information and terminate the associated account.</p>
+</div>
+
+<div id="pp-9" class="legal-section">
+  <h2><span class="sec-num">§ 09</span> State-Specific Disclosures</h2>
+  <h3>9.1 California Residents (CCPA/CPRA)</h3>
+  <p>If you are a California resident, you have additional rights under the California Consumer Privacy Act, as amended by the California Privacy Rights Act. These include the right to know what personal information we collect and how it is used, the right to request deletion, and the right to opt out of the "sale" or "sharing" of personal information. We do not sell personal information as defined by the CCPA. To exercise your rights, contact <strong>privacy@nxgenmedia.com</strong> or submit a request through your account settings.</p>
+  <h3>9.2 Other U.S. States</h3>
+  <p>Residents of Virginia, Colorado, Connecticut, Utah, and other states with comprehensive privacy laws may have similar rights. We will honor all legally required requests. Contact <strong>privacy@nxgenmedia.com</strong> for state-specific inquiries.</p>
+</div>
+
+<div id="pp-10" class="legal-section">
+  <h2><span class="sec-num">§ 10</span> International Users</h2>
+  <p>The Service is operated from the United States. If you access the Service from outside the United States, your information will be transferred to and processed in the United States, which may have different data protection standards than your home jurisdiction. By using the Service, you consent to this transfer. If you are located in the European Economic Area, United Kingdom, or Switzerland, we rely on standard contractual clauses or other approved transfer mechanisms where required.</p>
+</div>
+
+<div id="pp-11" class="legal-section">
+  <h2><span class="sec-num">§ 11</span> Changes to This Policy</h2>
+  <p>We may update this Privacy Policy from time to time. Material changes will be communicated via email or in-app notice at least thirty (30) days prior to taking effect. The "Effective Date" at the top of this policy reflects the date of the most recent revision. Continued use of the Service after changes take effect constitutes acceptance of the revised policy.</p>
+</div>
+
+<div id="pp-12" class="legal-section">
+  <h2><span class="sec-num">§ 12</span> Contact</h2>
+  <p>For questions, concerns, or requests regarding this Privacy Policy or our data practices, contact:</p>
+  <p><strong>Nxgen Media LLC</strong><br>
+  Attn: Data Protection Inquiries<br>
+  Email: <strong>privacy@nxgenmedia.com</strong></p>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     III. ACCEPTABLE USE POLICY
+     ═══════════════════════════════════════════════════════════════════════════ -->
+<hr class="section-divider" data-label="Document III" id="aup">
+
+<div class="doc-header">
+  <h1>Acceptable Use Policy</h1>
+  <div class="doc-meta">
+    <span><span class="label">Entity</span> Nxgen Media LLC</span>
+    <span><span class="label">Product</span> <span class="accent-val">DARKO</span></span>
+    <span><span class="label">Effective</span> March 26, 2026</span>
+    <span><span class="label">Version</span> 1.0</span>
+  </div>
+</div>
+
+<div class="toc">
+  <div class="toc-title">Table of Contents</div>
+  <div class="toc-columns">
+    <a href="#aup-1"><span class="toc-num">01</span> Purpose &amp; Scope</a>
+    <a href="#aup-2"><span class="toc-num">02</span> Prohibited Uses</a>
+    <a href="#aup-3"><span class="toc-num">03</span> Anti-Harassment &amp; Anti-Stalking</a>
+    <a href="#aup-4"><span class="toc-num">04</span> Content Restrictions</a>
+    <a href="#aup-5"><span class="toc-num">05</span> Technical Restrictions</a>
+    <a href="#aup-6"><span class="toc-num">06</span> Reporting Violations</a>
+    <a href="#aup-7"><span class="toc-num">07</span> Enforcement &amp; Consequences</a>
+  </div>
+</div>
+
+<div id="aup-1" class="legal-section">
+  <h2><span class="sec-num">§ 01</span> Purpose &amp; Scope</h2>
+  <p>This Acceptable Use Policy ("AUP") defines the boundaries of permitted conduct when using the DARKO application and services. It applies to all users, regardless of subscription tier. This AUP supplements our Terms of Service and is incorporated therein by reference. Capitalized terms not defined herein have the meanings given in the Terms of Service.</p>
+  <p>DARKO is designed to help users understand communication dynamics and craft thoughtful responses. It is not designed, intended, or licensed for use as a tool to manipulate, harass, deceive, coerce, stalk, intimidate, or harm any individual. Any such use is a serious violation of this policy.</p>
+</div>
+
+<div id="aup-2" class="legal-section">
+  <h2><span class="sec-num">§ 02</span> Prohibited Uses</h2>
+  <p>You agree not to use the Service for any of the following purposes:</p>
+  <h3>2.1 Harmful Interpersonal Conduct</h3>
+  <ul>
+    <li>Planning, facilitating, or executing harassment, stalking, bullying, intimidation, or threats against any individual;</li>
+    <li>Crafting communications designed to psychologically manipulate, gaslight, coerce, or emotionally abuse another person;</li>
+    <li>Circumventing another person's explicitly communicated boundaries, including but not limited to no-contact orders, restraining orders, or blocked communications;</li>
+    <li>Engaging in or facilitating non-consensual contact or unwanted pursuit of any individual;</li>
+    <li>Targeting, surveilling, or profiling minors in any capacity;</li>
+    <li>Facilitating domestic violence, intimate partner abuse, or controlling behavior within relationships.</li>
+  </ul>
+  <h3>2.2 Deception &amp; Fraud</h3>
+  <ul>
+    <li>Generating deceptive content designed to defraud individuals or entities;</li>
+    <li>Impersonating another individual, including crafting messages intended to appear as though they originate from someone other than the user;</li>
+    <li>Creating communications to facilitate romance scams, phishing, social engineering, or financial fraud;</li>
+    <li>Using AI Outputs in any scheme to obtain money, property, services, or personal information through deception.</li>
+  </ul>
+  <h3>2.3 Illegal Activity</h3>
+  <ul>
+    <li>Using the Service in connection with any activity that violates federal, state, or local law;</li>
+    <li>Submitting User Content that constitutes or contains evidence of illegal activity, including child sexual abuse material, non-consensual intimate imagery, or communications relating to human trafficking;</li>
+    <li>Using the Service to plan or coordinate criminal conduct of any kind.</li>
+  </ul>
+</div>
+
+<div id="aup-3" class="legal-section">
+  <h2><span class="sec-num">§ 03</span> Anti-Harassment &amp; Anti-Stalking Policy</h2>
+  <div class="callout danger">
+    <div class="callout-title err">Zero-Tolerance Policy</div>
+    <p>The Company maintains a <strong>zero-tolerance policy</strong> for the use of the Service in connection with harassment, stalking, or any form of abusive interpersonal conduct. Violations will result in immediate and permanent account termination and may be reported to law enforcement.</p>
+  </div>
+  <h3>3.1 Definitions</h3>
+  <p>For the purposes of this policy:</p>
+  <ul>
+    <li><strong>"Harassment"</strong> means any pattern of conduct directed at a specific individual that would cause a reasonable person to feel alarmed, annoyed, tormented, or terrorized, including but not limited to repeated unwanted contact, threatening language, intimidation, or persistent communication after being asked to stop.</li>
+    <li><strong>"Stalking"</strong> means a pattern of conduct directed at a specific individual that would cause a reasonable person to fear for their safety or the safety of others, or to suffer substantial emotional distress. This includes using the Service to analyze communications for the purpose of tracking, surveilling, or obsessively monitoring another person's behavior or movements.</li>
+    <li><strong>"Coercive Control"</strong> means a pattern of behavior that seeks to take away the target's liberty, autonomy, or sense of self, including through isolation, monitoring, degradation, micro-management of daily life, or threats.</li>
+  </ul>
+  <h3>3.2 Prohibited Patterns</h3>
+  <p>The following usage patterns are expressly prohibited and will be treated as violations of this policy:</p>
+  <ul>
+    <li>Repeatedly analyzing communications from an individual who has ceased responding, blocked the user, or explicitly requested no further contact;</li>
+    <li>Using the Service to craft messages designed to circumvent another person's attempts to end or limit contact;</li>
+    <li>Using the Service to develop systematic psychological profiles of a target individual for purposes of manipulation, control, or surveillance;</li>
+    <li>Analyzing communications with the stated or apparent intent to undermine another person's autonomy, self-esteem, or support network;</li>
+    <li>Submitting User Content from or about minors for the purpose of developing strategies to influence, groom, or pursue them;</li>
+    <li>Using the Service to draft threats, ultimatums, or coercive communications.</li>
+  </ul>
+  <h3>3.3 Law Enforcement Cooperation</h3>
+  <p>The Company will cooperate fully with law enforcement authorities investigating allegations of harassment, stalking, domestic violence, child exploitation, or other criminal conduct. We may proactively report conduct to law enforcement when we have reason to believe that the Service is being used to facilitate imminent harm to any individual.</p>
+</div>
+
+<div id="aup-4" class="legal-section">
+  <h2><span class="sec-num">§ 04</span> Content Restrictions</h2>
+  <p>You may not submit User Content that:</p>
+  <ul>
+    <li>Contains child sexual abuse material (CSAM) or any sexual or exploitative content involving minors;</li>
+    <li>Contains non-consensual intimate imagery ("revenge porn") or threats to distribute such imagery;</li>
+    <li>Promotes or incites violence, terrorism, or extremism;</li>
+    <li>Contains personally identifiable information of third parties submitted without their knowledge or consent for malicious purposes;</li>
+    <li>Constitutes spam, commercial solicitation, or automated bulk content.</li>
+  </ul>
+  <p>The Company reserves the right, but does not assume the obligation, to review User Content for compliance with this AUP. We may remove User Content and suspend accounts at our sole discretion.</p>
+</div>
+
+<div id="aup-5" class="legal-section">
+  <h2><span class="sec-num">§ 05</span> Technical Restrictions</h2>
+  <p>You may not:</p>
+  <ul>
+    <li>Reverse-engineer, decompile, disassemble, or attempt to extract the source code of the Service or its underlying AI models;</li>
+    <li>Use automated tools, bots, scrapers, or scripts to access the Service, except through authorized APIs;</li>
+    <li>Attempt to circumvent rate limits, access controls, authentication mechanisms, or usage restrictions;</li>
+    <li>Probe, scan, or test the vulnerability of the Service's infrastructure without prior written authorization;</li>
+    <li>Interfere with or disrupt the Service's servers, networks, or infrastructure;</li>
+    <li>Share, resell, sublicense, or redistribute your account access or AI Outputs for commercial purposes without prior written authorization;</li>
+    <li>Use the Service to develop a competing product or service through systematic extraction of AI Output patterns.</li>
+  </ul>
+</div>
+
+<div id="aup-6" class="legal-section">
+  <h2><span class="sec-num">§ 06</span> Reporting Violations</h2>
+  <p>If you become aware of any use of the Service that violates this AUP, please report it immediately to <strong>abuse@nxgenmedia.com</strong>. Reports should include:</p>
+  <ul>
+    <li>A description of the violation;</li>
+    <li>The username or account identifier of the violating party, if known;</li>
+    <li>Any supporting evidence, including screenshots or copies of communications;</li>
+    <li>Your contact information for follow-up.</li>
+  </ul>
+  <p>We will review all reports promptly and take appropriate action. The Company will not retaliate against any user who makes a good-faith report of a violation.</p>
+</div>
+
+<div id="aup-7" class="legal-section">
+  <h2><span class="sec-num">§ 07</span> Enforcement &amp; Consequences</h2>
+  <p>Violations of this AUP may result in one or more of the following actions, at the Company's sole discretion:</p>
+  <ul>
+    <li><strong>Warning:</strong> A formal notice of the violation and a directive to cease the prohibited conduct;</li>
+    <li><strong>Content Removal:</strong> Deletion of User Content that violates this AUP;</li>
+    <li><strong>Feature Restriction:</strong> Temporary or permanent restriction of access to specific Service features;</li>
+    <li><strong>Account Suspension:</strong> Temporary suspension of account access pending investigation;</li>
+    <li><strong>Account Termination:</strong> Permanent termination of the account without refund of any prepaid fees;</li>
+    <li><strong>Legal Action:</strong> Pursuit of legal remedies, including injunctive relief, where appropriate;</li>
+    <li><strong>Law Enforcement Referral:</strong> Reporting of the user's conduct and associated account data to relevant law enforcement authorities.</li>
+  </ul>
+  <p>For severe violations, including harassment, stalking, CSAM, and threats of violence, the Company reserves the right to bypass warning stages and proceed directly to permanent account termination and law enforcement referral.</p>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     FOOTER
+     ═══════════════════════════════════════════════════════════════════════════ -->
+<div class="legal-footer">
+  <p class="copyright">&copy; 2026 Nxgen Media LLC. All rights reserved.</p>
+  <p>DARKO is a trademark of Nxgen Media LLC.</p>
+  <p>These documents do not constitute legal advice. Consult a licensed attorney for legal guidance specific to your situation.</p>
+  <p style="margin-top: 16px; color: var(--text-muted); font-size: 11px;">
+    legal@nxgenmedia.com &nbsp;·&nbsp; privacy@nxgenmedia.com &nbsp;·&nbsp; abuse@nxgenmedia.com &nbsp;·&nbsp; billing@nxgenmedia.com
+  </p>
+</div>
+
+</div><!-- /legal-container -->
+
+<script>
+  // Sticky nav active state on scroll
+  const sections = document.querySelectorAll('.doc-header');
+  const navLinks = document.querySelectorAll('.legal-nav a');
+
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        const id = entry.target.closest('[id]')?.id ||
+                   entry.target.parentElement?.querySelector('[id]')?.id;
+        navLinks.forEach(link => {
+          link.classList.toggle('active',
+            link.getAttribute('href') === '#' + id
+          );
+        });
+      }
+    });
+  }, { rootMargin: '-80px 0px -60% 0px' });
+
+  sections.forEach(s => observer.observe(s));
+</script>
+</body>
+</html>
