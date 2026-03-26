@@ -4,6 +4,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
+  Pressable,
   FlatList,
   StyleSheet,
   Platform,
@@ -27,10 +28,112 @@ const TEXT_DIM = '#A1A1AA';
 const MONO = Platform.select({ ios: 'Courier New', android: 'monospace', default: 'monospace' });
 const SANS = Platform.select({ ios: 'System', android: 'sans-serif', default: 'sans-serif' });
 
+// ── Target card with hover state ───────────────────────────────────────────────
+
+type TargetItem = { id: string; name: string; leverage?: string; objective?: string; decodeCount: number };
+
+function TargetCard({ item, onPress, onDelete }: { item: TargetItem; onPress: () => void; onDelete: () => void }) {
+  const [hovered, setHovered] = useState(false);
+  return (
+    <Pressable
+      style={[styles.targetCard, hovered && Platform.OS === 'web' && styles.targetCardHovered]}
+      onPress={onPress}
+      onHoverIn={() => setHovered(true)}
+      onHoverOut={() => setHovered(false)}
+    >
+      <View style={styles.targetCardInner}>
+        <View style={styles.targetCardLeft}>
+          <Text style={[styles.targetName, hovered && Platform.OS === 'web' && { color: ACCENT }]}>
+            {item.name.toUpperCase()}
+          </Text>
+          <Text style={styles.targetMeta}>
+            {item.decodeCount === 0 ? 'no decodes yet' : `${item.decodeCount} decode${item.decodeCount !== 1 ? 's' : ''}`}
+          </Text>
+          {(item.leverage || item.objective) && (
+            <Text style={styles.targetDossier} numberOfLines={1}>
+              {item.objective ? `obj: ${item.objective}` : `lev: ${item.leverage}`}
+            </Text>
+          )}
+        </View>
+        <View style={styles.targetCardRight}>
+          <Text style={[styles.chevron, hovered && Platform.OS === 'web' && { color: ACCENT }]}>&gt;</Text>
+          <TouchableOpacity onPress={onDelete} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+            <Text style={styles.deleteBtn}>✕</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Pressable>
+  );
+}
+
+// ── Acquire target form (shared between native modal + web overlay) ─────────────
+
+function TargetForm({
+  newName, setNewName, newLeverage, setNewLeverage, newObjective, setNewObjective,
+  creating, onCancel, onCreate,
+}: {
+  newName: string; setNewName: (s: string) => void;
+  newLeverage: string; setNewLeverage: (s: string) => void;
+  newObjective: string; setNewObjective: (s: string) => void;
+  creating: boolean; onCancel: () => void; onCreate: () => void;
+}) {
+  return (
+    <View style={styles.modalBox}>
+      <Text style={styles.modalTitle}>ACQUIRE TARGET</Text>
+
+      <Text style={styles.modalFieldLabel}>TARGET NAME</Text>
+      <TextInput
+        style={styles.modalInput}
+        value={newName}
+        onChangeText={setNewName}
+        placeholder="e.g. Chloe"
+        placeholderTextColor={TEXT_DIM}
+        autoFocus
+        returnKeyType="next"
+      />
+
+      <Text style={styles.modalFieldLabel}>LEVERAGE  <Text style={styles.modalOptional}>(optional)</Text></Text>
+      <TextInput
+        style={styles.modalInput}
+        value={newLeverage}
+        onChangeText={setNewLeverage}
+        placeholder="what they have over you..."
+        placeholderTextColor={TEXT_DIM}
+        returnKeyType="next"
+      />
+
+      <Text style={styles.modalFieldLabel}>OBJECTIVE  <Text style={styles.modalOptional}>(optional)</Text></Text>
+      <TextInput
+        style={[styles.modalInput, styles.modalInputLast]}
+        value={newObjective}
+        onChangeText={setNewObjective}
+        placeholder="what you want from them..."
+        placeholderTextColor={TEXT_DIM}
+        returnKeyType="done"
+        onSubmitEditing={onCreate}
+      />
+
+      <View style={styles.modalButtons}>
+        <TouchableOpacity style={styles.modalCancel} onPress={onCancel}>
+          <Text style={styles.modalCancelText}>CANCEL</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.modalConfirm, creating && styles.modalConfirmDisabled]}
+          onPress={onCreate}
+          disabled={creating}
+        >
+          <Text style={styles.modalConfirmText}>{creating ? 'ACQUIRING...' : 'ACQUIRE'}</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
 // ── Web landing page (unauthenticated) ─────────────────────────────────────────
 
 function LandingPage() {
   const router = useRouter();
+  const [ctaHovered, setCtaHovered] = useState(false);
 
   return (
     <View style={landing.root}>
@@ -61,9 +164,14 @@ function LandingPage() {
             {'DARKO is a cold psychological strategist that reads the situation, makes the call, and tells you exactly what to do — and what to say.'}
           </Text>
 
-          <TouchableOpacity style={landing.cta} onPress={() => router.push('/auth' as any)} activeOpacity={0.85}>
+          <Pressable
+            style={[landing.cta, ctaHovered && landing.ctaHovered]}
+            onPress={() => router.push('/auth' as any)}
+            onHoverIn={() => setCtaHovered(true)}
+            onHoverOut={() => setCtaHovered(false)}
+          >
             <Text style={landing.ctaText}>INITIALIZE SYSTEM</Text>
-          </TouchableOpacity>
+          </Pressable>
 
           <Text style={landing.ctaSub}>free to start · no credit card</Text>
         </View>
@@ -176,6 +284,9 @@ const landing = StyleSheet.create({
     alignSelf: 'flex-start' as const,
     marginBottom: 12,
   },
+  ctaHovered: {
+    backgroundColor: '#D4FF00',
+  },
   ctaText: {
     fontFamily: MONO,
     fontSize: 13,
@@ -244,6 +355,7 @@ export default function ProfilesScreen() {
   const [creating, setCreating] = useState(false);
   const [authReady, setAuthReady] = useState(false);
   const [showLanding, setShowLanding] = useState(false);
+  const [addBtnHovered, setAddBtnHovered] = useState(false);
 
   // Onboarding gate → Auth gate
   useEffect(() => {
@@ -337,38 +449,11 @@ export default function ProfilesScreen() {
   };
 
   const renderTarget = ({ item }: { item: Target & { decodeCount: number } }) => (
-    <TouchableOpacity
-      style={styles.targetCard}
-      onPress={() => {
-        router.push(`/decode?targetId=${item.id}&targetName=${encodeURIComponent(item.name)}`);
-      }}
-      activeOpacity={0.7}
-    >
-      <View style={styles.targetCardInner}>
-        <View style={styles.targetCardLeft}>
-          <Text style={styles.targetName}>{item.name.toUpperCase()}</Text>
-          <Text style={styles.targetMeta}>
-            {item.decodeCount === 0
-              ? 'no decodes yet'
-              : `${item.decodeCount} decode${item.decodeCount !== 1 ? 's' : ''}`}
-          </Text>
-          {(item.leverage || item.objective) && (
-            <Text style={styles.targetDossier} numberOfLines={1}>
-              {item.objective ? `obj: ${item.objective}` : `lev: ${item.leverage}`}
-            </Text>
-          )}
-        </View>
-        <View style={styles.targetCardRight}>
-          <Text style={styles.chevron}>&gt;</Text>
-          <TouchableOpacity
-            onPress={() => handleDelete(item.id)}
-            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-          >
-            <Text style={styles.deleteBtn}>✕</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    </TouchableOpacity>
+    <TargetCard
+      item={item}
+      onPress={() => router.push(`/decode?targetId=${item.id}&targetName=${encodeURIComponent(item.name)}`)}
+      onDelete={() => handleDelete(item.id)}
+    />
   );
 
   if (showLanding) return <LandingPage />;
@@ -409,75 +494,50 @@ export default function ProfilesScreen() {
         />
       )}
 
-      <TouchableOpacity style={styles.addButton} onPress={() => setModalVisible(true)} activeOpacity={0.85}>
+      <Pressable
+        style={[styles.addButton, addBtnHovered && Platform.OS === 'web' && styles.addButtonHovered]}
+        onPress={() => setModalVisible(true)}
+        onHoverIn={() => setAddBtnHovered(true)}
+        onHoverOut={() => setAddBtnHovered(false)}
+      >
         <Text style={styles.addButtonText}>+ NEW TARGET</Text>
-      </TouchableOpacity>
+      </Pressable>
 
-      {/* New Target Modal */}
-      <Modal visible={modalVisible} transparent animationType="fade">
-        <KeyboardAvoidingView
-          style={styles.modalOverlay}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        >
-          <ScrollView
-            contentContainerStyle={styles.modalScroll}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
+      {/* Web: contained overlay within 480px column */}
+      {Platform.OS === 'web' && modalVisible && (
+        <View style={styles.webModalOverlay}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={resetModal} />
+          <TargetForm
+            newName={newName} setNewName={setNewName}
+            newLeverage={newLeverage} setNewLeverage={setNewLeverage}
+            newObjective={newObjective} setNewObjective={setNewObjective}
+            creating={creating} onCancel={resetModal} onCreate={handleCreate}
+          />
+        </View>
+      )}
+
+      {/* Native: full-screen Modal */}
+      {Platform.OS !== 'web' && (
+        <Modal visible={modalVisible} transparent animationType="fade">
+          <KeyboardAvoidingView
+            style={styles.modalOverlay}
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           >
-            <View style={styles.modalBox}>
-              <Text style={styles.modalTitle}>ACQUIRE TARGET</Text>
-
-              <Text style={styles.modalFieldLabel}>TARGET NAME</Text>
-              <TextInput
-                style={styles.modalInput}
-                value={newName}
-                onChangeText={setNewName}
-                placeholder="e.g. Chloe"
-                placeholderTextColor={TEXT_DIM}
-                autoFocus
-                returnKeyType="next"
+            <ScrollView
+              contentContainerStyle={styles.modalScroll}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
+              <TargetForm
+                newName={newName} setNewName={setNewName}
+                newLeverage={newLeverage} setNewLeverage={setNewLeverage}
+                newObjective={newObjective} setNewObjective={setNewObjective}
+                creating={creating} onCancel={resetModal} onCreate={handleCreate}
               />
-
-              <Text style={styles.modalFieldLabel}>LEVERAGE  <Text style={styles.modalOptional}>(optional)</Text></Text>
-              <TextInput
-                style={styles.modalInput}
-                value={newLeverage}
-                onChangeText={setNewLeverage}
-                placeholder="what they have over you..."
-                placeholderTextColor={TEXT_DIM}
-                returnKeyType="next"
-              />
-
-              <Text style={styles.modalFieldLabel}>OBJECTIVE  <Text style={styles.modalOptional}>(optional)</Text></Text>
-              <TextInput
-                style={[styles.modalInput, styles.modalInputLast]}
-                value={newObjective}
-                onChangeText={setNewObjective}
-                placeholder="what you want from them..."
-                placeholderTextColor={TEXT_DIM}
-                returnKeyType="done"
-                onSubmitEditing={handleCreate}
-              />
-
-              <View style={styles.modalButtons}>
-                <TouchableOpacity
-                  style={styles.modalCancel}
-                  onPress={resetModal}
-                >
-                  <Text style={styles.modalCancelText}>CANCEL</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.modalConfirm, creating && styles.modalConfirmDisabled]}
-                  onPress={handleCreate}
-                  disabled={creating}
-                >
-                  <Text style={styles.modalConfirmText}>{creating ? 'ACQUIRING...' : 'ACQUIRE'}</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </ScrollView>
-        </KeyboardAvoidingView>
-      </Modal>
+            </ScrollView>
+          </KeyboardAvoidingView>
+        </Modal>
+      )}
     </View>
     </View>
   );
@@ -543,6 +603,10 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     marginBottom: 10,
     padding: 16,
+  },
+  targetCardHovered: {
+    borderColor: ACCENT,
+    backgroundColor: '#1C1C1F',
   },
   targetCardInner: {
     flexDirection: 'row',
@@ -616,7 +680,10 @@ const styles = StyleSheet.create({
     backgroundColor: ACCENT,
     borderRadius: 4,
     paddingVertical: 16,
-    alignItems: 'center',
+    alignItems: 'center' as const,
+  },
+  addButtonHovered: {
+    backgroundColor: '#D4FF00',
   },
   addButtonText: {
     fontFamily: MONO,
@@ -624,6 +691,14 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: BG,
     letterSpacing: 4,
+  },
+  webModalOverlay: {
+    position: 'absolute' as const,
+    top: 0, left: 0, right: 0, bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.88)',
+    justifyContent: 'center' as const,
+    padding: 20,
+    zIndex: 100,
   },
   modalOverlay: {
     flex: 1,

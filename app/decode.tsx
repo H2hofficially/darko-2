@@ -709,7 +709,10 @@ export default function DecodeScreen() {
   const [targetObjective, setTargetObjective] = useState<string | undefined>();
 
   const flatListRef = useRef<FlatList>(null);
+  const webScrollRef = useRef<ScrollView>(null);
   const recordPulse = useRef(new Animated.Value(1)).current;
+  const [cmdFocused, setCmdFocused] = useState(false);
+  const [sendHovered, setSendHovered] = useState(false);
   const cancelStreamRef = useRef<(() => void) | null>(null);
 
   // ── Unmount — cancel any in-flight stream ───────────────────────────────────
@@ -1160,28 +1163,55 @@ export default function DecodeScreen() {
 
       <View style={styles.divider} />
 
-      {/* Chat list — inverted so newest at bottom */}
-      <FlatList
-        ref={flatListRef}
-        data={[...chatMessages].reverse()}
-        inverted
-        keyExtractor={(item) => item.id}
-        renderItem={renderItem}
-        contentContainerStyle={styles.chatContent}
-        showsVerticalScrollIndicator={false}
-        removeClippedSubviews
-        maxToRenderPerBatch={10}
-        windowSize={10}
-        ListHeaderComponent={loading && !chatMessages.some((m) => m.type === 'darko' && (m as any).isStreaming) ? <LoadingBubble text={loaderText} /> : null}
-        ListEmptyComponent={
-          !loading ? (
+      {/* Chat list */}
+      {Platform.OS === 'web' ? (
+        // Web: plain ScrollView, scroll to bottom on content change
+        <ScrollView
+          ref={webScrollRef}
+          style={{ flex: 1 }}
+          contentContainerStyle={styles.chatContent}
+          showsVerticalScrollIndicator={false}
+          onContentSizeChange={() => (webScrollRef.current as any)?.scrollToEnd({ animated: false })}
+        >
+          {chatMessages.length === 0 && !loading ? (
             <View style={styles.emptyChat}>
               <Text style={styles.emptyChatText}>// OPERATIVE ONLINE</Text>
               <Text style={styles.emptyChatSubtext}>&gt; BRIEF DARKO ON THE TARGET. BEGIN RECONNAISSANCE.</Text>
             </View>
-          ) : null
-        }
-      />
+          ) : null}
+          {chatMessages.map((item) => (
+            item.type === 'user'
+              ? <UserBubble key={item.id} msg={item} />
+              : <DarkoBubble key={item.id} msg={item} onLongPress={() => handleDarkoBubbleLongPress(item)} />
+          ))}
+          {loading && !chatMessages.some((m) => m.type === 'darko' && (m as any).isStreaming) && (
+            <LoadingBubble text={loaderText} />
+          )}
+        </ScrollView>
+      ) : (
+        // Native: inverted FlatList (newest at bottom)
+        <FlatList
+          ref={flatListRef}
+          data={[...chatMessages].reverse()}
+          inverted
+          keyExtractor={(item) => item.id}
+          renderItem={renderItem}
+          contentContainerStyle={styles.chatContent}
+          showsVerticalScrollIndicator={false}
+          removeClippedSubviews
+          maxToRenderPerBatch={10}
+          windowSize={10}
+          ListHeaderComponent={loading && !chatMessages.some((m) => m.type === 'darko' && (m as any).isStreaming) ? <LoadingBubble text={loaderText} /> : null}
+          ListEmptyComponent={
+            !loading ? (
+              <View style={styles.emptyChat}>
+                <Text style={styles.emptyChatText}>// OPERATIVE ONLINE</Text>
+                <Text style={styles.emptyChatSubtext}>&gt; BRIEF DARKO ON THE TARGET. BEGIN RECONNAISSANCE.</Text>
+              </View>
+            ) : null
+          }
+        />
+      )}
 
       {/* Input area */}
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={0}>
@@ -1204,7 +1234,7 @@ export default function DecodeScreen() {
           {transcribing && <Text style={styles.transcribingText}>&gt; TRANSCRIBING AUDIO...</Text>}
 
           {/* CMD input row */}
-          <View style={styles.cmdRow}>
+          <View style={[styles.cmdRow, cmdFocused && styles.cmdRowFocused]}>
             <Text style={styles.cmdPrefix}>CMD &gt;</Text>
             <TextInput
               style={styles.cmdInput}
@@ -1217,12 +1247,19 @@ export default function DecodeScreen() {
               returnKeyType="send"
               onSubmitEditing={canSend ? handleSend : undefined}
               blurOnSubmit={false}
+              onFocus={() => setCmdFocused(true)}
+              onBlur={() => setCmdFocused(false)}
             />
           </View>
 
           {/* Action row */}
           <View style={styles.actionRow}>
-            <TouchableOpacity style={styles.iconButton} onPress={handlePickImage} disabled={loading}>
+            <TouchableOpacity
+              style={styles.iconButton}
+              onPress={handlePickImage}
+              disabled={loading}
+              {...(Platform.OS === 'web' ? { title: 'Attach screenshot' } as any : {})}
+            >
               <Text style={styles.iconButtonText}>📷</Text>
             </TouchableOpacity>
 
@@ -1230,6 +1267,7 @@ export default function DecodeScreen() {
               style={[styles.iconButton, isRecording && styles.iconButtonRecording]}
               onPress={handleMicPress}
               disabled={loading || transcribing}
+              {...(Platform.OS === 'web' ? { title: isRecording ? 'Stop recording' : 'Record voice' } as any : {})}
             >
               <Animated.Text
                 style={[
@@ -1248,10 +1286,18 @@ export default function DecodeScreen() {
             )}
 
             <TouchableOpacity
-              style={[styles.decodeButton, !canSend && styles.decodeButtonDisabled]}
+              style={[
+                styles.decodeButton,
+                !canSend && styles.decodeButtonDisabled,
+                Platform.OS === 'web' && sendHovered && canSend && styles.decodeButtonHovered,
+              ]}
               onPress={handleSend}
               activeOpacity={0.85}
               disabled={!canSend}
+              {...(Platform.OS === 'web' ? {
+                onMouseEnter: () => setSendHovered(true),
+                onMouseLeave: () => setSendHovered(false),
+              } as any : {})}
             >
               <Text style={styles.decodeButtonText}>{loading ? 'SENDING...' : 'SEND'}</Text>
             </TouchableOpacity>
@@ -1527,6 +1573,9 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     paddingLeft: 10,
   },
+  cmdRowFocused: {
+    borderColor: ACCENT,
+  },
   cmdPrefix: { fontFamily: MONO, fontSize: 13, color: ACCENT, marginRight: 6, paddingTop: 12 },
   cmdInput: {
     flex: 1,
@@ -1564,6 +1613,7 @@ const styles = StyleSheet.create({
     borderRadius: 0,
   },
   decodeButtonDisabled: { backgroundColor: BORDER },
+  decodeButtonHovered: { backgroundColor: '#D4FF00' },
   decodeButtonText: { fontFamily: MONO, fontSize: 12, color: BG, fontWeight: '700', letterSpacing: 3 },
 
   // ── Dossier panel ──

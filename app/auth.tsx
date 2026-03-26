@@ -3,7 +3,7 @@ import {
   View,
   Text,
   TextInput,
-  TouchableOpacity,
+  Pressable,
   StyleSheet,
   Platform,
   KeyboardAvoidingView,
@@ -16,9 +16,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../lib/supabase';
 
 const ACCENT = '#CCFF00';
-const BG = '#000000';
-const CARD_BG = '#1A1A1A';
-const BORDER = '#2A2A2A';
+const BG = '#09090B';
+const CARD_BG = '#18181B';
+const BORDER = '#27272A';
+const TEXT_PRIMARY = '#E4E4E7';
 const TEXT_DIM = '#666666';
 const ERROR_RED = '#FF4444';
 const MONO = Platform.select({ ios: 'Courier New', android: 'monospace', default: 'monospace' });
@@ -30,6 +31,10 @@ export default function AuthScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmPending, setConfirmPending] = useState(false);
+
+  // Focus states for web input highlight
+  const [emailFocused, setEmailFocused] = useState(false);
+  const [passFocused, setPassFocused] = useState(false);
 
   // If already logged in, skip straight to home
   useEffect(() => {
@@ -73,7 +78,6 @@ export default function AuthScreen() {
     if (err) {
       setError(err.message.toUpperCase());
     } else if (!data.session) {
-      // Email confirmation required — Supabase returns no session until confirmed
       setConfirmPending(true);
     } else {
       await AsyncStorage.setItem('darko_onboarded', 'true');
@@ -85,111 +89,122 @@ export default function AuthScreen() {
     <View style={styles.root}>
       <StatusBar style="light" />
       <View style={[styles.flex, Platform.OS === 'web' && styles.webColumn]}>
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
-        <ScrollView
-          contentContainerStyle={styles.scroll}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
+        <KeyboardAvoidingView
+          style={styles.flex}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
-          {/* Header */}
-          <View style={styles.header}>
-            <Text style={styles.logo}>[ DARKO ]</Text>
-            <Text style={styles.logoSub}>psychological intelligence system</Text>
-          </View>
-
-          {/* Email confirmation pending */}
-          {confirmPending ? (
-            <>
-              <View style={styles.divider} />
-              <Text style={styles.confirmTitle}>CHECK YOUR EMAIL</Text>
-              <Text style={styles.confirmBody}>
-                A confirmation link has been sent to{'\n'}
-                <Text style={styles.confirmEmail}>{email.trim()}</Text>
-                {'\n\n'}Click the link to activate your account, then return here to sign in.
-              </Text>
-              <TouchableOpacity
-                style={styles.secondaryButton}
-                onPress={() => setConfirmPending(false)}
-              >
-                <Text style={styles.secondaryButtonText}>[ BACK TO SIGN IN ]</Text>
-              </TouchableOpacity>
-            </>
-          ) : (
-          <>
-          <View style={styles.divider} />
-
-          <Text style={styles.sectionLabel}>SYSTEM ACCESS</Text>
-
-          {/* Email */}
-          <Text style={styles.fieldLabel}>EMAIL</Text>
-          <View style={styles.inputWrapper}>
-            <TextInput
-              style={styles.input}
-              value={email}
-              onChangeText={setEmail}
-              placeholder="operator@domain.com"
-              placeholderTextColor={TEXT_DIM}
-              autoCapitalize="none"
-              keyboardType="email-address"
-              autoComplete="email"
-            />
-          </View>
-
-          {/* Password */}
-          <Text style={styles.fieldLabel}>PASSWORD</Text>
-          <View style={styles.inputWrapper}>
-            <TextInput
-              style={styles.input}
-              value={password}
-              onChangeText={setPassword}
-              placeholder="••••••••••••"
-              placeholderTextColor={TEXT_DIM}
-              secureTextEntry
-              autoComplete="password"
-            />
-          </View>
-
-          {/* Error */}
-          {error && (
-            <Text style={styles.errorText}>[ {error} ]</Text>
-          )}
-
-          {/* Login button */}
-          <TouchableOpacity
-            style={[styles.primaryButton, loading && styles.buttonDisabled]}
-            onPress={handleLogin}
-            activeOpacity={0.85}
-            disabled={loading}
+          <ScrollView
+            contentContainerStyle={[styles.scroll, Platform.OS === 'web' && styles.scrollWeb]}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
           >
-            {loading ? (
-              <ActivityIndicator color={BG} />
+            {/* Header */}
+            <View style={styles.header}>
+              <Text style={styles.logo}>[ DARKO ]</Text>
+              <Text style={styles.logoSub}>psychological intelligence system</Text>
+            </View>
+
+            {/* Email confirmation pending */}
+            {confirmPending ? (
+              <>
+                <View style={styles.divider} />
+                <Text style={styles.confirmTitle}>CHECK YOUR EMAIL</Text>
+                <Text style={styles.confirmBody}>
+                  A confirmation link has been sent to{'\n'}
+                  <Text style={styles.confirmEmail}>{email.trim()}</Text>
+                  {'\n\n'}Click the link to activate your account, then return here to sign in.
+                </Text>
+                <Pressable
+                  style={({ pressed }) => [styles.secondaryButton, pressed && { opacity: 0.75 }]}
+                  onPress={() => setConfirmPending(false)}
+                >
+                  <Text style={styles.secondaryButtonText}>[ BACK TO SIGN IN ]</Text>
+                </Pressable>
+              </>
             ) : (
-              <Text style={styles.primaryButtonText}>[ ACCESS SYSTEM ]</Text>
+              <>
+                <View style={styles.divider} />
+
+                <Text style={styles.sectionLabel}>SYSTEM ACCESS</Text>
+
+                {/* Email */}
+                <Text style={styles.fieldLabel}>EMAIL</Text>
+                <View style={[styles.inputWrapper, emailFocused && styles.inputWrapperFocused]}>
+                  <TextInput
+                    style={styles.input}
+                    value={email}
+                    onChangeText={setEmail}
+                    placeholder="operator@domain.com"
+                    placeholderTextColor={TEXT_DIM}
+                    autoCapitalize="none"
+                    keyboardType="email-address"
+                    autoComplete="email"
+                    onFocus={() => setEmailFocused(true)}
+                    onBlur={() => setEmailFocused(false)}
+                  />
+                </View>
+
+                {/* Password */}
+                <Text style={styles.fieldLabel}>PASSWORD</Text>
+                <View style={[styles.inputWrapper, passFocused && styles.inputWrapperFocused]}>
+                  <TextInput
+                    style={styles.input}
+                    value={password}
+                    onChangeText={setPassword}
+                    placeholder="••••••••••••"
+                    placeholderTextColor={TEXT_DIM}
+                    secureTextEntry
+                    autoComplete="password"
+                    onFocus={() => setPassFocused(true)}
+                    onBlur={() => setPassFocused(false)}
+                    onSubmitEditing={handleLogin}
+                  />
+                </View>
+
+                {/* Error */}
+                {error && <Text style={styles.errorText}>[ {error} ]</Text>}
+
+                {/* Login */}
+                <Pressable
+                  style={({ pressed, hovered }: any) => [
+                    styles.primaryButton,
+                    loading && styles.buttonDisabled,
+                    Platform.OS === 'web' && hovered && !loading && styles.primaryButtonHovered,
+                    pressed && { opacity: 0.85 },
+                  ]}
+                  onPress={handleLogin}
+                  disabled={loading}
+                >
+                  {loading ? (
+                    <ActivityIndicator color={BG} />
+                  ) : (
+                    <Text style={styles.primaryButtonText}>[ ACCESS SYSTEM ]</Text>
+                  )}
+                </Pressable>
+
+                {/* Signup */}
+                <Pressable
+                  style={({ pressed, hovered }: any) => [
+                    styles.secondaryButton,
+                    loading && styles.buttonDisabled,
+                    Platform.OS === 'web' && hovered && !loading && styles.secondaryButtonHovered,
+                    pressed && { opacity: 0.75 },
+                  ]}
+                  onPress={handleSignup}
+                  disabled={loading}
+                >
+                  <Text style={styles.secondaryButtonText}>[ INITIALIZE PROFILE ]</Text>
+                </Pressable>
+
+                <View style={styles.divider} />
+
+                <Text style={styles.disclaimer}>
+                  unauthorized access is logged and analyzed.
+                </Text>
+              </>
             )}
-          </TouchableOpacity>
-
-          {/* Signup button */}
-          <TouchableOpacity
-            style={[styles.secondaryButton, loading && styles.buttonDisabled]}
-            onPress={handleSignup}
-            activeOpacity={0.85}
-            disabled={loading}
-          >
-            <Text style={styles.secondaryButtonText}>[ INITIALIZE PROFILE ]</Text>
-          </TouchableOpacity>
-
-          <View style={styles.divider} />
-
-          <Text style={styles.disclaimer}>
-            unauthorized access is logged and analyzed.
-          </Text>
-          </>
-          )}
-        </ScrollView>
-      </KeyboardAvoidingView>
+          </ScrollView>
+        </KeyboardAvoidingView>
       </View>
     </View>
   );
@@ -198,11 +213,25 @@ export default function AuthScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: BG },
   flex: { flex: 1 },
-  webColumn: { maxWidth: 480, alignSelf: 'center' as const, width: '100%' as any, borderLeftWidth: 1, borderRightWidth: 1, borderColor: '#1A1A1D' },
+  webColumn: {
+    maxWidth: 480,
+    alignSelf: 'center' as const,
+    width: '100%' as any,
+    borderLeftWidth: 1,
+    borderRightWidth: 1,
+    borderColor: '#1A1A1D',
+  },
   scroll: {
-    paddingHorizontal: 24,
+    paddingHorizontal: 28,
     paddingTop: 100,
     paddingBottom: 60,
+  },
+  scrollWeb: {
+    paddingTop: 0,
+    paddingBottom: 0,
+    flexGrow: 1,
+    justifyContent: 'center' as const,
+    paddingVertical: 48,
   },
   header: { marginBottom: 8 },
   logo: {
@@ -245,10 +274,13 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     marginBottom: 20,
   },
+  inputWrapperFocused: {
+    borderColor: ACCENT,
+  },
   input: {
     fontFamily: MONO,
     fontSize: 14,
-    color: '#FFFFFF',
+    color: TEXT_PRIMARY,
     padding: 14,
     letterSpacing: 1,
   },
@@ -264,8 +296,11 @@ const styles = StyleSheet.create({
     backgroundColor: ACCENT,
     borderRadius: 4,
     paddingVertical: 16,
-    alignItems: 'center',
+    alignItems: 'center' as const,
     marginBottom: 12,
+  },
+  primaryButtonHovered: {
+    backgroundColor: '#D4FF00',
   },
   primaryButtonText: {
     fontFamily: MONO,
@@ -279,7 +314,10 @@ const styles = StyleSheet.create({
     borderColor: ACCENT,
     borderRadius: 4,
     paddingVertical: 16,
-    alignItems: 'center',
+    alignItems: 'center' as const,
+  },
+  secondaryButtonHovered: {
+    backgroundColor: 'rgba(204,255,0,0.08)',
   },
   secondaryButtonText: {
     fontFamily: MONO,
@@ -295,7 +333,7 @@ const styles = StyleSheet.create({
     fontSize: 9,
     color: '#2A2A2A',
     letterSpacing: 2,
-    textAlign: 'center',
+    textAlign: 'center' as const,
   },
   confirmTitle: {
     fontFamily: MONO,
@@ -314,6 +352,6 @@ const styles = StyleSheet.create({
     marginBottom: 28,
   },
   confirmEmail: {
-    color: '#FFFFFF',
+    color: TEXT_PRIMARY,
   },
 });

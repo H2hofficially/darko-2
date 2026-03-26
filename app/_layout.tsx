@@ -2,6 +2,27 @@ import { useEffect } from 'react';
 import { Platform } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 
+// ── Global web styles ─────────────────────────────────────────────────────────
+if (Platform.OS === 'web' && typeof document !== 'undefined') {
+  const s = document.createElement('style');
+  s.textContent = `
+    *, *::before, *::after {
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      box-sizing: border-box;
+    }
+    html, body, #root { background: #09090B; height: 100%; margin: 0; }
+    [role="button"], button, a, select { cursor: pointer; }
+    textarea, input { cursor: text; }
+    * { outline: none; }
+    ::-webkit-scrollbar { width: 4px; height: 4px; }
+    ::-webkit-scrollbar-track { background: #09090B; }
+    ::-webkit-scrollbar-thumb { background: #27272A; border-radius: 2px; }
+    ::-webkit-scrollbar-thumb:hover { background: #3D3D40; }
+  `;
+  document.head.appendChild(s);
+}
+
 // Push notifications are native-only — expo-notifications crashes on web
 if (Platform.OS !== 'web') {
   const Notifications = require('expo-notifications');

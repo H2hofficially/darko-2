@@ -82,7 +82,7 @@ const styles = StyleSheet.create({
   inner: {
     flex: 1,
     width: '100%',
-    maxWidth: 720,
+    maxWidth: 640,
     paddingTop: 60,
     paddingHorizontal: 20,
   },
