@@ -372,10 +372,11 @@ export default function ProfilesScreen() {
   );
 
   if (showLanding) return <LandingPage />;
-  if (!authReady) return <View style={styles.root} />;
+  if (!authReady) return <View style={{ flex: 1, backgroundColor: BG }} />;
 
   return (
-    <View style={[styles.root, Platform.OS === 'web' && styles.rootWeb]}>
+    <View style={styles.root}>
+    <View style={[styles.column, Platform.OS === 'web' && styles.webColumn]}>
       <StatusBar style="light" />
 
       <View style={styles.header}>
@@ -478,6 +479,7 @@ export default function ProfilesScreen() {
         </KeyboardAvoidingView>
       </Modal>
     </View>
+    </View>
   );
 }
 
@@ -485,13 +487,19 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: BG,
+  },
+  column: {
+    flex: 1,
     paddingTop: 64,
     paddingHorizontal: 20,
   },
-  rootWeb: {
-    maxWidth: 600,
+  webColumn: {
+    maxWidth: 480,
     alignSelf: 'center' as const,
     width: '100%' as any,
+    borderLeftWidth: 1,
+    borderRightWidth: 1,
+    borderColor: '#1A1A1D',
   },
   header: {
     marginBottom: 8,

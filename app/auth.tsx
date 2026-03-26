@@ -84,6 +84,7 @@ export default function AuthScreen() {
   return (
     <View style={styles.root}>
       <StatusBar style="light" />
+      <View style={[styles.flex, Platform.OS === 'web' && styles.webColumn]}>
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -189,6 +190,7 @@ export default function AuthScreen() {
           )}
         </ScrollView>
       </KeyboardAvoidingView>
+      </View>
     </View>
   );
 }
@@ -196,6 +198,7 @@ export default function AuthScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: BG },
   flex: { flex: 1 },
+  webColumn: { maxWidth: 480, alignSelf: 'center' as const, width: '100%' as any, borderLeftWidth: 1, borderRightWidth: 1, borderColor: '#1A1A1D' },
   scroll: {
     paddingHorizontal: 24,
     paddingTop: 100,

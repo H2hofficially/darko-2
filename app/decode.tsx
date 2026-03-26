@@ -1126,7 +1126,8 @@ export default function DecodeScreen() {
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
-    <View style={styles.root}>
+    <View style={{ flex: 1, backgroundColor: BG }}>
+    <View style={[styles.root, Platform.OS === 'web' && styles.webColumn]}>
       <StatusBar style="light" />
 
       {/* Header */}
@@ -1285,13 +1286,15 @@ export default function DecodeScreen() {
         onClose={() => setCampaignBriefOpen(false)}
       />
     </View>
+    </View>
   );
 }
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: BG, paddingTop: 60, ...(Platform.OS === 'web' ? { maxWidth: 600, alignSelf: 'center' as const, width: '100%' } : {}) },
+  root: { flex: 1, backgroundColor: BG, paddingTop: 60 },
+  webColumn: { maxWidth: 480, alignSelf: 'center' as const, width: '100%' as any, borderLeftWidth: 1, borderRightWidth: 1, borderColor: '#1A1A1D' },
 
   header: { paddingHorizontal: 20, marginBottom: 8 },
   headerTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
