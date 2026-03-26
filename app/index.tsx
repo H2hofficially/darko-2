@@ -141,15 +141,19 @@ function LandingPage() {
       <StatusBar style="light" />
 
       {/* Center column */}
-      <View style={landing.inner}>
+      <ScrollView
+        style={landing.scroll}
+        contentContainerStyle={landing.inner}
+        showsVerticalScrollIndicator={false}
+      >
         {/* Nav */}
         <View style={landing.nav}>
           <Text style={landing.navBrand}>// DARKO</Text>
           <View style={{ flexDirection: 'row', gap: 24 }}>
-            <TouchableOpacity onPress={() => router.push('/privacy' as any)}>
+            <TouchableOpacity onPress={() => Linking.openURL('/legal.html#privacy')}>
               <Text style={landing.navLink}>privacy</Text>
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => router.push('/terms' as any)}>
+            <TouchableOpacity onPress={() => Linking.openURL('/legal.html#tos')}>
               <Text style={landing.navLink}>terms</Text>
             </TouchableOpacity>
           </View>
@@ -199,7 +203,7 @@ function LandingPage() {
             </TouchableOpacity>
           </View>
         </View>
-      </View>
+      </ScrollView>
     </View>
   );
 }
@@ -220,11 +224,14 @@ const landing = StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: BG,
-    alignItems: 'center',
+  },
+  scroll: {
+    flex: 1,
   },
   inner: {
     width: '100%' as any,
     maxWidth: 680,
+    alignSelf: 'center' as const,
     paddingHorizontal: 24,
     paddingTop: 48,
     paddingBottom: 60,
