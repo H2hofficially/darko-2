@@ -19,6 +19,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getTargets, saveTarget, deleteTarget, getDecodeCount, type Target } from '../services/storage';
 import { supabase } from '../lib/supabase';
 import { registerPushToken } from '../services/notifications';
+import { useUser, TIER_LIMITS } from '../context/UserContext';
+import { PaywallModal } from '../components/PaywallModal';
 
 const ACCENT = '#CCFF00';
 const BG = '#09090B';
@@ -385,6 +387,8 @@ export default function ProfilesScreen() {
   const [authReady, setAuthReady] = useState(false);
   const [showLanding, setShowLanding] = useState(false);
   const [addBtnHovered, setAddBtnHovered] = useState(false);
+  const [paywallVisible, setPaywallVisible] = useState(false);
+  const { tier } = useUser();
 
   // Onboarding gate → Auth gate
   useEffect(() => {
@@ -455,6 +459,14 @@ export default function ProfilesScreen() {
   const handleCreate = async () => {
     const name = newName.trim();
     if (!name || creating) return;
+
+    const limit = TIER_LIMITS[tier].targets;
+    if (targets.length >= limit) {
+      resetModal();
+      setPaywallVisible(true);
+      return;
+    }
+
     setCreating(true);
     try {
       const target = await saveTarget({
@@ -567,6 +579,12 @@ export default function ProfilesScreen() {
           </KeyboardAvoidingView>
         </Modal>
       )}
+
+      <PaywallModal
+        visible={paywallVisible}
+        onClose={() => setPaywallVisible(false)}
+        reason={`Free tier allows ${TIER_LIMITS.free.targets} active target. Upgrade to add more.`}
+      />
     </View>
     </View>
   );

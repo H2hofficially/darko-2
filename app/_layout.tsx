@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { Platform } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
+import { UserProvider } from '../context/UserContext';
 
 // ── Global web styles ─────────────────────────────────────────────────────────
 if (Platform.OS === 'web' && typeof document !== 'undefined') {
@@ -54,14 +55,18 @@ export default function RootLayout() {
   }, []);
 
   return (
-    <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: '#09090B' } }}>
-      <Stack.Screen name="index" />
-      <Stack.Screen name="onboarding" />
-      <Stack.Screen name="auth" />
-      <Stack.Screen name="auth/callback" />
-      <Stack.Screen name="decode" />
-      <Stack.Screen name="privacy" />
-      <Stack.Screen name="terms" />
-    </Stack>
+    <UserProvider>
+      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: '#09090B' } }}>
+        <Stack.Screen name="index" />
+        <Stack.Screen name="onboarding" />
+        <Stack.Screen name="auth" />
+        <Stack.Screen name="auth/callback" />
+        <Stack.Screen name="decode" />
+        <Stack.Screen name="privacy" />
+        <Stack.Screen name="terms" />
+        <Stack.Screen name="payment-success" />
+        <Stack.Screen name="payment-cancel" />
+      </Stack>
+    </UserProvider>
   );
 }

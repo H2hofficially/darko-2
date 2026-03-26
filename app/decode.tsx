@@ -41,6 +41,8 @@ import {
   type ConversationMessage,
   type TargetProfile,
 } from '../services/storage';
+import { useUser, TIER_LIMITS } from '../context/UserContext';
+import { PaywallModal } from '../components/PaywallModal';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -702,6 +704,15 @@ export default function DecodeScreen() {
   const [campaignBriefOpen, setCampaignBriefOpen] = useState(false);
   const [briefSubmitting, setBriefSubmitting] = useState(false);
 
+  const [paywallVisible, setPaywallVisible] = useState(false);
+  const [paywallReason, setPaywallReason] = useState('');
+  const { tier } = useUser();
+
+  const showPaywall = (reason: string) => {
+    setPaywallReason(reason);
+    setPaywallVisible(true);
+  };
+
   const [loading, setLoading] = useState(false);
   const [loaderText, setLoaderText] = useState(LOADER_MESSAGES[0]);
   const [error, setError] = useState<string | null>(null);
@@ -809,6 +820,10 @@ export default function DecodeScreen() {
   // ── Image picker ───────────────────────────────────────────────────────────
 
   const handlePickImage = async () => {
+    if (tier === 'free') {
+      showPaywall('Screenshot analysis requires DARKO PRO.');
+      return;
+    }
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
       Alert.alert('Permission needed', 'Photo library access required.');
@@ -824,6 +839,10 @@ export default function DecodeScreen() {
   // ── Voice recorder ─────────────────────────────────────────────────────────
 
   const handleMicPress = async () => {
+    if (tier === 'free') {
+      showPaywall('Voice input requires DARKO PRO.');
+      return;
+    }
     if (isRecording) await stopRecording();
     else await startRecording();
   };
@@ -898,6 +917,22 @@ export default function DecodeScreen() {
 
   const handleSend = async () => {
     if (loading || phaseUnlocking || (!inputText.trim() && !selectedImage)) return;
+
+    // Daily message gate — count today's user messages in this conversation
+    const todayStr = new Date().toDateString();
+    const todayUserMsgs = chatMessages.filter(
+      (m) => m.type === 'user' && new Date(m.timestamp).toDateString() === todayStr,
+    ).length;
+    const msgLimit = TIER_LIMITS[tier].messagesPerTargetPerDay;
+    if (todayUserMsgs >= msgLimit) {
+      showPaywall(
+        tier === 'free'
+          ? `Free tier allows ${msgLimit} messages per target per day. Upgrade for more.`
+          : `Daily message limit reached (${msgLimit}). Upgrade to Executive for unlimited access.`,
+      );
+      return;
+    }
+
     setLoading(true);
     setError(null);
     setLoaderText(LOADER_MESSAGES[0]);
@@ -1002,6 +1037,10 @@ export default function DecodeScreen() {
   // ── Dossier ────────────────────────────────────────────────────────────────
 
   const openDossier = useCallback(async () => {
+    if (tier === 'free') {
+      showPaywall('// DOSSIER requires DARKO PRO. Full psychological profiling is a Pro feature.');
+      return;
+    }
     setDossierEverOpened(true);
     setDossierOpen(true);
     const isStale =
@@ -1140,7 +1179,16 @@ export default function DecodeScreen() {
             <Text style={styles.backBtn}>← TARGETS</Text>
           </TouchableOpacity>
           <View style={{ flexDirection: 'row', gap: 16 }}>
-            <TouchableOpacity onPress={() => setCampaignBriefOpen(true)} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+            <TouchableOpacity
+              onPress={() => {
+                if (tier === 'free') {
+                  showPaywall('// BRIEF campaign planning requires DARKO PRO.');
+                  return;
+                }
+                setCampaignBriefOpen(true);
+              }}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            >
               <Text style={styles.dossierToggleBtn}>// BRIEF</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={openDossier} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
@@ -1330,6 +1378,13 @@ export default function DecodeScreen() {
         submitting={briefSubmitting}
         onSubmit={handleSubmitBrief}
         onClose={() => setCampaignBriefOpen(false)}
+      />
+
+      {/* Paywall */}
+      <PaywallModal
+        visible={paywallVisible}
+        onClose={() => setPaywallVisible(false)}
+        reason={paywallReason}
       />
     </View>
     </View>
