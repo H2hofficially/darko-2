@@ -11,6 +11,7 @@ import {
   Modal,
   KeyboardAvoidingView,
   ScrollView,
+  Linking,
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -185,14 +186,18 @@ function LandingPage() {
 
         {/* Footer */}
         <View style={landing.footer}>
-          <Text style={landing.footerText}>{'© 2026 DARKO · '}</Text>
-          <TouchableOpacity onPress={() => router.push('/privacy' as any)}>
-            <Text style={[landing.footerText, { color: TEXT_DIM }]}>Privacy</Text>
-          </TouchableOpacity>
-          <Text style={landing.footerText}>{' · '}</Text>
-          <TouchableOpacity onPress={() => router.push('/terms' as any)}>
-            <Text style={[landing.footerText, { color: TEXT_DIM }]}>Terms</Text>
-          </TouchableOpacity>
+          <Text style={landing.footerLegal}>
+            {'© 2026 DARKO. All rights reserved. DARKO is a registered product and operating entity of Nxgen Media LLC.'}
+          </Text>
+          <View style={landing.footerLinks}>
+            <TouchableOpacity onPress={() => Linking.openURL('/legal.html#privacy')}>
+              <Text style={landing.footerLink}>Privacy Policy</Text>
+            </TouchableOpacity>
+            <Text style={landing.footerSep}>{' · '}</Text>
+            <TouchableOpacity onPress={() => Linking.openURL('/legal.html#tos')}>
+              <Text style={landing.footerLink}>Terms of Service</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
     </View>
@@ -330,12 +335,29 @@ const landing = StyleSheet.create({
     lineHeight: 20,
   },
   footer: {
-    flexDirection: 'row',
     borderTopWidth: 1,
     borderTopColor: BORDER,
     paddingTop: 24,
+    gap: 10,
   },
-  footerText: {
+  footerLegal: {
+    fontFamily: MONO,
+    fontSize: 10,
+    color: TEXT_DIM,
+    letterSpacing: 0.3,
+    lineHeight: 16,
+  },
+  footerLinks: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  footerLink: {
+    fontFamily: MONO,
+    fontSize: 10,
+    color: TEXT_DIM,
+    letterSpacing: 0.5,
+  },
+  footerSep: {
     fontFamily: MONO,
     fontSize: 10,
     color: '#3D3D40',
