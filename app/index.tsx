@@ -152,6 +152,9 @@ function LandingPage() {
         <View style={landing.nav}>
           <Text style={landing.navBrand}>// DARKO</Text>
           <View style={{ flexDirection: 'row', gap: 24 }}>
+            <TouchableOpacity onPress={() => router.push('/pricing' as any)}>
+              <Text style={landing.navLink}>pricing</Text>
+            </TouchableOpacity>
             <TouchableOpacity onPress={() => Linking.openURL('/legal.html#privacy')}>
               <Text style={landing.navLink}>privacy</Text>
             </TouchableOpacity>
@@ -510,12 +513,22 @@ export default function ProfilesScreen() {
           <Text style={styles.headerLabel}>// DARKO</Text>
           <Text style={styles.headerSub}>target profiles</Text>
         </View>
-        <TouchableOpacity
-          onPress={() => supabase.auth.signOut()}
-          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-        >
-          <Text style={styles.signOutBtn}>SIGN OUT</Text>
-        </TouchableOpacity>
+        <View style={styles.headerActions}>
+          {tier === 'free' && (
+            <TouchableOpacity
+              onPress={() => router.push('/pricing' as any)}
+              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            >
+              <Text style={styles.upgradeLinkBtn}>↑ PRO</Text>
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity
+            onPress={() => supabase.auth.signOut()}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          >
+            <Text style={styles.signOutBtn}>SIGN OUT</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <View style={styles.divider} />
@@ -614,12 +627,22 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'flex-start',
   },
+  headerActions: {
+    alignItems: 'flex-end',
+    gap: 6,
+    marginTop: 4,
+  },
+  upgradeLinkBtn: {
+    fontFamily: MONO,
+    fontSize: 9,
+    color: ACCENT,
+    letterSpacing: 2,
+  },
   signOutBtn: {
     fontFamily: MONO,
     fontSize: 9,
     color: TEXT_DIM,
     letterSpacing: 2,
-    marginTop: 6,
   },
   headerLabel: {
     fontFamily: MONO,
