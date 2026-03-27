@@ -67,7 +67,8 @@ export function PaywallModal({ visible, onClose, reason }: Props) {
           <View style={styles.divider} />
 
           <Text style={styles.tierName}>DARKO PRO</Text>
-          <Text style={styles.price}>$15 / month</Text>
+          <Text style={styles.price}>$0 for 4 days</Text>
+          <Text style={styles.priceSub}>then $15/month</Text>
 
           <View style={styles.benefits}>
             <BenefitRow text="3 active targets" />
@@ -87,9 +88,11 @@ export function PaywallModal({ visible, onClose, reason }: Props) {
           >
             {loading
               ? <ActivityIndicator color={BG} />
-              : <Text style={styles.upgradeBtnText}>[ START 4-DAY FREE TRIAL ]</Text>
+              : <Text style={styles.upgradeBtnText}>[ START FREE TRIAL ]</Text>
             }
           </TouchableOpacity>
+
+          <Text style={styles.trialNote}>4 days free, then $15/month. Cancel anytime.</Text>
 
           <TouchableOpacity onPress={onClose} style={styles.dismissBtn}>
             <Text style={styles.dismissText}>not now</Text>
@@ -158,7 +161,22 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: ACCENT,
     letterSpacing: 2,
+    marginBottom: 2,
+  },
+  priceSub: {
+    fontFamily: MONO as any,
+    fontSize: 10,
+    color: TEXT_DIM,
+    letterSpacing: 1,
     marginBottom: 20,
+  },
+  trialNote: {
+    fontFamily: MONO as any,
+    fontSize: 9,
+    color: TEXT_DIM,
+    letterSpacing: 0.3,
+    textAlign: 'center' as const,
+    marginBottom: 10,
   },
   benefits: {
     marginBottom: 20,

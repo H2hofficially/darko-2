@@ -97,7 +97,7 @@ export default function PricingScreen() {
 
         <Text style={styles.title}>// PRICING</Text>
         <Text style={styles.subtitle}>
-          {'Start free. Upgrade when you\'re ready to operate at full capacity.'}
+          {'Try DARKO PRO free for 4 days. No charge until your trial ends.'}
         </Text>
 
         {/* Cards */}
@@ -134,10 +134,8 @@ export default function PricingScreen() {
                 <Text style={styles.proBadgeText}>MOST POPULAR</Text>
               </View>
               <Text style={[styles.tierLabel, { color: TEXT_PRIMARY }]}>PRO</Text>
-              <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 4 }}>
-                <Text style={[styles.tierPrice, { color: ACCENT }]}>$15</Text>
-                <Text style={styles.tierPriceSub}>/ month</Text>
-              </View>
+              <Text style={[styles.tierPrice, { color: ACCENT }]}>$0 for 4 days</Text>
+              <Text style={styles.tierPriceSub}>then $15/month</Text>
             </View>
             <View style={styles.cardDivider} />
             <View style={styles.features}>
@@ -181,11 +179,11 @@ export default function PricingScreen() {
                   >
                     {loading
                       ? <ActivityIndicator color={BG} />
-                      : <Text style={styles.btnAccentText}>[ START 4-DAY FREE TRIAL ]</Text>
+                      : <Text style={styles.btnAccentText}>[ START FREE TRIAL ]</Text>
                     }
                   </TouchableOpacity>
                   <Text style={styles.trialNote}>
-                    {'No charge for 4 days. $15/month after trial ends. Cancel anytime.'}
+                    {'4-day free trial. No charge until trial ends. Cancel anytime.'}
                   </Text>
                 </>
               )}

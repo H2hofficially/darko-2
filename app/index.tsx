@@ -191,7 +191,7 @@ function LandingPage() {
             <Text style={landing.ctaText}>INITIALIZE SYSTEM</Text>
           </Pressable>
 
-          <Text style={landing.ctaSub}>free to start · no credit card</Text>
+          <Text style={landing.ctaSub}>4-day free trial · no charge until trial ends</Text>
         </View>
 
         {/* Features */}
