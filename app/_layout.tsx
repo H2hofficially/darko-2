@@ -67,6 +67,7 @@ export default function RootLayout() {
         <Stack.Screen name="payment-success" />
         <Stack.Screen name="payment-cancel" />
         <Stack.Screen name="pricing" />
+        <Stack.Screen name="contact" />
       </Stack>
     </UserProvider>
   );

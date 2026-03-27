@@ -150,10 +150,18 @@ function LandingPage() {
       >
         {/* Nav */}
         <View style={landing.nav}>
-          <Text style={landing.navBrand}>// DARKO</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            <Text style={landing.navBrand}>// DARKO</Text>
+            <View style={landing.betaBadge}>
+              <Text style={landing.betaBadgeText}>BETA v1.0</Text>
+            </View>
+          </View>
           <View style={{ flexDirection: 'row', gap: 24 }}>
             <TouchableOpacity onPress={() => router.push('/pricing' as any)}>
               <Text style={landing.navLink}>pricing</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => router.push('/contact' as any)}>
+              <Text style={landing.navLink}>support</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => Linking.openURL('/legal.html#privacy')}>
               <Text style={landing.navLink}>privacy</Text>
@@ -199,6 +207,10 @@ function LandingPage() {
             {'© 2026 DARKO. All rights reserved. DARKO is a registered product and operating entity of Nxgen Media LLC.'}
           </Text>
           <View style={landing.footerLinks}>
+            <TouchableOpacity onPress={() => router.push('/contact' as any)}>
+              <Text style={landing.footerLink}>Support</Text>
+            </TouchableOpacity>
+            <Text style={landing.footerSep}>{' · '}</Text>
             <TouchableOpacity onPress={() => Linking.openURL('/legal.html#privacy')}>
               <Text style={landing.footerLink}>Privacy Policy</Text>
             </TouchableOpacity>
@@ -253,6 +265,19 @@ const landing = StyleSheet.create({
     fontWeight: '700',
     color: TEXT_PRIMARY,
     letterSpacing: 4,
+  },
+  betaBadge: {
+    borderWidth: 1,
+    borderColor: ACCENT,
+    borderRadius: 2,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+  },
+  betaBadgeText: {
+    fontFamily: MONO,
+    fontSize: 8,
+    color: ACCENT,
+    letterSpacing: 1,
   },
   navLink: {
     fontFamily: MONO,
@@ -510,7 +535,12 @@ export default function ProfilesScreen() {
 
       <View style={styles.header}>
         <View>
-          <Text style={styles.headerLabel}>// DARKO</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <Text style={styles.headerLabel}>// DARKO</Text>
+            <View style={styles.betaBadge}>
+              <Text style={styles.betaBadgeText}>BETA v1.0</Text>
+            </View>
+          </View>
           <Text style={styles.headerSub}>target profiles</Text>
         </View>
         <View style={styles.headerActions}>
@@ -650,6 +680,20 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: TEXT_PRIMARY,
     letterSpacing: 4,
+  },
+  betaBadge: {
+    borderWidth: 1,
+    borderColor: ACCENT,
+    borderRadius: 2,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    alignSelf: 'center' as const,
+  },
+  betaBadgeText: {
+    fontFamily: MONO,
+    fontSize: 8,
+    color: ACCENT,
+    letterSpacing: 1,
   },
   headerSub: {
     fontFamily: MONO,

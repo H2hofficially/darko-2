@@ -151,6 +151,20 @@ export default function PricingScreen() {
               <FeatureLine text="Push notification alerts" accent />
             </View>
 
+            {/* Pre-checkout warning */}
+            {!isPro && (
+              <View style={styles.betaWarning}>
+                <Text style={styles.betaWarningTitle}>// DARKO ENGINE: BETA ACCESS INITIATED</Text>
+                <Text style={styles.betaWarningBody}>
+                  {'You are accessing the Phase 1 Beta of the DARKO architecture. By proceeding, you acknowledge:\n\n'}
+                  <Text style={styles.betaWarningBold}>{'System Variance: '}</Text>
+                  {'The AI models are actively training. You may experience occasional latency, UI glitches, or generation errors.\n\n'}
+                  <Text style={styles.betaWarningBold}>{'Tactical Calibration: '}</Text>
+                  {'The engine analyzes raw text, but human nuance is complex. If a generated script feels misaligned with your specific social dynamic, do not send it. You are the final executive authority.'}
+                </Text>
+              </View>
+            )}
+
             {error ? <Text style={styles.error}>[ {error} ]</Text> : null}
 
             <View style={styles.cardFooter}>
@@ -331,6 +345,33 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: BG,
     letterSpacing: 3,
+  },
+  betaWarning: {
+    borderWidth: 1,
+    borderColor: BORDER,
+    borderRadius: 4,
+    padding: 16,
+    marginBottom: 20,
+  },
+  betaWarningTitle: {
+    fontFamily: MONO as any,
+    fontSize: 9,
+    color: ACCENT,
+    letterSpacing: 2,
+    marginBottom: 10,
+  },
+  betaWarningBody: {
+    fontFamily: MONO as any,
+    fontSize: 10,
+    color: TEXT_DIM,
+    letterSpacing: 0.3,
+    lineHeight: 17,
+  },
+  betaWarningBold: {
+    fontFamily: MONO as any,
+    fontSize: 10,
+    color: TEXT_PRIMARY,
+    letterSpacing: 0.3,
   },
   error: {
     fontFamily: MONO as any,

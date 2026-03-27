@@ -1175,9 +1175,14 @@ export default function DecodeScreen() {
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerTopRow}>
-          <TouchableOpacity onPress={() => router.back()} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
-            <Text style={styles.backBtn}>← TARGETS</Text>
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            <TouchableOpacity onPress={() => router.back()} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+              <Text style={styles.backBtn}>← TARGETS</Text>
+            </TouchableOpacity>
+            <View style={styles.betaBadge}>
+              <Text style={styles.betaBadgeText}>BETA v1.0</Text>
+            </View>
+          </View>
           <View style={{ flexDirection: 'row', gap: 16 }}>
             <TouchableOpacity
               onPress={() => {
@@ -1400,6 +1405,8 @@ const styles = StyleSheet.create({
   header: { paddingHorizontal: 20, marginBottom: 8 },
   headerTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
   backBtn: { fontFamily: MONO, fontSize: 10, color: TEXT_DIM, letterSpacing: 2 },
+  betaBadge: { borderWidth: 1, borderColor: ACCENT, borderRadius: 2, paddingHorizontal: 5, paddingVertical: 2 },
+  betaBadgeText: { fontFamily: MONO, fontSize: 8, color: ACCENT, letterSpacing: 1 },
   dossierToggleBtn: { fontFamily: MONO, fontSize: 10, color: TEXT_DIM, letterSpacing: 2 },
   targetTitle: { fontFamily: MONO, fontSize: 22, fontWeight: '700', color: TEXT_PRIMARY, letterSpacing: 4 },
 
