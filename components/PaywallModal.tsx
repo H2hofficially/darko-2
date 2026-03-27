@@ -87,7 +87,7 @@ export function PaywallModal({ visible, onClose, reason }: Props) {
           >
             {loading
               ? <ActivityIndicator color={BG} />
-              : <Text style={styles.upgradeBtnText}>[ UPGRADE TO PRO ]</Text>
+              : <Text style={styles.upgradeBtnText}>[ START 4-DAY FREE TRIAL ]</Text>
             }
           </TouchableOpacity>
 

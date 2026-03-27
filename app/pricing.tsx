@@ -173,16 +173,21 @@ export default function PricingScreen() {
                   <Text style={styles.btnDisabledText}>CURRENT PLAN</Text>
                 </View>
               ) : (
-                <TouchableOpacity
-                  style={[styles.btn, styles.btnAccent, loading && { opacity: 0.5 }]}
-                  onPress={handleUpgrade}
-                  disabled={loading}
-                >
-                  {loading
-                    ? <ActivityIndicator color={BG} />
-                    : <Text style={styles.btnAccentText}>[ UPGRADE TO PRO ]</Text>
-                  }
-                </TouchableOpacity>
+                <>
+                  <TouchableOpacity
+                    style={[styles.btn, styles.btnAccent, loading && { opacity: 0.5 }]}
+                    onPress={handleUpgrade}
+                    disabled={loading}
+                  >
+                    {loading
+                      ? <ActivityIndicator color={BG} />
+                      : <Text style={styles.btnAccentText}>[ START 4-DAY FREE TRIAL ]</Text>
+                    }
+                  </TouchableOpacity>
+                  <Text style={styles.trialNote}>
+                    {'No charge for 4 days. $15/month after trial ends. Cancel anytime.'}
+                  </Text>
+                </>
               )}
             </View>
           </View>
@@ -345,6 +350,15 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: BG,
     letterSpacing: 3,
+  },
+  trialNote: {
+    fontFamily: MONO as any,
+    fontSize: 9,
+    color: TEXT_DIM,
+    letterSpacing: 0.3,
+    textAlign: 'center' as const,
+    marginTop: 10,
+    lineHeight: 15,
   },
   betaWarning: {
     borderWidth: 1,

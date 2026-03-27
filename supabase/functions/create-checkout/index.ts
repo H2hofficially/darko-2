@@ -49,6 +49,7 @@ Deno.serve(async (req) => {
         'success_url': 'https://darkoapp.com/payment-success',
         'cancel_url': 'https://darkoapp.com/payment-cancel',
         'client_reference_id': userId,
+        'subscription_data[trial_period_days]': '4',
         'subscription_data[metadata][userId]': userId,
       }).toString(),
     });
