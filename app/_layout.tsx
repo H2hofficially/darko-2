@@ -7,12 +7,13 @@ import { UserProvider } from '../context/UserContext';
 if (Platform.OS === 'web' && typeof document !== 'undefined') {
   const s = document.createElement('style');
   s.textContent = `
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap');
     *, *::before, *::after {
       -webkit-font-smoothing: antialiased;
       -moz-osx-font-smoothing: grayscale;
       box-sizing: border-box;
     }
-    html, body, #root { background: #09090B; height: 100%; margin: 0; }
+    html, body, #root { background: #09090B; height: 100%; margin: 0; padding: 0; overflow: hidden; }
     [role="button"], button, a, select { cursor: pointer; }
     textarea, input { cursor: text; }
     * { outline: none; }

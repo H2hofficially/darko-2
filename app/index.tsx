@@ -12,7 +12,10 @@ import {
   KeyboardAvoidingView,
   ScrollView,
   Linking,
+  useWindowDimensions,
 } from 'react-native';
+import { DesktopLayout } from '../components/DesktopLayout';
+import { TargetSidebar } from '../components/TargetSidebar';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -406,6 +409,8 @@ const landing = StyleSheet.create({
 
 export default function ProfilesScreen() {
   const router = useRouter();
+  const { width } = useWindowDimensions();
+  const isDesktop = Platform.OS === 'web' && width > 768;
   const [targets, setTargets] = useState<(Target & { decodeCount: number })[]>([]);
   const [modalVisible, setModalVisible] = useState(false);
   const [newName, setNewName] = useState('');
@@ -527,6 +532,59 @@ export default function ProfilesScreen() {
 
   if (showLanding) return <LandingPage />;
   if (!authReady) return <View style={{ flex: 1, backgroundColor: BG }} />;
+
+  if (isDesktop) {
+    return (
+      <>
+        <DesktopLayout
+          sidebar={
+            <TargetSidebar
+              targets={targets}
+              onSelectTarget={(t) =>
+                router.push(`/decode?targetId=${t.id}&targetName=${encodeURIComponent(t.name)}`)
+              }
+              onNewTarget={() => setModalVisible(true)}
+              tier={tier}
+            />
+          }
+          main={
+            <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+              <Text style={{ fontFamily: MONO, fontSize: 11, color: TEXT_DIM, letterSpacing: 3 }}>
+                // SELECT A TARGET
+              </Text>
+              <Text
+                style={{
+                  fontFamily: MONO,
+                  fontSize: 9,
+                  color: '#3D3D40',
+                  letterSpacing: 2,
+                  marginTop: 8,
+                }}
+              >
+                or acquire a new one
+              </Text>
+            </View>
+          }
+        />
+        {modalVisible && (
+          <View style={styles.desktopModalOverlay}>
+            <Pressable style={StyleSheet.absoluteFill} onPress={resetModal} />
+            <TargetForm
+              newName={newName} setNewName={setNewName}
+              newLeverage={newLeverage} setNewLeverage={setNewLeverage}
+              newObjective={newObjective} setNewObjective={setNewObjective}
+              creating={creating} onCancel={resetModal} onCreate={handleCreate}
+            />
+          </View>
+        )}
+        <PaywallModal
+          visible={paywallVisible}
+          onClose={() => setPaywallVisible(false)}
+          reason={`Free tier allows ${TIER_LIMITS.free.targets} active target. Upgrade to add more.`}
+        />
+      </>
+    );
+  }
 
   return (
     <View style={styles.root}>
@@ -813,6 +871,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center' as const,
     padding: 20,
     zIndex: 100,
+  },
+  desktopModalOverlay: {
+    position: 'fixed' as any,
+    top: 0, left: 0, right: 0, bottom: 0,
+    zIndex: 1000,
+    backgroundColor: 'rgba(0,0,0,0.88)',
+    justifyContent: 'center' as const,
+    padding: 20,
   },
   modalOverlay: {
     flex: 1,
