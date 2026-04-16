@@ -27,40 +27,63 @@ export interface MessageInput {
 // ── Block parser ───────────────────────────────────────────────────────────────
 
 export function parseDarkoResponse(raw: string): DarkoResponse {
+  // ── v4.0: JSON response with handler_note as primary output ──────────────────
+  try {
+    const parsed = JSON.parse(raw.trim());
+    if (parsed && typeof parsed === 'object' && 'handler_note' in parsed) {
+      const scripts: string[] = [];
+      if (parsed.visible_arsenal?.option_1_script)
+        scripts.push(parsed.visible_arsenal.option_1_script);
+      if (parsed.visible_arsenal?.option_2_script)
+        scripts.push(parsed.visible_arsenal.option_2_script);
+
+      const alerts: string[] = Array.isArray(parsed.hidden_intel?.the_directive)
+        ? parsed.hidden_intel.the_directive
+        : [];
+
+      let phaseUpdate: number | null = null;
+      const rawPhase = parsed.phase_update ?? parsed.state_update?.current_phase;
+      if (rawPhase !== null && rawPhase !== undefined) {
+        const n = parseInt(String(rawPhase), 10);
+        if (!isNaN(n)) phaseUpdate = n;
+      }
+
+      return {
+        text: parsed.handler_note ?? '',
+        scripts,
+        alerts,
+        phaseUpdate,
+        reads: [],
+        isCampaign: parsed.intent === 'campaign_brief',
+      };
+    }
+  } catch {
+    // Not complete JSON — fall through to legacy block-marker parser
+  }
+
+  // ── Legacy v3: block-marker prose format ──────────────────────────────────────
   const scripts: string[] = [];
   const alerts: string[] = [];
   const reads: string[] = [];
   let phaseUpdate: number | null = null;
   let isCampaign = false;
 
-  // Normalize line endings so the regex works regardless of platform
   const normalised = raw.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-
-  // Match // TYPE or // PHASE UPDATE [N] ... // END  (// END may be followed by anything)
   const blockPattern =
     /\/\/ (SCRIPT|ALERT|PHASE UPDATE(?: \[(\d+)\])?|READ|CAMPAIGN)\n([\s\S]*?)\/\/ END(?:\n|$)/g;
 
   let match: RegExpExecArray | null;
-
   while ((match = blockPattern.exec(normalised)) !== null) {
     const type = match[1];
-    const phaseNum = match[2]; // group 2 = (\d+) inside PHASE UPDATE [N]
-    const content = (match[3] ?? '').trim(); // group 3 = ([\s\S]*?) block body
-
-    if (type === 'SCRIPT') {
-      scripts.push(content);
-    } else if (type === 'ALERT') {
-      alerts.push(content);
-    } else if (type.startsWith('PHASE UPDATE')) {
-      phaseUpdate = phaseNum ? parseInt(phaseNum, 10) : null;
-    } else if (type === 'READ') {
-      reads.push(content);
-    } else if (type === 'CAMPAIGN') {
-      isCampaign = true;
-    }
+    const phaseNum = match[2];
+    const content = (match[3] ?? '').trim();
+    if (type === 'SCRIPT') scripts.push(content);
+    else if (type === 'ALERT') alerts.push(content);
+    else if (type.startsWith('PHASE UPDATE')) phaseUpdate = phaseNum ? parseInt(phaseNum, 10) : null;
+    else if (type === 'READ') reads.push(content);
+    else if (type === 'CAMPAIGN') isCampaign = true;
   }
 
-  // Remove extracted blocks from prose, collapse excess blank lines
   const cleanText = normalised
     .replace(blockPattern, '')
     .replace(/\n{3,}/g, '\n\n')
@@ -69,8 +92,25 @@ export function parseDarkoResponse(raw: string): DarkoResponse {
   return { text: cleanText, scripts, alerts, phaseUpdate, reads, isCampaign };
 }
 
-// Strip block markers from in-progress streaming text for cleaner display
+// Strip block markers / extract handler_note from in-progress streaming text
 export function stripStreamMarkers(text: string): string {
+  // v4.0: extract handler_note from partial JSON as it streams in
+  const match = text.match(/"handler_note"\s*:\s*"([\s\S]*?)(?:(?<!\\)"|$)/);
+  if (match) {
+    try {
+      // If the JSON is complete enough to close the string, parse it properly
+      return JSON.parse('"' + match[1] + '"');
+    } catch {
+      // Partial string — unescape manually for display
+      return match[1]
+        .replace(/\\n/g, '\n')
+        .replace(/\\"/g, '"')
+        .replace(/\\\\/g, '\\')
+        .replace(/\\t/g, '\t');
+    }
+  }
+
+  // Legacy v3: strip block markers
   return text
     .replace(/\/\/ (SCRIPT|ALERT|READ|PHASE UPDATE[^\n]*|CAMPAIGN)\n/g, '')
     .replace(/\/\/ END\n?/g, '')
@@ -160,10 +200,10 @@ export function sendMessage(
       if (jsonStr === '[DONE]') { finish(); return; }
       try {
         const parsed = JSON.parse(jsonStr);
-        const text: string = parsed?.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+        const text: string = parsed?.choices?.[0]?.delta?.content ?? '';
         if (text) { accumulated += text; onChunk(accumulated); }
-        const finishReason: string | undefined = parsed?.candidates?.[0]?.finishReason;
-        if (finishReason && finishReason !== 'STOP_REASON_UNSPECIFIED') finish();
+        const finishReason: string | null | undefined = parsed?.choices?.[0]?.finish_reason;
+        if (finishReason === 'stop') finish();
       } catch {
         // malformed chunk — skip
       }

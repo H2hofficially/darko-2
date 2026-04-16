@@ -2,7 +2,7 @@
 
 **App:** Psychological relationship strategy advisor
 **Entity:** Nxgen Media LLC
-**Last updated:** 2026-03-26
+**Last updated:** 2026-04-15
 
 ---
 
@@ -29,7 +29,8 @@ Set these in Supabase Dashboard → Edge Functions → Secrets (or via CLI `supa
 
 | Secret Name | Description |
 |---|---|
-| `GEMINI_API_KEY` | Google AI Studio API key — used by decode-intel, generate-profile, transcribe-audio |
+| `DEEPSEEK_API_KEY` | DeepSeek API key — used by decode-intel for chat completions |
+| `GEMINI_API_KEY` | Google AI Studio API key — used by decode-intel (image extraction + RAG embeddings), generate-profile, transcribe-audio |
 | `STRIPE_SECRET_KEY` | Stripe secret key (`sk_live_...`) — used by create-checkout, stripe-webhook |
 | `STRIPE_WEBHOOK_SECRET` | Stripe webhook signing secret (`whsec_...`) — used by stripe-webhook to verify events |
 
@@ -54,7 +55,8 @@ EXPO_PUBLIC_SUPABASE_ANON_KEY=<anon key from Supabase dashboard>
 | Language | TypeScript |
 | Routing | expo-router v6 (SPA mode for web) |
 | Auth / DB / Backend | Supabase (auth, postgres, edge functions) |
-| AI | Gemini 2.5 Flash via REST (`streamGenerateContent?alt=sse`) |
+| AI — chat | DeepSeek V3.2 via REST (`api.deepseek.com/chat/completions`, streaming) |
+| AI — image extraction + RAG embeddings | Gemini 2.0 Flash (vision) + Gemini Embedding 001 (RAG) |
 | Payments | Stripe Checkout (raw REST — no SDK) |
 | Web deploy | Vercel (static SPA, `dist/` output) |
 | Native deploy | Expo EAS (iOS/Android) |
@@ -62,30 +64,45 @@ EXPO_PUBLIC_SUPABASE_ANON_KEY=<anon key from Supabase dashboard>
 ### How It Works End-to-End
 
 ```
-User types message in app/decode.tsx
+User types message (or attaches image) in app/decode.tsx
   │
   ▼
 services/darko.ts — sendMessage()
-  │  Reads conversation history from Supabase (last 10/50 msgs)
-  │  Calls search_book_passages RPC → top 5 RAG passages
-  │  POST to supabase/functions/decode-intel
+  │  POST to supabase/functions/decode-intel with { message, target_id, imageBase64?, tier, ... }
   │
   ▼
 decode-intel edge function (Deno)
-  │  Assembles: system prompt + RAG passages + temporal intelligence block + conversation history + user message
-  │  POST https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent?alt=sse
+  │
+  ├─ [if imageBase64 present]
+  │    Hash image → check app_config cache
+  │    Cache miss → classifyImageType() via Gemini 2.0 Flash (screenshot | photo)
+  │                → extractImageContext() via Gemini 2.0 Flash (structured JSON)
+  │                → cache result in app_config
+  │    Inject [IMAGE_ANALYSIS: type=...] block into user message
+  │
+  ├─ Fetch conversation history from conversation_messages (10 free / 50 pro)
+  ├─ Build RAG: getQueryEmbedding() → Gemini Embedding 001 → search_book_passages RPC → top 5 passages
+  ├─ Build temporal intelligence block (days since last message, silence alerts)
+  ├─ getCampaignState() → inject [CONTEXT: tier=X, target_archetype=Y, ...] prefix
+  │
+  ├─ Assemble messages array (OpenAI-compatible):
+  │    system: DARKO v4.0 prompt + context blocks
+  │    history: conversation_messages (darko → assistant, user → user)
+  │    user: stateBlock + imageContext + [USER MESSAGE]: <text>
+  │
+  │  POST https://api.deepseek.com/chat/completions (model: deepseek-chat, stream: true)
   │  Pipes SSE response stream directly back to client
   │
   ▼
 services/darko.ts — SSE reader
   │  Web: fetch() + ReadableStream + TextDecoder, line-by-line parsing
   │  Native: react-native-sse
+  │  Parses DeepSeek SSE: choices[0].delta.content (OpenAI-compatible format)
   │  Calls onChunk(accumulated) on each SSE event (streaming display)
-  │  Calls onComplete(DarkoResponse) when stream ends
+  │  Calls onComplete(DarkoResponse) when stream ends (finish_reason === 'stop' or [DONE])
   │
   ▼
 app/decode.tsx — renders response
-   Parses: // SCRIPT, // ALERT, // PHASE UPDATE, // READ, // CAMPAIGN blocks
    Saves user message + DARKO response to conversation_messages (Supabase)
    Triggers non-blocking auto profile refresh (generate-profile) every 3 min
 ```
@@ -135,7 +152,7 @@ app/payment-success.tsx calls refreshTier() after 2s → UserContext updates →
 
 | Function | What It Does |
 |---|---|
-| `decode-intel` | **Main AI engine.** Assembles context (system prompt + RAG + history + user input), streams Gemini 2.5 Flash response via SSE. Handles image input (base64 inline). Rate limit: 30/day free. Blocked words preflight. Temporal intelligence block on every call. |
+| `decode-intel` | **Main AI engine.** Assembles context (system prompt v4.0 + RAG + history + user input), streams DeepSeek V3.2 response via SSE (OpenAI-compatible format). Image input: classify via Gemini Flash → extract structured JSON → inject as [IMAGE_ANALYSIS] block → hash-cached in app_config. Campaign state injected as [CONTEXT] prefix per request. Rate limit: 30/day free. Blocked words preflight. Temporal intelligence block on every call. |
 | `generate-profile` | Generates 20-field psychological dossier from conversation history. Returns MBTI, communication style, manipulation vectors, emotional state, etc. |
 | `transcribe-audio` | Receives `{ audioBase64, mimeType }`, sends to Gemini multimodal, returns `{ text }`. |
 | `create-checkout` | Creates Stripe Checkout Session via raw fetch (no SDK). Returns `{ url }`. 4-day free trial. Success/cancel URLs point to darkoapp.com. |
@@ -180,7 +197,7 @@ darko/
 │
 ├── supabase/
 │   ├── functions/
-│   │   ├── decode-intel/index.ts      # ★ Main Gemini engine
+│   │   ├── decode-intel/index.ts      # ★ Main AI engine (DeepSeek V3.2 + Gemini image pipeline)
 │   │   ├── generate-profile/index.ts
 │   │   ├── transcribe-audio/index.ts
 │   │   ├── create-checkout/index.ts
@@ -341,12 +358,12 @@ Go to Supabase Dashboard → Authentication → URL Configuration:
 - Full web app deployed at https://darkoapp.com
 - Auth: email/password login + signup with name/age/email/phone (18+ gate), email verification via `/auth/callback`
 - Target management: create up to 1 (free) or 3 (pro) targets
-- AI chat: streaming Gemini 2.5 Flash responses with scripts, psychological analysis, phase tracking
+- AI chat: streaming DeepSeek V3.2 responses (OpenAI-compatible SSE), system prompt v4.0, campaign state injection
 - RAG: 6 psychology/strategy books embedded in pgvector, top 5 passages injected per request
 - // DOSSIER: 20-field psychological profile panel (pro only)
 - // BRIEF: full campaign planning modal with 7-phase roadmap (pro only)
 - Voice input + transcription via Gemini multimodal (pro only)
-- Screenshot analysis — base64 image sent inline to Gemini (pro only)
+- Screenshot/photo analysis — Gemini 2.0 Flash classifies + extracts structured JSON → injected as [IMAGE_ANALYSIS] block into DeepSeek context. Hash-cached per image in app_config (pro only)
 - Stripe Checkout with 4-day free trial → $15/month, webhook upgrades tier in DB
 - PaywallModal triggers at all tier gates
 - Pricing page with FREE/PRO cards
@@ -362,7 +379,8 @@ Go to Supabase Dashboard → Authentication → URL Configuration:
 - **Supabase CLI auth in dev**: `supabase login` required before deploying edge functions locally. Use the access token pattern shown in the deploy section above.
 - **Migrations 005 and 006**: May not be applied yet if the project DB is in an older state — run them manually in SQL Editor if `stripe_customer_id` or `full_name` columns don't exist.
 - **Push notifications**: Only work in EAS builds (not Expo Go). `expo-notifications` is fully excluded from web builds via `Platform.OS !== 'web'` guard.
-- **Gemini File API expiry**: The 6 book PDFs uploaded to Gemini Files API expire after 48 hours. Re-run `node scripts/upload-books.js` then `node scripts/create-cache.js` when RAG stops returning results.
+- **Gemini File API expiry**: The 6 book PDFs uploaded to Gemini Files API expire after 48 hours. Re-run `node scripts/upload-books.js` then `node scripts/create-cache.js` when RAG stops returning results. Note: this only affects RAG embeddings — main chat now runs on DeepSeek.
+- **DEEPSEEK_API_KEY must be set** as a Supabase edge function secret. Without it, decode-intel returns 500. Get a key at platform.deepseek.com.
 - **Executive tier**: No signup flow — tier must be set manually in Supabase DB (`UPDATE profiles SET tier = 'executive' WHERE id = '...'`).
 - **Stripe webhook**: Must be configured in Stripe Dashboard manually (see deploy section). Until configured, successful payments will not upgrade the user's tier in the DB.
 
@@ -370,10 +388,10 @@ Go to Supabase Dashboard → Authentication → URL Configuration:
 
 | Feature | Notes |
 |---|---|
-| **Model upgrade to Gemini 2.5 Pro / Opus** | Current model is 2.5 Flash. Upgrading to Pro would improve response quality. Change model ID in `decode-intel/index.ts`. |
+| **Model upgrade** | Main chat now on DeepSeek V3.2 (`deepseek-chat`). Future: DeepSeek R2 or swap back to Gemini 2.5 Pro for specific use cases. Change `model` in the DeepSeek fetch body in `decode-intel/index.ts`. |
 | **Phone OTP verification** | Auth currently uses email verification only. Phone OTP via Supabase Auth (Twilio) was planned but not implemented. `phone` field is collected in signup and stored in profiles. |
 | **Executive invite system** | Executive tier is manually set in DB. A proper invite flow (invite code → auto tier upgrade on signup) is planned. |
-| **New system prompt** | The DARKO system prompt in `decode-intel/index.ts` is marked for a v2 rewrite with a more structured prompt and updated persona rules. |
+| **parseDarkoResponse client update** | The v4.0 prompt outputs JSON (`handler_note` as primary, `visible_arsenal` for scripts, `state_update` for campaign state). The client `parseDarkoResponse()` still looks for `// SCRIPT` block markers — needs rewriting to extract fields from the JSON. `decode.tsx` will also need updates to consume `suggested_followups` and `state_update`. |
 | **Web push notifications** | Currently native-only. Web Push API support would require a service worker. |
 | **Admin dashboard** | No internal tooling for viewing users, tiers, or usage. All admin is via Supabase SQL Editor. |
 
@@ -418,18 +436,27 @@ The largest and most complex file. Understand this first.
 ### `supabase/functions/decode-intel/index.ts` — The Brain
 
 **What it does:**
-- Receives `{ targetId, userId, message, imageBase64?, conversationHistory[], ragPassages[], tier }`
-- Injects temporal intelligence block (days since last message, silence duration)
-- Assembles Gemini `contents` array: system prompt → RAG block → history → current message
-- Streams `streamGenerateContent?alt=sse` response directly back as SSE
-- **Critical:** uses `system_instruction` inline, NOT `cachedContent` (causes token overflow on 2.5-flash)
-- Blocked words: returns 400 with `SECURE OVERRIDE` message before calling Gemini
+- Receives `{ message, target_id, imageBase64?, imageMimeType?, leverage?, objective?, target_communication_style?, mission_phase? }`
+- Image pipeline (if imageBase64 present): hash → check app_config cache → `classifyImageType()` (Gemini 2.0 Flash) → `extractImageContext()` (Gemini 2.0 Flash) → cache result → inject `[IMAGE_ANALYSIS]` block
+- Campaign state: `getCampaignState()` stub (returns defaults; real implementation pending) → `[CONTEXT: tier=X, ...]` prefix
+- Fetches conversation history from `conversation_messages` (10 free / 50 pro)
+- RAG: `getQueryEmbedding()` → Gemini Embedding 001 → `search_book_passages` RPC → top 5 passages
+- Builds OpenAI-compatible messages array: `system` (v4.0 prompt + context) → history (darko → assistant) → `user` (stateBlock + imageContext + [USER MESSAGE])
+- Streams `api.deepseek.com/chat/completions` (model: `deepseek-chat`, stream: true) response directly back as SSE
+- Blocked words: returns 400 with `SECURE OVERRIDE` before calling DeepSeek
 
-**DARKO System Prompt structure** (inside `index.ts`):
-1. Core identity — cold Machiavellian analyst, 8 behavioral rules
-2. Block markers — `// SCRIPT`, `// ALERT`, `// PHASE UPDATE`, `// READ`, `// CAMPAIGN`
-3. Framework library — key concepts from the 6 RAG books
-4. Response schema — exact JSON structure with all fields
+**DARKO System Prompt v4.0** (inside `index.ts`):
+- Voice rules + forbidden/allowed vocabulary
+- Six-beat response structure (read, mistake, move, branch, do-not, hand-off)
+- Tier length rules (Tier 1: 80-150w, Tier 2: 250-400w, Tier 3: 600w+)
+- Two profiling layers: attachment (hidden) + archetype (visible, 12 named types)
+- Two registers: ANIMAL (hot/in-moment) and OPERATOR (planning/post-mortem)
+- Body language read framework
+- Signal threshold rule (no escalation without target signals)
+- Text generation rules (match his voice, her register)
+- Hard stops + in-voice pivots (minors, active institutional authority, restraining order)
+- JSON output schema: `handler_note` (primary) + `visible_arsenal`, `hidden_intel`, `state_update`, `suggested_followups`
+- Three worked examples (benchmark Tier 2, Tier 1 quick hit, hot signal read)
 
 ---
 
@@ -469,7 +496,7 @@ Font: `Platform.select({ ios: 'Courier New', android: 'monospace', default: 'mon
 
 4. **SPA rewrite vs static files.** Vercel rewrites `/*` → `index.html` but static files in `dist/` are served before rewrites apply. So `legal.html` works correctly at `/legal.html`.
 
-5. **Gemini 2.5 Flash + context cache = token overflow.** The `refresh-cache` function exists but `cachedContent` is NOT passed in `decode-intel` requests. Always use inline `system_instruction`.
+5. **Gemini is still required even with DeepSeek.** `GEMINI_API_KEY` must stay set — it powers RAG embeddings (`gemini-embedding-001`) and image extraction (`gemini-2.0-flash`). Only the main chat completion moved to DeepSeek.
 
 6. **Daily message count is client-side.** The free tier 5-message limit is enforced in `decode.tsx` by counting today's user messages in local state. Server-side rate limiting also exists in `decode-intel` (30/day) but the client-side check fires first.
 
