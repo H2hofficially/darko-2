@@ -1,0 +1,58 @@
+{
+  "generated": {
+    "7dbfbb41c402c016": {
+      "key": "how to make her chase you over text",
+      "generated_at": "2026-04-01 18:34:48",
+      "type": "blog",
+      "filename": "how-to-make-her-chase-you-over-text.md",
+      "category": "frame-control",
+      "tokens": 1361
+    },
+    "7fd52c68251f2ec9": {
+      "key": "If you're ever in my area feel free to hit me up",
+      "generated_at": "2026-04-01 18:35:03",
+      "type": "social",
+      "video_file": "if-youre-ever-in-my-area-feel-free-to-hit-me-up_video.md",
+      "thread_file": "if-youre-ever-in-my-area-feel-free-to-hit-me-up_thread.md",
+      "archetype": "Avoidant",
+      "dynamic": "plausible-deniability",
+      "tokens": 1926
+    },
+    "6990d6eb9693f93c": {
+      "key": "should I text her after being ghosted",
+      "generated_at": "2026-04-01 18:38:46",
+      "type": "blog",
+      "filename": "should-i-text-her-after-being-ghosted.md",
+      "category": "ghosting",
+      "tokens": 1911
+    },
+    "b16c3056129b3a4a": {
+      "key": "If you actually cared you would have called by now",
+      "generated_at": "2026-04-01 18:39:01",
+      "type": "social",
+      "video_file": "if-you-actually-cared-you-would-have-called-by-now_video.md",
+      "thread_file": "if-you-actually-cared-you-would-have-called-by-now_thread.md",
+      "archetype": "Anxious-Preoccupied",
+      "dynamic": "frame-test",
+      "tokens": 2253
+    }
+  },
+  "published": {},
+  "video_queue": [
+    {
+      "key": "If you're ever in my area feel free to hit me up",
+      "filepath": "output\\social\\if-youre-ever-in-my-area-feel-free-to-hit-me-up_video.md",
+      "scenario": "If you're ever in my area feel free to hit me up",
+      "queued_at": "2026-04-01 18:35:03",
+      "uploaded": false
+    },
+    {
+      "key": "If you actually cared you would have called by now",
+      "filepath": "output\\social\\if-you-actually-cared-you-would-have-called-by-now_video.md",
+      "scenario": "If you actually cared you would have called by now",
+      "queued_at": "2026-04-01 18:39:01",
+      "uploaded": false
+    }
+  ],
+  "runs": []
+}

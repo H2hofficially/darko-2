@@ -24,6 +24,7 @@ import { supabase } from '../lib/supabase';
 import { registerPushToken } from '../services/notifications';
 import { useUser, TIER_LIMITS } from '../context/UserContext';
 import { PaywallModal } from '../components/PaywallModal';
+import LandingPageV2 from '../components/LandingPageV2';
 
 const ACCENT = '#CCFF00';
 const BG = '#09090B';
@@ -530,7 +531,7 @@ export default function ProfilesScreen() {
     />
   );
 
-  if (showLanding) return <LandingPage />;
+  if (showLanding) return <LandingPageV2 />;
   if (!authReady) return <View style={{ flex: 1, backgroundColor: BG }} />;
 
   if (isDesktop) {

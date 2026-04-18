@@ -1,0 +1,603 @@
+{
+  "seo_queries": [
+    {
+      "keyword": "should I text her after being ghosted",
+      "search_intent": "informational",
+      "monthly_volume_estimate": 15600,
+      "difficulty": "high",
+      "category": "ghosting"
+    },
+    {
+      "keyword": "why did she leave me on read",
+      "search_intent": "informational",
+      "monthly_volume_estimate": 14800,
+      "difficulty": "low",
+      "category": "texting-anxiety"
+    },
+    {
+      "keyword": "ex texted me out of nowhere what does it mean",
+      "search_intent": "informational",
+      "monthly_volume_estimate": 13500,
+      "difficulty": "medium",
+      "category": "post-breakup"
+    },
+    {
+      "keyword": "what to say when a girl ghosts you then comes back",
+      "search_intent": "informational",
+      "monthly_volume_estimate": 12400,
+      "difficulty": "medium",
+      "category": "ghosting"
+    },
+    {
+      "keyword": "what to text a girl who is losing interest",
+      "search_intent": "informational",
+      "monthly_volume_estimate": 12100,
+      "difficulty": "medium",
+      "category": "frame-control"
+    },
+    {
+      "keyword": "why do girls ghost and come back",
+      "search_intent": "informational",
+      "monthly_volume_estimate": 11200,
+      "difficulty": "medium",
+      "category": "ghosting"
+    },
+    {
+      "keyword": "why does she take hours to text back",
+      "search_intent": "informational",
+      "monthly_volume_estimate": 11000,
+      "difficulty": "medium",
+      "category": "texting-anxiety"
+    },
+    {
+      "keyword": "she said lets just be friends what to reply",
+      "search_intent": "informational",
+      "monthly_volume_estimate": 10400,
+      "difficulty": "medium",
+      "category": "frame-control"
+    },
+    {
+      "keyword": "why do girls take so long to reply",
+      "search_intent": "informational",
+      "monthly_volume_estimate": 9800,
+      "difficulty": "low",
+      "category": "texting-anxiety"
+    },
+    {
+      "keyword": "how to not look desperate over text",
+      "search_intent": "informational",
+      "monthly_volume_estimate": 9300,
+      "difficulty": "medium",
+      "category": "frame-control"
+    },
+    {
+      "keyword": "she said she misses me after breaking up",
+      "search_intent": "informational",
+      "monthly_volume_estimate": 9100,
+      "difficulty": "medium",
+      "category": "post-breakup"
+    },
+    {
+      "keyword": "she ghosted me for a week then texted back",
+      "search_intent": "informational",
+      "monthly_volume_estimate": 8900,
+      "difficulty": "low",
+      "category": "ghosting"
+    },
+    {
+      "keyword": "she said im not ready for a relationship how to respond",
+      "search_intent": "informational",
+      "monthly_volume_estimate": 8700,
+      "difficulty": "medium",
+      "category": "shit-tests"
+    },
+    {
+      "keyword": "how to stop being needy over text",
+      "search_intent": "informational",
+      "monthly_volume_estimate": 8600,
+      "difficulty": "medium",
+      "category": "frame-control"
+    },
+    {
+      "keyword": "how to pass a shit test over text",
+      "search_intent": "informational",
+      "monthly_volume_estimate": 8200,
+      "difficulty": "low",
+      "category": "shit-tests"
+    },
+    {
+      "keyword": "how to respond to ex who wants to be friends",
+      "search_intent": "informational",
+      "monthly_volume_estimate": 7800,
+      "difficulty": "medium",
+      "category": "post-breakup"
+    },
+    {
+      "keyword": "she said she needs space what to text back",
+      "search_intent": "informational",
+      "monthly_volume_estimate": 7800,
+      "difficulty": "low",
+      "category": "shit-tests"
+    },
+    {
+      "keyword": "she texts me every day but won't date me",
+      "search_intent": "informational",
+      "monthly_volume_estimate": 7200,
+      "difficulty": "medium",
+      "category": "signal-decoding"
+    },
+    {
+      "keyword": "how to respond to mixed signals text messages",
+      "search_intent": "informational",
+      "monthly_volume_estimate": 7200,
+      "difficulty": "medium",
+      "category": "signal-decoding"
+    },
+    {
+      "keyword": "she replied with one word what does it mean",
+      "search_intent": "informational",
+      "monthly_volume_estimate": 6500,
+      "difficulty": "low",
+      "category": "signal-decoding"
+    },
+    {
+      "keyword": "she broke up with me but still texts me daily",
+      "search_intent": "informational",
+      "monthly_volume_estimate": 6300,
+      "difficulty": "low",
+      "category": "post-breakup"
+    },
+    {
+      "keyword": "why does she keep texting me when she has a boyfriend",
+      "search_intent": "informational",
+      "monthly_volume_estimate": 5600,
+      "difficulty": "low",
+      "category": "signal-decoding"
+    },
+    {
+      "keyword": "she used to text me first now she doesn't",
+      "search_intent": "informational",
+      "monthly_volume_estimate": 5400,
+      "difficulty": "low",
+      "category": "texting-anxiety"
+    },
+    {
+      "keyword": "what to do when she posts on instagram but ignores you",
+      "search_intent": "informational",
+      "monthly_volume_estimate": 5200,
+      "difficulty": "low",
+      "category": "texting-anxiety"
+    },
+    {
+      "keyword": "why do women test you over text",
+      "search_intent": "informational",
+      "monthly_volume_estimate": 4400,
+      "difficulty": "low",
+      "category": "shit-tests"
+    },
+    {
+      "keyword": "she takes 3 days to reply but acts normal when she does",
+      "search_intent": "informational",
+      "monthly_volume_estimate": 4100,
+      "difficulty": "low",
+      "category": "signal-decoding"
+    },
+    {
+      "keyword": "how to maintain frame when she pulls away",
+      "search_intent": "informational",
+      "monthly_volume_estimate": 3900,
+      "difficulty": "low",
+      "category": "frame-control"
+    }
+  ],
+  "social_scenarios": [
+    {
+      "toxic_text": "If you actually cared you would have called by now",
+      "sender_archetype": "Anxious-Preoccupied",
+      "dynamic": "frame-test",
+      "urgency": "high"
+    },
+    {
+      "toxic_text": "I'm just in a really weird place right now",
+      "sender_archetype": "Avoidant",
+      "dynamic": "soft-rejection",
+      "urgency": "medium"
+    },
+    {
+      "toxic_text": "It's fine. I'll figure it out on my own like always.",
+      "sender_archetype": "Anxious-Preoccupied",
+      "dynamic": "guilt-trip",
+      "urgency": "high"
+    },
+    {
+      "toxic_text": "Are you seeing anyone?",
+      "sender_archetype": "Covert Narcissist",
+      "dynamic": "post-breakup-reentry",
+      "urgency": "high"
+    },
+    {
+      "toxic_text": "I'm not mad. I just need some time.",
+      "sender_archetype": "Fearful-Avoidant",
+      "dynamic": "stonewalling",
+      "urgency": "medium"
+    },
+    {
+      "toxic_text": "I miss you but I don't think we should be together",
+      "sender_archetype": "Fearful-Avoidant",
+      "dynamic": "push-pull",
+      "urgency": "high"
+    },
+    {
+      "toxic_text": "My friends think I should stop talking to you",
+      "sender_archetype": "Anxious-Preoccupied",
+      "dynamic": "frame-test",
+      "urgency": "medium"
+    },
+    {
+      "toxic_text": "When things calm down I want to take you on a real date",
+      "sender_archetype": "Avoidant",
+      "dynamic": "future-faking",
+      "urgency": "high"
+    },
+    {
+      "toxic_text": "Miss you",
+      "sender_archetype": "Power Player",
+      "dynamic": "breadcrumbing",
+      "urgency": "high"
+    },
+    {
+      "toxic_text": "We should go to [place] together someday",
+      "sender_archetype": "Avoidant",
+      "dynamic": "future-faking",
+      "urgency": "medium"
+    },
+    {
+      "toxic_text": "We should hang out sometime :)",
+      "sender_archetype": "Avoidant",
+      "dynamic": "plausible-deniability",
+      "urgency": "medium"
+    },
+    {
+      "toxic_text": "Honestly I don't know what I'd do without you at this point",
+      "sender_archetype": "Anxious-Preoccupied",
+      "dynamic": "love-bombing",
+      "urgency": "medium"
+    },
+    {
+      "toxic_text": "I can't stop thinking about you but I need to",
+      "sender_archetype": "Fearful-Avoidant",
+      "dynamic": "push-pull",
+      "urgency": "high"
+    },
+    {
+      "toxic_text": "I don't think I'm emotionally available right now",
+      "sender_archetype": "Avoidant",
+      "dynamic": "soft-rejection",
+      "urgency": "medium"
+    },
+    {
+      "toxic_text": "You deserve someone who can give you what you need",
+      "sender_archetype": "Fearful-Avoidant",
+      "dynamic": "soft-rejection",
+      "urgency": "high"
+    },
+    {
+      "toxic_text": "I don't know why I always end up talking to you",
+      "sender_archetype": "Fearful-Avoidant",
+      "dynamic": "frame-test",
+      "urgency": "medium"
+    },
+    {
+      "toxic_text": "That's not what happened and you know it",
+      "sender_archetype": "Covert Narcissist",
+      "dynamic": "gaslighting",
+      "urgency": "medium"
+    },
+    {
+      "toxic_text": "You make things complicated in the best and worst way",
+      "sender_archetype": "Covert Narcissist",
+      "dynamic": "push-pull",
+      "urgency": "medium"
+    },
+    {
+      "toxic_text": "I've been thinking about you but I'm just really busy right now",
+      "sender_archetype": "Avoidant",
+      "dynamic": "breadcrumbing",
+      "urgency": "high"
+    },
+    {
+      "toxic_text": "I've never connected with anyone like this before",
+      "sender_archetype": "Covert Narcissist",
+      "dynamic": "love-bombing",
+      "urgency": "high"
+    },
+    {
+      "toxic_text": "Everyone in my life eventually lets me down",
+      "sender_archetype": "Anxious-Preoccupied",
+      "dynamic": "guilt-trip",
+      "urgency": "medium"
+    },
+    {
+      "toxic_text": "I miss how things were with us",
+      "sender_archetype": "Anxious-Preoccupied",
+      "dynamic": "post-breakup-reentry",
+      "urgency": "high"
+    },
+    {
+      "toxic_text": "You're too sensitive, I was just joking",
+      "sender_archetype": "Covert Narcissist",
+      "dynamic": "gaslighting",
+      "urgency": "high"
+    },
+    {
+      "toxic_text": "Can we just not do this right now",
+      "sender_archetype": "Fearful-Avoidant",
+      "dynamic": "stonewalling",
+      "urgency": "high"
+    },
+    {
+      "toxic_text": "I want us to be something, just not right now",
+      "sender_archetype": "Fearful-Avoidant",
+      "dynamic": "future-faking",
+      "urgency": "high"
+    },
+    {
+      "toxic_text": "I've been thinking about us a lot lately",
+      "sender_archetype": "Fearful-Avoidant",
+      "dynamic": "post-breakup-reentry",
+      "urgency": "high"
+    },
+    {
+      "toxic_text": "Honestly you remind me of my ex so much it's scary",
+      "sender_archetype": "Covert Narcissist",
+      "dynamic": "triangulation",
+      "urgency": "medium"
+    },
+    {
+      "toxic_text": "We should definitely hang out again soon",
+      "sender_archetype": "Avoidant",
+      "dynamic": "breadcrumbing",
+      "urgency": "medium"
+    },
+    {
+      "toxic_text": "I need to focus on myself for a while",
+      "sender_archetype": "Avoidant",
+      "dynamic": "soft-rejection",
+      "urgency": "high"
+    },
+    {
+      "toxic_text": "You always do this. You never listen to me.",
+      "sender_archetype": "Anxious-Preoccupied",
+      "dynamic": "gaslighting",
+      "urgency": "medium"
+    },
+    {
+      "toxic_text": "I was out with [name] last night, sorry I missed your text",
+      "sender_archetype": "Power Player",
+      "dynamic": "triangulation",
+      "urgency": "high"
+    },
+    {
+      "toxic_text": "You're honestly not like other guys, you actually get it",
+      "sender_archetype": "Covert Narcissist",
+      "dynamic": "love-bombing",
+      "urgency": "high"
+    },
+    {
+      "toxic_text": "I'm fine.",
+      "sender_archetype": "Fearful-Avoidant",
+      "dynamic": "stonewalling",
+      "urgency": "high"
+    },
+    {
+      "toxic_text": "Let's just see what happens",
+      "sender_archetype": "Avoidant",
+      "dynamic": "frame-downgrade",
+      "urgency": "medium"
+    },
+    {
+      "toxic_text": "I waited all day for you to reach out",
+      "sender_archetype": "Anxious-Preoccupied",
+      "dynamic": "guilt-trip",
+      "urgency": "high"
+    },
+    {
+      "toxic_text": "We should do something at some point",
+      "sender_archetype": "Avoidant",
+      "dynamic": "plausible-deniability",
+      "urgency": "low"
+    },
+    {
+      "toxic_text": "Someone asked me out today. I didn't know what to say.",
+      "sender_archetype": "Covert Narcissist",
+      "dynamic": "triangulation",
+      "urgency": "high"
+    },
+    {
+      "toxic_text": "I saw you were active on instagram but didn't reply to me",
+      "sender_archetype": "Anxious-Preoccupied",
+      "dynamic": "surveillance-escalation",
+      "urgency": "high"
+    },
+    {
+      "toxic_text": "What if we just kept it casual?",
+      "sender_archetype": "Avoidant",
+      "dynamic": "frame-downgrade",
+      "urgency": "high"
+    },
+    {
+      "toxic_text": "I saw something today that reminded me of you",
+      "sender_archetype": "Fearful-Avoidant",
+      "dynamic": "post-breakup-reentry",
+      "urgency": "medium"
+    },
+    {
+      "toxic_text": "You liked her photo at 11pm",
+      "sender_archetype": "Anxious-Preoccupied",
+      "dynamic": "surveillance-escalation",
+      "urgency": "high"
+    },
+    {
+      "toxic_text": "Your snap score went up by like 50 since we last talked",
+      "sender_archetype": "Anxious-Preoccupied",
+      "dynamic": "surveillance-escalation",
+      "urgency": "high"
+    },
+    {
+      "toxic_text": "You wouldn't understand",
+      "sender_archetype": "Avoidant",
+      "dynamic": "stonewalling",
+      "urgency": "medium"
+    },
+    {
+      "toxic_text": "This guy from work keeps asking me out, it's honestly annoying",
+      "sender_archetype": "Covert Narcissist",
+      "dynamic": "triangulation",
+      "urgency": "high"
+    },
+    {
+      "toxic_text": "I never said that, you're remembering it wrong",
+      "sender_archetype": "Covert Narcissist",
+      "dynamic": "gaslighting",
+      "urgency": "high"
+    },
+    {
+      "toxic_text": "Maybe we could grab coffee or something idk",
+      "sender_archetype": "Avoidant",
+      "dynamic": "plausible-deniability",
+      "urgency": "medium"
+    },
+    {
+      "toxic_text": "My ex just texted me out of nowhere... this is so stressful",
+      "sender_archetype": "Covert Narcissist",
+      "dynamic": "triangulation",
+      "urgency": "high"
+    },
+    {
+      "toxic_text": "I think I made a mistake",
+      "sender_archetype": "Fearful-Avoidant",
+      "dynamic": "post-breakup-reentry",
+      "urgency": "high"
+    },
+    {
+      "toxic_text": "I guess I just expected more from you",
+      "sender_archetype": "Anxious-Preoccupied",
+      "dynamic": "guilt-trip",
+      "urgency": "high"
+    },
+    {
+      "toxic_text": "I was going to call you but then I got scared",
+      "sender_archetype": "Fearful-Avoidant",
+      "dynamic": "push-pull",
+      "urgency": "medium"
+    },
+    {
+      "toxic_text": "Why do you always make everything so dramatic",
+      "sender_archetype": "Covert Narcissist",
+      "dynamic": "gaslighting",
+      "urgency": "high"
+    },
+    {
+      "toxic_text": "I like you but I'm not looking for anything serious right now",
+      "sender_archetype": "Avoidant",
+      "dynamic": "frame-downgrade",
+      "urgency": "high"
+    },
+    {
+      "toxic_text": "You were online at 2am but left me on delivered",
+      "sender_archetype": "Anxious-Preoccupied",
+      "dynamic": "surveillance-escalation",
+      "urgency": "high"
+    },
+    {
+      "toxic_text": "You make everything better just by existing",
+      "sender_archetype": "Covert Narcissist",
+      "dynamic": "love-bombing",
+      "urgency": "high"
+    },
+    {
+      "toxic_text": "I don't really want to talk about it",
+      "sender_archetype": "Avoidant",
+      "dynamic": "stonewalling",
+      "urgency": "medium"
+    },
+    {
+      "toxic_text": "You're amazing but the timing is just wrong",
+      "sender_archetype": "Fearful-Avoidant",
+      "dynamic": "push-pull",
+      "urgency": "high"
+    },
+    {
+      "toxic_text": "Every time we talk I remember why I liked you",
+      "sender_archetype": "Avoidant",
+      "dynamic": "push-pull",
+      "urgency": "high"
+    },
+    {
+      "toxic_text": "I'm not ready for a relationship but I like hanging out with you",
+      "sender_archetype": "Avoidant",
+      "dynamic": "breadcrumbing",
+      "urgency": "high"
+    },
+    {
+      "toxic_text": "I think we should just be friends",
+      "sender_archetype": "Avoidant",
+      "dynamic": "frame-downgrade",
+      "urgency": "high"
+    },
+    {
+      "toxic_text": "I think we need to talk... can we call later?",
+      "sender_archetype": "Anxious-Preoccupied",
+      "dynamic": "guilt-trip",
+      "urgency": "medium"
+    },
+    {
+      "toxic_text": "I was telling my friends about you and they said I sound obsessed lol",
+      "sender_archetype": "Covert Narcissist",
+      "dynamic": "love-bombing",
+      "urgency": "medium"
+    },
+    {
+      "toxic_text": "Can we just be friends with benefits? I think that would be easier",
+      "sender_archetype": "Avoidant",
+      "dynamic": "frame-downgrade",
+      "urgency": "high"
+    },
+    {
+      "toxic_text": "I keep starting a text to you then deleting it",
+      "sender_archetype": "Fearful-Avoidant",
+      "dynamic": "breadcrumbing",
+      "urgency": "medium"
+    },
+    {
+      "toxic_text": "You're overthinking this as usual",
+      "sender_archetype": "Covert Narcissist",
+      "dynamic": "gaslighting",
+      "urgency": "high"
+    },
+    {
+      "toxic_text": "I just feel like you don't really care sometimes",
+      "sender_archetype": "Anxious-Preoccupied",
+      "dynamic": "guilt-trip",
+      "urgency": "medium"
+    },
+    {
+      "toxic_text": "Other guys don't make me feel like this",
+      "sender_archetype": "Power Player",
+      "dynamic": "frame-test",
+      "urgency": "high"
+    },
+    {
+      "toxic_text": "You're literally the only person who actually gets me",
+      "sender_archetype": "Covert Narcissist",
+      "dynamic": "breadcrumbing",
+      "urgency": "high"
+    },
+    {
+      "toxic_text": "Sorry just saw this 12 hours later lol",
+      "sender_archetype": "Power Player",
+      "dynamic": "push-pull",
+      "urgency": "high"
+    }
+  ]
+}
