@@ -1,731 +1,570 @@
-import React, { useState, useEffect, useRef } from 'react';
-import {
-  View, Text, ScrollView, TouchableOpacity, Pressable,
-  StyleSheet, Platform, Animated, Easing,
-} from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { Platform, View, Text, ScrollView, TouchableOpacity, Pressable, StyleSheet, Animated, Easing } from 'react-native';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 
-const C = {
-  bg: '#0a0a0a', s1: '#18181b', s2: '#1e1e21', b: '#27272a', b2: '#3f3f46',
-  dim: '#52525b', muted: '#a1a1aa', text: '#fafafa', a: '#CCFF00', a8: 'rgba(204,255,0,0.08)',
-};
-const MONO = Platform.select({ ios: 'Courier New', android: 'monospace', default: "'JetBrains Mono',ui-monospace,monospace" });
-const SANS = Platform.select({ ios: 'System', android: 'sans-serif', default: "'Inter',ui-sans-serif,system-ui,sans-serif" });
-const EASE = 'cubic-bezier(0.4,0,0.2,1)';
+// ─── Exact CSS from DARKO v3.html ─────────────────────────────────────────────
+const V3_CSS = `
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0a0a0a;--s1:#18181b;--s2:#1e1e21;--b:#27272a;--b2:#3f3f46;
+  --dim:#52525b;--muted:#a1a1aa;--text:#fafafa;--a:#CCFF00;
+  --a8:rgba(204,255,0,0.08);--a15:rgba(204,255,0,0.15);
+  --mono:'JetBrains Mono',ui-monospace,monospace;
+  --sans:'Inter',ui-sans-serif,system-ui,sans-serif;
+  --ease:cubic-bezier(0.4,0,0.2,1);
+  --nav-h:52px;
+}
+.v3-root{background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;overflow-x:hidden;}
+::selection{background:var(--a);color:#000}
+::-webkit-scrollbar{width:3px}
+::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:var(--b2)}
 
-// ─── Injected web CSS ─────────────────────────────────────────────────────────
-const WEB_CSS = `
-.lp-kicker,.lp-headline,.lp-sub,.lp-cta-row,.lp-decode-panel{opacity:0;transform:translateY(14px)}
-.lp-kicker{transition:opacity .5s ${EASE},transform .5s ${EASE}}
-.lp-headline{transition:opacity .5s ${EASE} .1s,transform .5s ${EASE} .1s}
-.lp-sub{transition:opacity .5s ${EASE} .22s,transform .5s ${EASE} .22s}
-.lp-cta-row{transition:opacity .5s ${EASE} .32s,transform .5s ${EASE} .32s}
-.lp-decode-panel{transition:opacity .5s ${EASE} .18s,transform .5s ${EASE} .18s;position:relative;z-index:1}
-.lp-kicker.in,.lp-headline.in,.lp-sub.in,.lp-cta-row.in,.lp-decode-panel.in{opacity:1!important;transform:none!important}
+.nav{position:fixed;top:0;left:0;right:0;z-index:500;height:var(--nav-h);background:transparent;border-bottom:1px solid transparent;display:flex;align-items:center;padding:0 32px;gap:0;transition:background 300ms var(--ease),border-color 300ms var(--ease),backdrop-filter 300ms var(--ease);}
+.nav.scrolled{background:rgba(10,10,10,0.7);backdrop-filter:blur(20px) saturate(140%);-webkit-backdrop-filter:blur(20px) saturate(140%);border-bottom:1px solid var(--b);}
+.nav-logo{display:flex;align-items:center;gap:9px;font-family:var(--mono);font-size:13px;font-weight:600;letter-spacing:0.2em;color:var(--a);text-decoration:none;margin-right:40px;flex-shrink:0;}
+.nav-logo-sq{width:12px;height:12px;background:var(--a);flex-shrink:0}
+.nav-links{display:flex;gap:28px;flex:1}
+.nav-link{font-family:var(--mono);font-size:10px;letter-spacing:0.14em;color:var(--dim);text-decoration:none;position:relative;padding-bottom:3px;transition:color 200ms var(--ease);}
+.nav-link::after{content:'';position:absolute;bottom:0;left:0;right:100%;height:1px;background:var(--a);transition:right 200ms var(--ease);}
+.nav-link:hover{color:var(--text)}
+.nav-link:hover::after{right:0}
+.nav-right{display:flex;align-items:center;gap:20px}
+.btn-signin{padding:7px 20px;border:1px solid var(--a);color:var(--a);background:transparent;font-family:var(--mono);font-size:10px;letter-spacing:0.14em;cursor:pointer;transition:all 200ms var(--ease);}
+.btn-signin:hover{background:var(--a);color:#000}
 
-.lp-hero{display:grid!important;grid-template-columns:60fr 40fr;min-height:100vh;padding-top:80px!important;max-width:1280px;margin:0 auto!important;padding-left:32px!important;padding-right:32px!important;padding-bottom:64px!important;align-items:center;gap:0;position:relative!important;width:100%;box-sizing:border-box;align-self:unset!important}
-.lp-hero-texture{position:absolute;inset:0;background-image:linear-gradient(#27272a 1px,transparent 1px),linear-gradient(90deg,#27272a 1px,transparent 1px);background-size:48px 48px;mask-image:radial-gradient(ellipse 60% 70% at 15% 40%,black,transparent 65%);-webkit-mask-image:radial-gradient(ellipse 60% 70% at 15% 40%,black,transparent 65%);opacity:.18;pointer-events:none;z-index:0}
-.lp-hero-left{padding-right:56px!important;border-right:1px solid #27272a!important;padding-top:32px!important;padding-bottom:32px!important;flex:none!important;width:auto!important}
-.lp-hero-right{padding-left:48px!important;padding-top:32px!important;padding-bottom:32px!important;position:relative!important;flex:none!important;width:auto!important}
-.lp-hero-right::before{content:'';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:380px;height:380px;background:radial-gradient(circle,rgba(204,255,0,.08) 0%,transparent 70%);pointer-events:none;z-index:0;filter:blur(40px)}
+.ticker{position:fixed;top:var(--nav-h);left:0;right:0;z-index:499;height:28px;background:var(--s1);border-bottom:1px solid var(--b);display:flex;align-items:center;overflow:hidden;}
+.ticker-inner{display:flex;align-items:center;white-space:nowrap;animation:tickscroll 30s linear infinite;}
+@keyframes tickscroll{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
+.ticker-item{font-family:var(--mono);font-size:9px;color:var(--dim);letter-spacing:0.12em;padding:0 20px;display:inline-flex;align-items:center;gap:8px;}
+.ticker-sep{color:var(--b2);font-size:8px}
+.ticker-val{color:var(--a)}
 
-.lp-nav-link{position:relative;padding-bottom:3px;transition:color 200ms ${EASE};cursor:pointer;display:inline-block}
-.lp-nav-link::after{content:'';position:absolute;bottom:0;left:0;right:100%;height:1px;background:#CCFF00;transition:right 200ms ${EASE}}
-.lp-nav-link:hover,.lp-nav-link:hover *{color:#fafafa!important}
-.lp-nav-link:hover::after{right:0}
-.lp-sign-in{cursor:pointer}
-.lp-sign-in:hover{background:#CCFF00!important;transition:background 200ms ${EASE}}
-.lp-sign-in:hover *{color:#000!important}
-.lp-nav-scrolled{background:rgba(10,10,10,.7)!important;backdrop-filter:blur(20px) saturate(140%);-webkit-backdrop-filter:blur(20px) saturate(140%);border-bottom-color:#27272a!important}
+.hero{min-height:100vh;padding-top:calc(var(--nav-h) + 28px);display:grid;grid-template-columns:60fr 40fr;max-width:1280px;margin:0 auto;padding-left:32px;padding-right:32px;padding-bottom:64px;align-items:center;gap:0;position:relative;}
+.hero::before{content:'';position:absolute;top:calc(var(--nav-h)+28px);left:0;right:0;bottom:0;pointer-events:none;background-image:linear-gradient(var(--b) 1px,transparent 1px),linear-gradient(90deg,var(--b) 1px,transparent 1px);background-size:48px 48px;mask-image:radial-gradient(ellipse 60% 70% at 15% 40%,black,transparent 65%);-webkit-mask-image:radial-gradient(ellipse 60% 70% at 15% 40%,black,transparent 65%);opacity:0.18;}
+.hero-left{padding-right:56px;border-right:1px solid var(--b);padding-top:32px;padding-bottom:32px}
+.kicker{font-family:var(--mono);font-size:9.5px;color:var(--a);letter-spacing:0.2em;margin-bottom:28px;display:flex;align-items:center;gap:10px;opacity:0;transform:translateY(14px);transition:opacity 0.5s var(--ease),transform 0.5s var(--ease);}
+.kicker-line{display:inline-block;width:16px;height:1px;background:var(--a)}
+.headline{font-family:var(--sans);font-weight:900;font-size:clamp(52px,6vw,84px);line-height:0.9;letter-spacing:-0.04em;margin-bottom:28px;opacity:0;transform:translateY(14px);transition:opacity 0.5s var(--ease) 0.1s,transform 0.5s var(--ease) 0.1s;}
+.headline-white{color:var(--text);display:block}
+.headline-accent{color:var(--a);display:block}
+.sub{font-size:16px;color:var(--muted);line-height:1.65;max-width:440px;margin-bottom:40px;opacity:0;transform:translateY(14px);transition:opacity 0.5s var(--ease) 0.22s,transform 0.5s var(--ease) 0.22s;}
+.cta-row{display:flex;align-items:center;gap:20px;opacity:0;transform:translateY(14px);transition:opacity 0.5s var(--ease) 0.32s,transform 0.5s var(--ease) 0.32s;}
+@keyframes shimmer{0%{background-position:200% center}100%{background-position:-200% center}}
+.btn-primary{padding:11px 28px;color:#000;border:none;font-family:var(--mono);font-size:11px;letter-spacing:0.14em;font-weight:600;cursor:pointer;position:relative;overflow:hidden;background:linear-gradient(105deg,var(--text) 0%,var(--text) 35%,rgba(255,255,255,0.55) 50%,var(--text) 65%,var(--text) 100%);background-size:300% 100%;background-position:200% center;animation:shimmer 3s ease-in-out infinite;transition:opacity 200ms var(--ease);}
+.btn-primary:hover{opacity:0.88;animation-play-state:paused}
+.btn-ghost{font-family:var(--mono);font-size:10px;color:var(--dim);text-decoration:none;letter-spacing:0.1em;position:relative;padding-bottom:2px;transition:color 200ms var(--ease);}
+.btn-ghost::after{content:'';position:absolute;bottom:0;left:0;right:100%;height:1px;background:var(--a);transition:right 200ms var(--ease);}
+.btn-ghost:hover{color:var(--text)}
+.btn-ghost:hover::after{right:0}
+.hero-right{padding-left:48px;padding-top:32px;padding-bottom:32px;position:relative;}
+.hero-right::before{content:'';position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:380px;height:380px;background:radial-gradient(circle,rgba(204,255,0,0.08) 0%,transparent 70%);pointer-events:none;z-index:0;filter:blur(40px);opacity:var(--glow-opacity,1);transition:opacity 0.4s;}
+.decode-panel{background:rgba(24,24,27,0.6);backdrop-filter:blur(20px) saturate(140%);-webkit-backdrop-filter:blur(20px) saturate(140%);border:1px solid rgba(255,255,255,0.06);border-left:2px solid var(--a);opacity:0;transform:translateY(14px);transition:opacity 0.5s var(--ease) 0.18s,transform 0.5s var(--ease) 0.18s;position:relative;z-index:1;}
+.dp-header{padding:12px 18px;border-bottom:1px solid var(--b);display:flex;align-items:center;justify-content:space-between;}
+.dp-title{font-family:var(--mono);font-size:9px;color:var(--dim);letter-spacing:0.1em}
+.dp-dots{display:flex;gap:5px}
+.dp-dot{width:7px;height:7px;border-radius:50%;background:var(--b2)}
+.dp-live{width:7px;height:7px;border-radius:50%;background:var(--a);animation:dpulse 2s ease-in-out infinite}
+@keyframes dpulse{0%,100%{opacity:1}50%{opacity:0.3}}
+.dp-body{padding:0}
+.dp-section{border-bottom:1px solid var(--b);padding:14px 18px 12px;}
+.dp-section:last-child{border-bottom:none}
+.dp-sec-label{font-family:var(--mono);font-size:9px;color:var(--a);letter-spacing:0.1em;margin-bottom:10px;}
+.dp-row{display:flex;justify-content:space-between;align-items:baseline;padding:4px 0;border-bottom:1px solid rgba(39,39,42,0.4);opacity:0;transition:opacity 0.3s var(--ease);}
+.dp-row:last-child{border-bottom:none}
+.dp-row.visible{opacity:1}
+.dp-key{font-family:var(--mono);font-size:9px;color:var(--muted);letter-spacing:0.06em;flex:0 0 160px}
+.dp-val{font-family:var(--mono);font-size:10px;color:var(--text);font-weight:500;flex:1}
+.dp-pct{font-family:var(--mono);font-size:10px;color:var(--a);font-weight:600;flex-shrink:0;padding-left:12px;text-align:right;min-width:40px;}
 
-.lp-btn-ghost-cta{position:relative;padding-bottom:2px;transition:color 200ms ${EASE};cursor:pointer;display:inline-flex}
-.lp-btn-ghost-cta::after{content:'';position:absolute;bottom:0;left:0;right:100%;height:1px;background:#CCFF00;transition:right 200ms ${EASE}}
-.lp-btn-ghost-cta:hover,.lp-btn-ghost-cta:hover *{color:#fafafa!important}
-.lp-btn-ghost-cta:hover::after{right:0}
+.caps-section{padding:100px 32px;max-width:1280px;margin:0 auto;border-top:1px solid var(--b);}
+.section-kicker{font-family:var(--mono);font-size:9.5px;color:var(--a);letter-spacing:0.2em;margin-bottom:48px;display:flex;align-items:center;gap:12px;}
+.section-kicker::after{content:'';flex:1;height:1px;background:var(--b)}
+.caps-grid{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--b);margin-bottom:80px;}
+.cap-card{background:var(--s1);padding:36px 32px;position:relative;overflow:hidden;transition:background 200ms var(--ease);}
+.cap-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:2px;background:var(--a);transform:scaleY(0);transform-origin:bottom;transition:transform 200ms var(--ease);}
+.cap-card:hover::before{transform:scaleY(1)}
+.cap-card:hover{background:var(--s2)}
+.cap-label{font-family:var(--mono);font-size:9px;color:var(--dim);letter-spacing:0.14em;margin-bottom:10px;}
+.cap-title{font-size:22px;font-weight:700;color:var(--text);letter-spacing:-0.02em;margin-bottom:10px;line-height:1.15;}
+.cap-desc{font-size:13px;color:var(--muted);line-height:1.65}
+.cap-soon .cap-label,.cap-soon .cap-title,.cap-soon .cap-desc{color:var(--dim)}
+.quote-block{text-align:center;padding:0 40px;position:relative}
+.quote-text{font-family:var(--sans);font-size:clamp(28px,3.5vw,46px);font-weight:800;color:var(--text);letter-spacing:-0.025em;line-height:1.15;margin-bottom:20px;position:relative;}
+.quote-mark{color:var(--a);font-family:var(--sans);font-weight:900}
+.quote-attr{font-family:var(--mono);font-size:9px;color:var(--dim);letter-spacing:0.14em}
 
-.lp-caps-grid{display:grid!important;grid-template-columns:1fr 1fr;gap:1px!important;background:#27272a!important;margin-bottom:80px!important;flex-wrap:unset!important;flex-direction:unset!important}
-.lp-cap-card{position:relative!important;overflow:hidden!important;transition:background 200ms ${EASE}!important;background:#18181b!important;width:auto!important;flex:none!important}
-.lp-cap-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:2px;background:#CCFF00;transform:scaleY(0);transform-origin:bottom;transition:transform 200ms ${EASE}}
-.lp-cap-card:hover::before{transform:scaleY(1)}
-.lp-cap-card:hover{background:#1e1e21!important}
+.pricing-section{padding:100px 32px;max-width:1280px;margin:0 auto;border-top:1px solid var(--b);}
+.pricing-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:1px;background:var(--b);}
+.price-card{background:var(--s1);padding:32px 28px;position:relative;overflow:hidden}
+.price-card.featured{background:#0d1000;border:1px solid var(--a);box-shadow:inset 0 0 60px rgba(204,255,0,0.04);}
+.price-tier{font-family:var(--mono);font-size:9px;color:var(--dim);letter-spacing:0.18em;margin-bottom:16px}
+.price-number{font-family:var(--sans);font-size:44px;font-weight:900;color:var(--text);letter-spacing:-0.04em;line-height:1;margin-bottom:4px;}
+.price-number sup{font-size:22px;font-weight:700;vertical-align:top;margin-top:7px;display:inline-block}
+.price-per{font-family:var(--mono);font-size:9px;color:var(--dim);letter-spacing:0.1em;margin-bottom:24px}
+.price-features{list-style:none;display:flex;flex-direction:column;gap:9px;margin-bottom:28px}
+.pf{font-size:13px;color:var(--muted);display:flex;gap:10px;align-items:flex-start;line-height:1.45}
+.pf::before{content:'▸';color:var(--dim);font-family:var(--mono);font-size:10px;flex-shrink:0;margin-top:1px;transition:color 200ms var(--ease)}
+.price-card:hover .pf::before{color:var(--a)}
+.price-badge{position:absolute;top:16px;right:18px;font-family:var(--mono);font-size:8px;letter-spacing:0.12em;padding:3px 10px;}
+.badge-invite{background:var(--a);color:#000}
+.btn-ghost-price{width:100%;padding:10px 0;background:transparent;border:1px solid var(--b);color:var(--dim);font-family:var(--mono);font-size:10px;letter-spacing:0.12em;cursor:pointer;transition:all 200ms var(--ease);}
+.btn-ghost-price:hover{border-color:var(--a);color:var(--a)}
+.btn-white-price{width:100%;padding:10px 0;background:var(--text);border:1px solid var(--text);color:#000;font-family:var(--mono);font-size:10px;letter-spacing:0.12em;font-weight:600;cursor:pointer;transition:opacity 200ms var(--ease);}
+.btn-white-price:hover{opacity:0.85}
+.btn-accent-price{width:100%;padding:10px 0;border:1px solid var(--a);color:#000;font-family:var(--mono);font-size:10px;letter-spacing:0.12em;font-weight:700;cursor:pointer;position:relative;overflow:hidden;background:linear-gradient(105deg,var(--a) 0%,var(--a) 35%,rgba(255,255,255,0.3) 50%,var(--a) 65%,var(--a) 100%);background-size:300% 100%;background-position:200% center;animation:shimmer 3s ease-in-out 1.5s infinite;transition:opacity 200ms var(--ease);}
+.btn-accent-price:hover{opacity:0.88;animation-play-state:paused}
 
-.lp-pricing-grid{display:grid!important;grid-template-columns:1fr 1fr 1fr;gap:1px!important;background:#27272a!important;flex-wrap:unset!important;flex-direction:unset!important}
-.lp-price-card{position:relative!important;overflow:hidden!important;background:#18181b!important;width:auto!important;flex:none!important}
-.lp-price-featured{background:#0d1000!important;border:1px solid #CCFF00!important;box-shadow:inset 0 0 60px rgba(204,255,0,.04)}
-.lp-price-card:hover .lp-pf-bullet{color:#CCFF00!important}
-.lp-btn-ghost-price{cursor:pointer;transition:border-color 200ms,color 200ms;display:block;width:100%;text-align:center}
-.lp-btn-ghost-price:hover{border-color:#CCFF00!important}
-.lp-btn-ghost-price:hover,.lp-btn-ghost-price:hover *{color:#CCFF00!important}
-.lp-btn-white-price{cursor:pointer;transition:opacity 200ms;display:block;width:100%;text-align:center}
-.lp-btn-white-price:hover{opacity:.85}
-.lp-btn-accent-price{cursor:pointer;transition:opacity 200ms;display:block;width:100%;text-align:center}
-.lp-btn-accent-price:hover{opacity:.88;animation-play-state:paused}
+.footer{border-top:1px solid var(--b);background:var(--s1);height:36px;display:flex;align-items:center;overflow:hidden;}
+.footer-inner{display:flex;align-items:center;white-space:nowrap;animation:tickscroll 28s linear infinite;}
 
-@keyframes lp-tickscroll{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
-.lp-ticker-anim{animation:lp-tickscroll 30s linear infinite;white-space:nowrap;display:inline-flex!important;flex-direction:row!important;align-items:center;height:100%}
-.lp-footer-anim{animation:lp-tickscroll 28s linear infinite;white-space:nowrap;display:inline-flex!important;flex-direction:row!important;align-items:center;height:100%}
+.reveal{opacity:0;transform:translateY(20px);transition:opacity 0.55s var(--ease),transform 0.55s var(--ease)}
+.reveal.in{opacity:1;transform:translateY(0)}
+.reveal-delay-1{transition-delay:0.1s}
+.reveal-delay-2{transition-delay:0.2s}
+.reveal-delay-3{transition-delay:0.3s}
+.reveal-delay-4{transition-delay:0.4s}
 
-.lp-reveal{opacity:0;transform:translateY(20px);transition:opacity .55s ${EASE},transform .55s ${EASE}}
-.lp-reveal.in{opacity:1!important;transform:none!important}
-.lp-reveal-d1{transition-delay:.1s}.lp-reveal-d2{transition-delay:.2s}
-.lp-reveal-d3{transition-delay:.3s}.lp-reveal-d4{transition-delay:.4s}
-
-@keyframes lp-dpulse{0%,100%{opacity:1}50%{opacity:.3}}
-.lp-dp-live{animation:lp-dpulse 2s ease-in-out infinite}
+@keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+@keyframes blink{0%,49%{opacity:1}50%,100%{opacity:0}}
+.cursor{display:inline-block;width:0.5em;height:0.85em;background:var(--a);vertical-align:middle;animation:blink 1s step-end infinite;margin-left:1px;}
 
 @media(max-width:900px){
-  .lp-hero{grid-template-columns:1fr!important}
-  .lp-hero-left{padding-right:0!important;border-right:none!important;border-bottom:1px solid #27272a!important;padding-bottom:36px!important}
-  .lp-hero-right{padding-left:0!important;padding-top:36px!important}
-  .lp-caps-grid{grid-template-columns:1fr!important}
-  .lp-pricing-grid{grid-template-columns:1fr!important}
+  .hero{grid-template-columns:1fr;padding-top:calc(var(--nav-h)+28px+16px)}
+  .hero-left{padding-right:0;border-right:none;border-bottom:1px solid var(--b);padding-bottom:36px}
+  .hero-right{padding-left:0;padding-top:36px}
+  .caps-grid{grid-template-columns:1fr}
+  .pricing-grid{grid-template-columns:1fr}
+  .nav-links{display:none}
+  .headline{font-size:clamp(44px,11vw,64px)}
 }
 `;
 
-function injectCSS() {
-  if (typeof document === 'undefined' || document.getElementById('lp-v3-css')) return;
-  const s = document.createElement('style');
-  s.id = 'lp-v3-css';
-  s.textContent = WEB_CSS;
-  document.head.appendChild(s);
-}
+// ─── Exact HTML body from DARKO v3.html ──────────────────────────────────────
+const V3_BODY = `
+<nav class="nav">
+  <a href="#" class="nav-logo"><div class="nav-logo-sq"></div>DARKO</a>
+  <div class="nav-links">
+    <a href="#capabilities" class="nav-link">CAPABILITIES</a>
+    <a href="#pricing" class="nav-link">PRICING</a>
+    <a href="#" class="nav-link">DOCS</a>
+  </div>
+  <div class="nav-right">
+    <button class="btn-signin">SIGN IN</button>
+  </div>
+</nav>
 
-// className helper — only adds on web
-function wc(cls: string): any {
-  return Platform.OS === 'web' ? { className: cls } : {};
-}
+<div class="ticker">
+  <div class="ticker-inner" id="ticker-inner"></div>
+</div>
 
-// ─── Navigation ───────────────────────────────────────────────────────────────
-function Navigation({ scrolled }: { scrolled: boolean }) {
-  const router = useRouter();
-  const isWeb = Platform.OS === 'web';
+<section class="hero">
+  <div class="hero-left">
+    <div class="kicker"><span class="kicker-line"></span>// RELATIONSHIP INTELLIGENCE · AI-POWERED · BUILD 4.0</div>
+    <h1 class="headline">
+      <span class="headline-white">STOP</span>
+      <span class="headline-accent">GUESSING.</span>
+    </h1>
+    <p class="sub">Paste their texts, DMs, or screenshots. DARKO reads the psychology underneath — attachment style, manipulation patterns, and what they actually want from you. Then gives you the exact move.</p>
+    <div class="cta-row">
+      <button class="btn-primary">GET EARLY ACCESS</button>
+      <a href="#capabilities" class="btn-ghost">SEE HOW IT WORKS</a>
+    </div>
+  </div>
+  <div class="hero-right">
+    <div class="decode-panel" id="decode-panel">
+      <div class="dp-header">
+        <span class="dp-title">DARKO ENGINE v4.0 — LIVE ANALYSIS STREAM</span>
+        <div class="dp-dots"><div class="dp-dot"></div><div class="dp-dot"></div><div class="dp-live"></div></div>
+      </div>
+      <div class="dp-body">
+        <div class="dp-section">
+          <div class="dp-sec-label">// BEHAVIORAL PROFILE</div>
+          <div class="dp-row" data-val="ANXIOUS-PREOCCUPIED" data-pct="91"><span class="dp-key">ATTACHMENT_STYLE</span><span class="dp-val"></span><span class="dp-pct">0%</span></div>
+          <div class="dp-row" data-val="INTERMITTENT REINF." data-pct="87"><span class="dp-key">COMM_PATTERN</span><span class="dp-val"></span><span class="dp-pct">0%</span></div>
+          <div class="dp-row" data-val="BEING SEEN SPECIFICALLY" data-pct="79"><span class="dp-key">VULNERABILITY</span><span class="dp-val"></span><span class="dp-pct">0%</span></div>
+        </div>
+        <div class="dp-section">
+          <div class="dp-sec-label">// OPERATIONAL VECTORS</div>
+          <div class="dp-row" data-val="WOUNDED" data-pct="94"><span class="dp-key">ARCHETYPE</span><span class="dp-val"></span><span class="dp-pct">0%</span></div>
+          <div class="dp-row" data-val="APPROACH \u2192 DECIDE" data-pct="88"><span class="dp-key">CAMPAIGN_PHASE</span><span class="dp-val"></span><span class="dp-pct">0%</span></div>
+        </div>
+        <div class="dp-section">
+          <div class="dp-sec-label">// RECOMMENDED MOVE</div>
+          <div class="dp-row" data-val="PATTERN INTERRUPT" data-pct="82"><span class="dp-key">TACTIC</span><span class="dp-val"></span><span class="dp-pct">0%</span></div>
+          <div class="dp-row" data-val='"I noticed you went quiet \u2014 doing okay?"' data-pct=""><span class="dp-key">SCRIPT</span><span class="dp-val" id="script-val" style="color:#CCFF00"></span><span class="dp-pct"></span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
 
-  const goTo = (id: string) => {
-    if (typeof document !== 'undefined') {
-      document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
-    }
-  };
+<section class="caps-section" id="capabilities">
+  <div class="section-kicker reveal">// CAPABILITIES</div>
+  <div class="caps-grid">
+    <div class="cap-card reveal reveal-delay-1">
+      <div class="cap-label">01 \u2014 ATTACHMENT DECODE</div>
+      <div class="cap-title">Read their wiring,<br>not their words.</div>
+      <div class="cap-desc">Anxious, avoidant, or disorganized \u2014 decoded from patterns in how they actually communicate. Not what they say. What they do.</div>
+    </div>
+    <div class="cap-card reveal reveal-delay-2">
+      <div class="cap-label">02 \u2014 SIGNAL DETECTION</div>
+      <div class="cap-title">Every pull and push,<br>mapped and explained.</div>
+      <div class="cap-desc">Hot-and-cold cycles, intermittent reinforcement, withdrawal tactics. DARKO names them before you can feel the effect.</div>
+    </div>
+    <div class="cap-card reveal reveal-delay-3">
+      <div class="cap-label">03 \u2014 LIVE PROFILE BUILD</div>
+      <div class="cap-title">Watch clarity<br>construct itself.</div>
+      <div class="cap-desc">Paste anything. A dossier assembles in real time \u2014 archetype, vulnerabilities, campaign phase, and the precise window to act.</div>
+    </div>
+    <div class="cap-card cap-soon reveal reveal-delay-4">
+      <div class="cap-label">04 \u2014 CAMPAIGN ENGINE \u00b7 COMING SOON</div>
+      <div class="cap-title">Multi-phase strategy,<br>not one-off moves.</div>
+      <div class="cap-desc">A structured campaign across weeks. Phase tracking, pattern interrupt scheduling, and adaptive scripts built around their psychology.</div>
+    </div>
+  </div>
+  <div class="quote-block reveal" id="quote-block">
+    <div class="quote-text"><span class="quote-mark">"</span><span id="quote-text-inner"></span><span class="quote-mark">"</span></div>
+    <div class="quote-attr" id="quote-attr"></div>
+  </div>
+</section>
 
-  return (
-    <View
-      nativeID={isWeb ? 'lp-nav' : undefined}
-      {...(isWeb ? { className: scrolled ? 'lp-nav-scrolled' : '' } as any : {})}
-      style={[styles.nav, !isWeb && scrolled && styles.navScrolledNative]}
-    >
-      <View style={styles.navContent}>
-        <TouchableOpacity onPress={() => router.replace('/' as any)} style={styles.navLogo}>
-          <View style={styles.navLogoSq} />
-          <Text style={styles.navLogoText}>DARKO</Text>
-        </TouchableOpacity>
+<section class="pricing-section" id="pricing">
+  <div class="section-kicker reveal">// PRICING</div>
+  <div class="pricing-grid">
+    <div class="price-card reveal reveal-delay-1">
+      <div class="price-tier">OBSERVER</div>
+      <div class="price-number">$0</div>
+      <div class="price-per">/ FOREVER FREE</div>
+      <ul class="price-features">
+        <li class="pf">5 reads per month \u2014 enough to get uncomfortable</li>
+        <li class="pf">Attachment style analysis</li>
+        <li class="pf">Basic signal detection</li>
+      </ul>
+      <button class="btn-ghost-price">GET STARTED</button>
+    </div>
+    <div class="price-card reveal reveal-delay-2">
+      <div class="price-tier">OPERATOR</div>
+      <div class="price-number"><sup>$</sup>15</div>
+      <div class="price-per">/ MONTH</div>
+      <ul class="price-features">
+        <li class="pf">No limits on who you decode</li>
+        <li class="pf">Full behavioral profile \u2014 every vector</li>
+        <li class="pf">Tactical move recommendations</li>
+        <li class="pf">90-day history and export</li>
+        <li class="pf">Priority processing</li>
+      </ul>
+      <button class="btn-white-price">START OPERATING</button>
+    </div>
+    <div class="price-card featured reveal reveal-delay-3">
+      <div class="price-badge badge-invite">INVITE ONLY</div>
+      <div class="price-tier">EXECUTIVE</div>
+      <div class="price-number"><sup>$</sup>100</div>
+      <div class="price-per">/ MONTH \u00b7 INVITE ONLY</div>
+      <ul class="price-features">
+        <li class="pf">Everything in Operator \u2014 without ceilings</li>
+        <li class="pf">Multi-target simultaneous tracking</li>
+        <li class="pf">4-phase campaign engine with phase locks</li>
+        <li class="pf">Custom archetype model training</li>
+        <li class="pf">API access + white-label export</li>
+        <li class="pf">Direct handler support</li>
+      </ul>
+      <button class="btn-accent-price">REQUEST ACCESS</button>
+    </div>
+  </div>
+</section>
 
-        <View style={styles.navLinks}>
-          <TouchableOpacity {...wc('lp-nav-link')} onPress={() => isWeb ? goTo('capabilities') : null}>
-            <Text style={styles.navLink}>CAPABILITIES</Text>
-          </TouchableOpacity>
-          <TouchableOpacity {...wc('lp-nav-link')} onPress={() => router.push('/pricing' as any)}>
-            <Text style={styles.navLink}>PRICING</Text>
-          </TouchableOpacity>
-          <TouchableOpacity {...wc('lp-nav-link')}>
-            <Text style={styles.navLink}>DOCS</Text>
-          </TouchableOpacity>
-        </View>
+<footer class="footer">
+  <div class="footer-inner" id="footer-ticker"></div>
+</footer>
+`;
 
-        <TouchableOpacity
-          {...wc('lp-sign-in')}
-          style={styles.signInBtn}
-          onPress={() => router.push('/auth' as any)}
-        >
-          <Text style={styles.signInText}>SIGN IN</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
-}
+// ─── Scripts (adapted from v3.html — uses container R instead of window scroll) ─
+function runV3Scripts(R: HTMLElement) {
+  // Hero entrance
+  requestAnimationFrame(() => {
+    ['.kicker', '.headline', '.sub', '.cta-row', '.decode-panel'].forEach(sel => {
+      const el = R.querySelector(sel) as HTMLElement | null;
+      if (el) { el.style.opacity = '1'; el.style.transform = 'translateY(0)'; }
+    });
+  });
 
-// ─── Status Ticker ────────────────────────────────────────────────────────────
-const TICKER_ITEMS = [
-  { label: 'HANDLER ONLINE', dot: true },
-  { label: 'DECODE ENGINE ACTIVE', dot: true },
-  { label: 'ENGINE', val: 'DARKO v4.0' },
-  { label: 'LATENCY', val: '142ms' },
-  { label: 'ENCRYPTION', val: 'AES-256' },
-  { label: 'DARKO · NXGEN MEDIA LLC · 2026' },
-];
+  // Nav frosted on container scroll
+  const navEl = R.querySelector('.nav') as HTMLElement | null;
+  R.addEventListener('scroll', () => {
+    navEl?.classList.toggle('scrolled', R.scrollTop > 10);
+  }, { passive: true });
 
-function TickerItem({ item }: { item: typeof TICKER_ITEMS[0] }) {
-  return (
-    <View style={styles.tickerItem}>
-      {item.dot && <View style={styles.tickerDot} />}
-      <Text style={styles.tickerLabel}>{item.label}</Text>
-      {item.val && <Text style={styles.tickerVal}> {item.val}</Text>}
-      <Text style={styles.tickerSep}>·</Text>
-    </View>
-  );
-}
+  // Build tickers
+  const STATUS_ITEMS = [
+    { label: 'HANDLER ONLINE', val: null as string | null, dot: true },
+    { label: 'DECODE ENGINE ACTIVE', val: null as string | null, dot: true },
+    { label: 'ENGINE', val: 'DARKO v4.0', dot: false },
+    { label: 'LATENCY', val: '142ms', dot: false },
+    { label: 'ENCRYPTION', val: 'AES-256', dot: false },
+    { label: 'DARKO \u00b7 NXGEN MEDIA LLC \u00b7 2026', val: null as string | null, dot: false },
+  ];
 
-function StatusTicker() {
-  const anim = useRef(new Animated.Value(0)).current;
-  const items = [...TICKER_ITEMS, ...TICKER_ITEMS];
-
-  useEffect(() => {
-    if (Platform.OS === 'web') return;
-    const loop = () => {
-      anim.setValue(0);
-      Animated.timing(anim, { toValue: 1, duration: 30000, easing: Easing.linear, useNativeDriver: true }).start(loop);
-    };
-    loop();
-    return () => anim.stopAnimation();
-  }, []);
-
-  const translateX = anim.interpolate({ inputRange: [0, 1], outputRange: [0, -1400] });
-
-  if (Platform.OS === 'web') {
-    return (
-      <View style={styles.ticker}>
-        <View {...wc('lp-ticker-anim')}>
-          {items.map((item, i) => <TickerItem key={i} item={item} />)}
-        </View>
-      </View>
-    );
+  function buildTicker(el: Element | null) {
+    if (!el) return;
+    el.innerHTML = [...STATUS_ITEMS, ...STATUS_ITEMS].map(item => {
+      const dot = item.dot
+        ? `<span style="display:inline-block;width:5px;height:5px;border-radius:50%;background:#CCFF00;margin-right:6px;vertical-align:middle;animation:dpulse 2s ease-in-out infinite"></span>`
+        : '';
+      const val = item.val ? `<span class="ticker-val">${item.val}</span>` : '';
+      return `<span class="ticker-item">${dot}${item.label}${item.val ? '&nbsp;' : ''}${val}<span class="ticker-sep" style="margin-left:20px">\u00b7</span></span>`;
+    }).join('');
   }
 
-  return (
-    <View style={styles.ticker}>
-      <Animated.View style={[styles.tickerInner, { transform: [{ translateX }] }]}>
-        {items.map((item, i) => <TickerItem key={i} item={item} />)}
-      </Animated.View>
-    </View>
-  );
+  buildTicker(R.querySelector('#ticker-inner'));
+  buildTicker(R.querySelector('#footer-ticker'));
+
+  // Decode panel row animations
+  const rows = R.querySelectorAll<HTMLElement>('.dp-row');
+  const CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_\u2192\u2190\u2014';
+
+  function animatePct(el: HTMLElement, target: number, duration: number) {
+    const start = performance.now();
+    function tick(now: number) {
+      const p = Math.min((now - start) / duration, 1);
+      el.textContent = Math.round((1 - Math.pow(1 - p, 3)) * target) + '%';
+      if (p < 1) requestAnimationFrame(tick);
+      else el.textContent = target + '%';
+    }
+    requestAnimationFrame(tick);
+  }
+
+  function typewrite(el: HTMLElement, text: string) {
+    let i = 0;
+    const iv = setInterval(() => {
+      el.textContent = text.slice(0, ++i);
+      if (i >= text.length) clearInterval(iv);
+    }, 22);
+  }
+
+  function glitchResolve(el: HTMLElement, finalText: string) {
+    const end = performance.now() + 1800 * 0.7;
+    const gi = setInterval(() => {
+      if (performance.now() >= end) {
+        clearInterval(gi);
+        el.textContent = '';
+        typewrite(el, finalText);
+        return;
+      }
+      const len = Math.floor(Math.random() * 14) + 4;
+      el.textContent = Array.from({ length: len }, () => CHARS[Math.floor(Math.random() * CHARS.length)]).join('');
+    }, 50);
+  }
+
+  rows.forEach((row, i) => {
+    const val = row.querySelector<HTMLElement>('.dp-val');
+    const pctEl = row.querySelector<HTMLElement>('.dp-pct');
+    const isScript = !row.dataset.pct && !!row.dataset.val;
+    setTimeout(() => {
+      row.classList.add('visible');
+      if (!val) return;
+      if (isScript) {
+        setTimeout(() => glitchResolve(val, row.dataset.val || ''), 100);
+      } else {
+        val.textContent = row.dataset.val || '';
+        if (row.dataset.pct && pctEl) animatePct(pctEl, parseInt(row.dataset.pct), 1200);
+      }
+    }, 400 + i * 220);
+  });
+
+  // Greene quote rotator
+  const QUOTES = [
+    { text: 'Never assume that the person who seems open and friendly is being genuine. People show only what they want you to see.', attr: '\u2014 ROBERT GREENE \u00b7 THE 48 LAWS OF POWER' },
+    { text: "Do not leave your reputation to chance or gossip; it is your life\u2019s artwork, and you must craft it, hone it, and display it.", attr: '\u2014 ROBERT GREENE \u00b7 THE 48 LAWS OF POWER' },
+    { text: 'The most important skill in all of human interaction is the ability to see things from other people\u2019s point of view.', attr: '\u2014 ROBERT GREENE \u00b7 THE LAWS OF HUMAN NATURE' },
+    { text: 'Keep people off-balance and in the dark by never revealing the purpose behind your actions.', attr: '\u2014 ROBERT GREENE \u00b7 THE 48 LAWS OF POWER' },
+  ];
+  let qi = 0;
+  const quoteEl = R.querySelector<HTMLElement>('#quote-text-inner');
+  const attrEl = R.querySelector<HTMLElement>('#quote-attr');
+
+  function showQuote(idx: number) {
+    const q = QUOTES[idx % QUOTES.length];
+    if (quoteEl) quoteEl.style.opacity = '0';
+    if (attrEl) attrEl.style.opacity = '0';
+    setTimeout(() => {
+      if (quoteEl) { quoteEl.textContent = q.text; quoteEl.style.transition = 'opacity 0.5s'; quoteEl.style.opacity = '1'; }
+      if (attrEl) { attrEl.textContent = q.attr; attrEl.style.transition = 'opacity 0.5s 0.1s'; attrEl.style.opacity = '1'; }
+    }, 300);
+  }
+  showQuote(0);
+  setInterval(() => { qi++; showQuote(qi); }, 6000);
+
+  // Scroll reveal — use R as IntersectionObserver root
+  const obs = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) { e.target.classList.add('in'); obs.unobserve(e.target); }
+    });
+  }, { threshold: 0.06, root: R });
+  R.querySelectorAll('.reveal').forEach(el => obs.observe(el));
+
+  // Smooth scroll anchor links within container
+  R.querySelectorAll<HTMLAnchorElement>('a[href^="#"]').forEach(a => {
+    a.addEventListener('click', e => {
+      const href = a.getAttribute('href');
+      if (!href || href === '#') return;
+      e.preventDefault();
+      const target = R.querySelector<HTMLElement>(href);
+      if (target) {
+        const rTop = R.getBoundingClientRect().top;
+        const tTop = target.getBoundingClientRect().top;
+        R.scrollTo({ top: R.scrollTop + tTop - rTop - 80, behavior: 'smooth' });
+      }
+    });
+  });
+
+  // SPA navigation wiring
+  R.querySelector('.btn-signin')?.addEventListener('click', () => { window.location.href = '/auth'; });
+  R.querySelector('.btn-primary')?.addEventListener('click', () => { window.location.href = '/auth'; });
+  R.querySelector('.btn-ghost-price')?.addEventListener('click', () => { window.location.href = '/auth'; });
+  R.querySelector('.btn-white-price')?.addEventListener('click', () => { window.location.href = '/auth'; });
+  R.querySelector('.btn-accent-price')?.addEventListener('click', () => { window.location.href = '/pricing'; });
 }
 
-// ─── Decode Panel ─────────────────────────────────────────────────────────────
-function DecodePanel() {
-  const [revealed, setRevealed] = useState<number[]>([]);
-  const [pct, setPct] = useState<Record<number, number>>({});
-  const [scriptText, setScriptText] = useState('');
-  const [glitching, setGlitching] = useState(false);
-
-  const ROWS = [
-    { key: 'ATTACHMENT_STYLE', val: 'ANXIOUS-PREOCCUPIED', pct: 91 },
-    { key: 'COMM_PATTERN', val: 'INTERMITTENT REINF.', pct: 87 },
-    { key: 'VULNERABILITY', val: 'BEING SEEN SPECIFICALLY', pct: 79 },
-    { key: 'ARCHETYPE', val: 'WOUNDED', pct: 94 },
-    { key: 'CAMPAIGN_PHASE', val: 'APPROACH → DECIDE', pct: 88 },
-    { key: 'TACTIC', val: 'PATTERN INTERRUPT', pct: 82 },
-    { key: 'SCRIPT', val: '"I noticed you went quiet — doing okay?"', pct: 0 },
-  ];
+// ─── Web: direct HTML injection (pixel-perfect match) ────────────────────────
+function LandingPageWebDirect() {
+  const ref = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    ROWS.forEach((row, i) => {
-      setTimeout(() => {
-        setRevealed(prev => [...prev, i]);
-        if (row.pct) {
-          const start = Date.now();
-          const tick = () => {
-            const p = Math.min((Date.now() - start) / 1200, 1);
-            const e = 1 - Math.pow(1 - p, 3);
-            setPct(prev => ({ ...prev, [i]: Math.round(e * row.pct) }));
-            if (p < 1) requestAnimationFrame(tick);
-          };
-          requestAnimationFrame(tick);
-        }
-        if (row.key === 'SCRIPT') {
-          setGlitching(true);
-          const CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_→←—';
-          let count = 0;
-          const gi = setInterval(() => {
-            const len = Math.floor(Math.random() * 14) + 4;
-            setScriptText(Array.from({ length: len }, () => CHARS[Math.floor(Math.random() * CHARS.length)]).join(''));
-            if (++count >= 10) {
-              clearInterval(gi);
-              setGlitching(false);
-              let j = 0;
-              const ti = setInterval(() => {
-                setScriptText(row.val.slice(0, ++j));
-                if (j >= row.val.length) clearInterval(ti);
-              }, 22);
-            }
-          }, 80);
-        }
-      }, 400 + i * 220);
-    });
+    // Inject fonts
+    if (!document.getElementById('v3-fonts')) {
+      const l = document.createElement('link');
+      l.id = 'v3-fonts';
+      l.rel = 'stylesheet';
+      l.href = 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@300;400;500;600&display=swap';
+      document.head.appendChild(l);
+    }
+    // Inject CSS
+    if (!document.getElementById('v3-styles')) {
+      const s = document.createElement('style');
+      s.id = 'v3-styles';
+      s.textContent = V3_CSS;
+      document.head.appendChild(s);
+    }
+
+    const R = ref.current;
+    if (!R) return;
+
+    runV3Scripts(R);
+
+    return () => {
+      document.getElementById('v3-styles')?.remove();
+    };
   }, []);
 
-  const sections = [
-    { label: '// BEHAVIORAL PROFILE', rows: ROWS.slice(0, 3), base: 0 },
-    { label: '// OPERATIONAL VECTORS', rows: ROWS.slice(3, 5), base: 3 },
-    { label: '// RECOMMENDED MOVE', rows: ROWS.slice(5), base: 5 },
+  // Use React.createElement so dangerouslySetInnerHTML works (not available on RN View)
+  return React.createElement('div', {
+    ref,
+    className: 'v3-root',
+    dangerouslySetInnerHTML: { __html: V3_BODY },
+    style: {
+      position: 'fixed',
+      top: 0, left: 0, right: 0, bottom: 0,
+      overflowY: 'auto',
+      overflowX: 'hidden',
+      background: '#0a0a0a',
+    },
+  });
+}
+
+// ─── Native fallback (simplified) ─────────────────────────────────────────────
+function LandingPageNative() {
+  const router = useRouter();
+  const [scrolled, setScrolled] = React.useState(false);
+  const [qi, setQi] = React.useState(0);
+
+  const QUOTES = [
+    'Never assume that the person who seems open and friendly is being genuine.',
+    'Do not leave your reputation to chance or gossip; it is your life\'s artwork.',
+    'The most important skill is the ability to see things from other people\'s point of view.',
+    'Keep people off-balance and in the dark by never revealing the purpose behind your actions.',
   ];
 
-  return (
-    <View style={styles.decodePanel}>
-      <View style={styles.dpHeader}>
-        <Text style={styles.dpTitle}>DARKO ENGINE v4.0 — LIVE ANALYSIS STREAM</Text>
-        <View style={styles.dpDots}>
-          <View style={styles.dpDot} />
-          <View style={styles.dpDot} />
-          <View {...wc('lp-dp-live')} style={[styles.dpDot, styles.dpLive]} />
-        </View>
-      </View>
-      {sections.map(({ label, rows, base }) => (
-        <View key={label} style={styles.dpSection}>
-          <Text style={styles.dpSecLabel}>{label}</Text>
-          {rows.map((row, j) => {
-            const idx = base + j;
-            const isScript = row.key === 'SCRIPT';
-            return (
-              <View key={row.key} style={[styles.dpRow, revealed.includes(idx) && styles.dpRowVisible]}>
-                <Text style={styles.dpKey}>{row.key}</Text>
-                <Text style={[styles.dpVal, isScript && { color: C.a }]}>
-                  {isScript ? scriptText : row.val}
-                </Text>
-                {row.pct > 0 && (
-                  <Text style={styles.dpPct}>{pct[idx] !== undefined ? `${pct[idx]}%` : '0%'}</Text>
-                )}
-              </View>
-            );
-          })}
-        </View>
-      ))}
-    </View>
-  );
-}
-
-// ─── Capabilities Grid ────────────────────────────────────────────────────────
-const CAPS = [
-  { label: '01 — ATTACHMENT DECODE', title: 'Read their wiring,\nnot their words.', desc: 'Anxious, avoidant, or disorganized — decoded from patterns in how they actually communicate. Not what they say. What they do.' },
-  { label: '02 — SIGNAL DETECTION', title: 'Every pull and push,\nmapped and explained.', desc: 'Hot-and-cold cycles, intermittent reinforcement, withdrawal tactics. DARKO names them before you can feel the effect.' },
-  { label: '03 — LIVE PROFILE BUILD', title: 'Watch clarity\nconstruct itself.', desc: 'Paste anything. A dossier assembles in real time — archetype, vulnerabilities, campaign phase, and the precise window to act.' },
-  { label: '04 — CAMPAIGN ENGINE · COMING SOON', title: 'Multi-phase strategy,\nnot one-off moves.', desc: 'A structured campaign across weeks. Phase tracking, pattern interrupt scheduling, and adaptive scripts built around their psychology.', soon: true },
-];
-
-const revealDelays = ['', 'lp-reveal-d1', 'lp-reveal-d2', 'lp-reveal-d3', 'lp-reveal-d4'];
-
-function CapabilitiesGrid() {
-  return (
-    <View {...wc('lp-caps-grid')} style={styles.capsGrid}>
-      {CAPS.map((cap, i) => (
-        <View
-          key={i}
-          {...wc(`lp-cap-card lp-reveal ${revealDelays[i + 1]}`)}
-          style={[styles.capCard, cap.soon && styles.capSoon]}
-        >
-          <Text style={[styles.capLabel, cap.soon && { color: C.dim }]}>{cap.label}</Text>
-          <Text style={[styles.capTitle, cap.soon && { color: C.dim }]}>{cap.title}</Text>
-          <Text style={[styles.capDesc, cap.soon && { color: C.dim }]}>{cap.desc}</Text>
-        </View>
-      ))}
-    </View>
-  );
-}
-
-// ─── Quote Rotator ────────────────────────────────────────────────────────────
-const QUOTES = [
-  { text: 'Never assume that the person who seems open and friendly is being genuine. People show only what they want you to see.', attr: '— ROBERT GREENE · THE 48 LAWS OF POWER' },
-  { text: 'Do not leave your reputation to chance or gossip; it is your life\'s artwork, and you must craft it, hone it, and display it.', attr: '— ROBERT GREENE · THE 48 LAWS OF POWER' },
-  { text: 'The most important skill in all of human interaction is the ability to see things from other people\'s point of view.', attr: '— ROBERT GREENE · THE LAWS OF HUMAN NATURE' },
-  { text: 'Keep people off-balance and in the dark by never revealing the purpose behind your actions.', attr: '— ROBERT GREENE · THE 48 LAWS OF POWER' },
-];
-
-function QuoteRotator() {
-  const [qi, setQi] = useState(0);
-  const [vis, setVis] = useState(true);
-
-  useEffect(() => {
-    const iv = setInterval(() => {
-      setVis(false);
-      setTimeout(() => { setQi(p => (p + 1) % QUOTES.length); setVis(true); }, 350);
-    }, 6000);
+  React.useEffect(() => {
+    const iv = setInterval(() => setQi(p => (p + 1) % QUOTES.length), 6000);
     return () => clearInterval(iv);
   }, []);
-
-  const q = QUOTES[qi];
-  return (
-    <View {...wc('lp-reveal')} style={[styles.quoteBlock, !vis && { opacity: 0 }]}>
-      <Text style={styles.quoteText}>
-        <Text style={{ color: C.a }}>"</Text>
-        {q.text}
-        <Text style={{ color: C.a }}>"</Text>
-      </Text>
-      <Text style={styles.quoteAttr}>{q.attr}</Text>
-    </View>
-  );
-}
-
-// ─── Pricing Grid ─────────────────────────────────────────────────────────────
-const TIERS = [
-  {
-    tier: 'OBSERVER', price: '0', free: true,
-    period: '/ FOREVER FREE',
-    features: ['5 reads per month — enough to get uncomfortable', 'Attachment style analysis', 'Basic signal detection'],
-    btnLabel: 'GET STARTED', btnCls: 'lp-btn-ghost-price', btnStyle: 'ghost',
-  },
-  {
-    tier: 'OPERATOR', price: '15',
-    period: '/ MONTH',
-    features: ['No limits on who you decode', 'Full behavioral profile — every vector', 'Tactical move recommendations', '90-day history and export', 'Priority processing'],
-    btnLabel: 'START OPERATING', btnCls: 'lp-btn-white-price', btnStyle: 'white',
-  },
-  {
-    tier: 'EXECUTIVE', price: '100', featured: true, badge: 'INVITE ONLY',
-    period: '/ MONTH · INVITE ONLY',
-    features: ['Everything in Operator — without ceilings', 'Multi-target simultaneous tracking', '4-phase campaign engine with phase locks', 'Custom archetype model training', 'API access + white-label export', 'Direct handler support'],
-    btnLabel: 'REQUEST ACCESS', btnCls: 'lp-btn-accent-price', btnStyle: 'accent',
-  },
-];
-
-function PricingGrid() {
-  const router = useRouter();
-
-  return (
-    <View {...wc('lp-pricing-grid')} style={styles.pricingGrid}>
-      {TIERS.map((tier, i) => (
-        <View
-          key={i}
-          {...wc(`lp-price-card${tier.featured ? ' lp-price-featured' : ''} lp-reveal ${revealDelays[i + 1]}`)}
-          style={[styles.priceCard, tier.featured && styles.priceCardFeatured]}
-        >
-          {tier.badge && (
-            <View style={styles.priceBadge}><Text style={styles.priceBadgeText}>{tier.badge}</Text></View>
-          )}
-          <Text style={styles.priceTier}>{tier.tier}</Text>
-          <Text style={styles.priceNum}>
-            {!tier.free && <Text style={styles.priceSup}>$</Text>}
-            {tier.free ? '$0' : tier.price}
-          </Text>
-          <Text style={styles.pricePer}>{tier.period}</Text>
-          <View style={styles.priceFeatures}>
-            {tier.features.map((f, j) => (
-              <View key={j} style={styles.pf}>
-                <Text {...wc('lp-pf-bullet')} style={styles.pfBullet}>▸</Text>
-                <Text style={styles.pfText}>{f}</Text>
-              </View>
-            ))}
-          </View>
-          <Pressable
-            {...wc(tier.btnCls)}
-            style={[
-              styles.priceBtn,
-              tier.btnStyle === 'ghost' && styles.priceBtnGhost,
-              tier.btnStyle === 'white' && styles.priceBtnWhite,
-              tier.btnStyle === 'accent' && styles.priceBtnAccent,
-            ]}
-            onPress={() => router.push(tier.btnStyle === 'accent' ? '/pricing' as any : '/auth' as any)}
-          >
-            <Text style={[styles.priceBtnText, (tier.btnStyle === 'white' || tier.btnStyle === 'accent') && { color: C.bg }]}>
-              {tier.btnLabel}
-            </Text>
-          </Pressable>
-        </View>
-      ))}
-    </View>
-  );
-}
-
-// ─── Footer ───────────────────────────────────────────────────────────────────
-const FOOTER_TEXT = 'DARKO · NXGEN MEDIA LLC · 2026 · RELATIONSHIP INTELLIGENCE · AI-POWERED · BUILD 4.0 · ';
-const FOOTER_ITEMS = [...Array(12)].map((_, i) => FOOTER_TEXT);
-
-function FooterTicker() {
-  const anim = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    if (Platform.OS === 'web') return;
-    const loop = () => {
-      anim.setValue(0);
-      Animated.timing(anim, { toValue: 1, duration: 28000, easing: Easing.linear, useNativeDriver: true }).start(loop);
-    };
-    loop();
-    return () => anim.stopAnimation();
-  }, []);
-
-  const translateX = anim.interpolate({ inputRange: [0, 1], outputRange: [0, -1400] });
-
-  if (Platform.OS === 'web') {
-    return (
-      <View style={styles.footer}>
-        <View {...wc('lp-footer-anim')}>
-          {[...FOOTER_ITEMS, ...FOOTER_ITEMS].map((t, i) => (
-            <Text key={i} style={styles.footerText}>{t}</Text>
-          ))}
-        </View>
-      </View>
-    );
-  }
-
-  return (
-    <View style={styles.footer}>
-      <Animated.View style={[{ flexDirection: 'row', alignItems: 'center', position: 'absolute' }, { transform: [{ translateX }] }]}>
-        {[...FOOTER_ITEMS, ...FOOTER_ITEMS].map((t, i) => (
-          <Text key={i} style={styles.footerText}>{t}</Text>
-        ))}
-      </Animated.View>
-    </View>
-  );
-}
-
-// ─── Main ─────────────────────────────────────────────────────────────────────
-export default function LandingPageV3() {
-  const [scrollY, setScrollY] = useState(0);
-  const router = useRouter();
-  const isWeb = Platform.OS === 'web';
-
-  useEffect(() => {
-    if (!isWeb) return;
-    injectCSS();
-
-    // Hero entrance
-    requestAnimationFrame(() => {
-      ['.lp-kicker', '.lp-headline', '.lp-sub', '.lp-cta-row', '.lp-decode-panel'].forEach(sel => {
-        document.querySelectorAll(sel).forEach(el => el.classList.add('in'));
-      });
-    });
-
-    // Scroll reveal
-    const obs = new IntersectionObserver(entries => {
-      entries.forEach(e => {
-        if (e.isIntersecting) { e.target.classList.add('in'); obs.unobserve(e.target); }
-      });
-    }, { threshold: 0.06 });
-
-    setTimeout(() => {
-      document.querySelectorAll('.lp-reveal').forEach(el => obs.observe(el));
-    }, 200);
-
-    return () => obs.disconnect();
-  }, []);
-
-  const handleScroll = (e: any) => {
-    const y = e.nativeEvent.contentOffset.y;
-    setScrollY(y);
-    if (isWeb) {
-      document.getElementById('lp-nav')?.classList.toggle('lp-nav-scrolled', y > 10);
-    }
-  };
 
   return (
     <>
       <StatusBar style="light" />
-      <Navigation scrolled={scrollY > 10} />
-      <StatusTicker />
-
       <ScrollView
-        style={styles.container}
-        onScroll={handleScroll}
+        style={{ flex: 1, backgroundColor: '#0a0a0a' }}
+        onScroll={e => setScrolled(e.nativeEvent.contentOffset.y > 10)}
         scrollEventThrottle={16}
-        showsVerticalScrollIndicator={false}
       >
         {/* Hero */}
-        <View {...wc('lp-hero')} style={isWeb ? styles.heroWeb : styles.heroNative}>
-          {isWeb && <View {...wc('lp-hero-texture')} style={styles.heroTexturePlaceholder} />}
-
-          <View {...wc('lp-hero-left')} style={isWeb ? styles.heroLeftWeb : styles.heroLeftNative}>
-            <View {...wc('lp-kicker')} style={styles.kicker}>
-              <View style={styles.kickerLine} />
-              <Text style={styles.kickerText}>// RELATIONSHIP INTELLIGENCE · AI-POWERED · BUILD 4.0</Text>
-            </View>
-
-            <Text {...wc('lp-headline')} style={styles.headline}>
-              <Text style={{ color: C.text, display: 'block' as any }}>STOP{'\n'}</Text>
-              <Text style={{ color: C.a }}>GUESSING.</Text>
-            </Text>
-
-            <Text {...wc('lp-sub')} style={styles.sub}>
-              Paste their texts, DMs, or screenshots. DARKO reads the psychology underneath —
-              attachment style, manipulation patterns, and what they actually want from you.
-              Then gives you the exact move.
-            </Text>
-
-            <View {...wc('lp-cta-row')} style={styles.ctaRow}>
-              <Pressable style={styles.btnPrimary} onPress={() => router.push('/auth' as any)}>
-                <Text style={styles.btnPrimaryText}>GET EARLY ACCESS</Text>
-              </Pressable>
-              <TouchableOpacity
-                {...wc('lp-btn-ghost-cta')}
-                onPress={() => isWeb ? document.getElementById('capabilities')?.scrollIntoView({ behavior: 'smooth' }) : null}
-              >
-                <Text style={styles.btnGhostText}>SEE HOW IT WORKS</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          <View {...wc('lp-hero-right')} style={isWeb ? styles.heroRightWeb : styles.heroRightNative}>
-            <View {...wc('lp-decode-panel')} style={styles.decodePanelWrap}>
-              <DecodePanel />
-            </View>
-          </View>
+        <View style={{ paddingTop: 120, paddingHorizontal: 24, paddingBottom: 48, backgroundColor: '#0a0a0a' }}>
+          <Text style={{ fontFamily: 'Courier New', fontSize: 9, letterSpacing: 2, color: '#CCFF00', marginBottom: 24 }}>
+            // RELATIONSHIP INTELLIGENCE · AI-POWERED · BUILD 4.0
+          </Text>
+          <Text style={{ fontSize: 56, fontWeight: '900', color: '#CCFF00', letterSpacing: -2, lineHeight: 50, marginBottom: 24 }}>
+            STOP{'\n'}GUESSING.
+          </Text>
+          <Text style={{ fontSize: 15, color: '#a1a1aa', lineHeight: 24, marginBottom: 32 }}>
+            Paste their texts, DMs, or screenshots. DARKO reads the psychology underneath — attachment style, manipulation patterns, and what they actually want from you.
+          </Text>
+          <TouchableOpacity
+            onPress={() => router.push('/auth' as any)}
+            style={{ backgroundColor: '#fafafa', paddingVertical: 13, paddingHorizontal: 28, alignSelf: 'flex-start', marginBottom: 16 }}
+          >
+            <Text style={{ fontFamily: 'Courier New', fontSize: 11, fontWeight: '600', letterSpacing: 1.4, color: '#0a0a0a' }}>GET EARLY ACCESS</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Capabilities */}
-        <View
-          nativeID={isWeb ? 'capabilities' : undefined}
-          {...wc('lp-reveal')}
-          style={styles.section}
-        >
-          <View style={styles.sectionKicker}>
-            <Text style={styles.sectionKickerText}>// CAPABILITIES</Text>
-            <View style={styles.sectionKickerLine} />
-          </View>
-          <CapabilitiesGrid />
-          <QuoteRotator />
+        <View style={{ paddingHorizontal: 24, paddingVertical: 48, borderTopWidth: 1, borderTopColor: '#27272a' }}>
+          <Text style={{ fontFamily: 'Courier New', fontSize: 9, letterSpacing: 2, color: '#CCFF00', marginBottom: 24 }}>// CAPABILITIES</Text>
+          {['ATTACHMENT DECODE', 'SIGNAL DETECTION', 'LIVE PROFILE BUILD', 'CAMPAIGN ENGINE'].map((cap, i) => (
+            <View key={i} style={{ borderWidth: 1, borderColor: '#27272a', padding: 24, marginBottom: 1, backgroundColor: '#18181b' }}>
+              <Text style={{ fontFamily: 'Courier New', fontSize: 9, color: '#52525b', letterSpacing: 1.4, marginBottom: 8 }}>0{i + 1} — {cap}</Text>
+              <Text style={{ fontSize: 18, fontWeight: '700', color: i === 3 ? '#52525b' : '#fafafa', marginBottom: 8 }}>
+                {['Read their wiring,\nnot their words.', 'Every pull and push,\nmapped and explained.', 'Watch clarity\nconstruct itself.', 'Multi-phase strategy,\nnot one-off moves.'][i]}
+              </Text>
+            </View>
+          ))}
         </View>
 
         {/* Pricing */}
-        <View
-          nativeID={isWeb ? 'pricing' : undefined}
-          {...wc('lp-reveal')}
-          style={[styles.section, styles.sectionBorder]}
-        >
-          <View style={styles.sectionKicker}>
-            <Text style={styles.sectionKickerText}>// PRICING</Text>
-            <View style={styles.sectionKickerLine} />
-          </View>
-          <PricingGrid />
+        <View style={{ paddingHorizontal: 24, paddingVertical: 48, borderTopWidth: 1, borderTopColor: '#27272a' }}>
+          <Text style={{ fontFamily: 'Courier New', fontSize: 9, letterSpacing: 2, color: '#CCFF00', marginBottom: 24 }}>// PRICING</Text>
+          {[
+            { tier: 'OBSERVER', price: '$0', period: 'FOREVER FREE', btn: 'GET STARTED', route: '/auth' },
+            { tier: 'OPERATOR', price: '$15', period: 'PER MONTH', btn: 'START OPERATING', route: '/auth' },
+            { tier: 'EXECUTIVE', price: '$100', period: 'INVITE ONLY', btn: 'REQUEST ACCESS', route: '/pricing', featured: true },
+          ].map((t, i) => (
+            <View key={i} style={{ backgroundColor: t.featured ? '#0d1000' : '#18181b', borderWidth: 1, borderColor: t.featured ? '#CCFF00' : '#27272a', padding: 24, marginBottom: 1 }}>
+              <Text style={{ fontFamily: 'Courier New', fontSize: 9, color: '#52525b', letterSpacing: 1.8, marginBottom: 12 }}>{t.tier}</Text>
+              <Text style={{ fontSize: 40, fontWeight: '900', color: '#fafafa', marginBottom: 4 }}>{t.price}</Text>
+              <Text style={{ fontFamily: 'Courier New', fontSize: 9, color: '#52525b', marginBottom: 24 }}>/ {t.period}</Text>
+              <TouchableOpacity
+                onPress={() => router.push(t.route as any)}
+                style={{ borderWidth: 1, borderColor: t.featured ? '#CCFF00' : '#27272a', backgroundColor: t.featured ? '#CCFF00' : 'transparent', paddingVertical: 10, alignItems: 'center' }}
+              >
+                <Text style={{ fontFamily: 'Courier New', fontSize: 10, letterSpacing: 1.2, color: t.featured ? '#000' : '#a1a1aa' }}>{t.btn}</Text>
+              </TouchableOpacity>
+            </View>
+          ))}
         </View>
 
-        <FooterTicker />
+        <View style={{ height: 36, backgroundColor: '#18181b', borderTopWidth: 1, borderTopColor: '#27272a', justifyContent: 'center', paddingHorizontal: 24 }}>
+          <Text style={{ fontFamily: 'Courier New', fontSize: 9, color: '#52525b', letterSpacing: 1.2 }}>DARKO · NXGEN MEDIA LLC · 2026</Text>
+        </View>
       </ScrollView>
     </>
   );
 }
 
-// ─── Styles ───────────────────────────────────────────────────────────────────
-const styles = StyleSheet.create({
-  nav: {
-    ...Platform.select({ web: { position: 'fixed' } as any, default: { position: 'absolute' } }),
-    top: 0, left: 0, right: 0, zIndex: 500, height: 52,
-    backgroundColor: 'transparent',
-    borderBottomWidth: 1, borderBottomColor: 'transparent',
-    ...Platform.select({ web: { transition: 'background 300ms, border-color 300ms, backdrop-filter 300ms' } as any }),
-  },
-  navScrolledNative: {
-    backgroundColor: 'rgba(10,10,10,0.95)',
-    borderBottomColor: C.b,
-  },
-  navContent: { flex: 1, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 32 },
-  navLogo: { flexDirection: 'row', alignItems: 'center', gap: 9, marginRight: 40 },
-  navLogoSq: { width: 12, height: 12, backgroundColor: C.a },
-  navLogoText: { fontFamily: MONO, fontSize: 13, fontWeight: '600', letterSpacing: 2, color: C.a },
-  navLinks: { flex: 1, flexDirection: 'row', gap: 28 },
-  navLink: { fontFamily: MONO, fontSize: 10, letterSpacing: 1.4, color: C.dim },
-  signInBtn: { paddingVertical: 7, paddingHorizontal: 20, borderWidth: 1, borderColor: C.a },
-  signInText: { fontFamily: MONO, fontSize: 10, letterSpacing: 1.4, color: C.a },
-
-  ticker: {
-    ...Platform.select({ web: { position: 'fixed' } as any, default: { position: 'absolute' } }),
-    top: 52, left: 0, right: 0, zIndex: 499, height: 28,
-    backgroundColor: C.s1, borderBottomWidth: 1, borderBottomColor: C.b, overflow: 'hidden',
-  },
-  tickerInner: { flexDirection: 'row', alignItems: 'center', position: 'absolute', left: 0, top: 0, bottom: 0 },
-  tickerItem: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20 },
-  tickerDot: { width: 5, height: 5, borderRadius: 2.5, backgroundColor: C.a, marginRight: 6 },
-  tickerLabel: { fontFamily: MONO, fontSize: 9, letterSpacing: 1.2, color: C.dim },
-  tickerVal: { fontFamily: MONO, fontSize: 9, letterSpacing: 1.2, color: C.a },
-  tickerSep: { fontFamily: MONO, fontSize: 8, color: C.b2, marginLeft: 20 },
-
-  container: { flex: 1, backgroundColor: C.bg, paddingTop: 80 },
-
-  heroWeb: { backgroundColor: C.bg },
-  heroNative: { minHeight: 700, paddingTop: 64, paddingHorizontal: 32, paddingBottom: 64, backgroundColor: C.bg },
-  heroTexturePlaceholder: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
-  heroLeftWeb: {},
-  heroLeftNative: { marginBottom: 48 },
-  heroRightWeb: {},
-  heroRightNative: { paddingBottom: 48, paddingHorizontal: 0 },
-  decodePanelWrap: {},
-
-  kicker: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 28 },
-  kickerLine: { width: 16, height: 1, backgroundColor: C.a },
-  kickerText: { fontFamily: MONO, fontSize: 9.5, letterSpacing: 2, color: C.a },
-
-  headline: {
-    fontFamily: SANS, fontWeight: '900',
-    ...Platform.select({ web: { fontSize: 'clamp(52px,6vw,84px)' } as any, default: { fontSize: 64 } }),
-    lineHeight: Platform.select({ default: 58, web: undefined }),
-    letterSpacing: -1.5, marginBottom: 28,
-  },
-  sub: { fontFamily: SANS, fontSize: 16, color: C.muted, lineHeight: 26, maxWidth: 440, marginBottom: 40 },
-  ctaRow: { flexDirection: 'row', alignItems: 'center', gap: 20 },
-
-  btnPrimary: {
-    paddingVertical: 11, paddingHorizontal: 28, backgroundColor: C.text,
-    ...Platform.select({
-      web: {
-        background: `linear-gradient(105deg,${C.text} 0%,${C.text} 35%,rgba(255,255,255,.55) 50%,${C.text} 65%,${C.text} 100%)`,
-        backgroundSize: '300% 100%', backgroundPosition: '200% center',
-        animation: 'shimmer 3s ease-in-out infinite',
-      } as any,
-    }),
-  },
-  btnPrimaryText: { fontFamily: MONO, fontSize: 11, fontWeight: '600', letterSpacing: 1.4, color: C.bg },
-  btnGhostText: { fontFamily: MONO, fontSize: 10, letterSpacing: 1, color: C.dim },
-
-  decodePanel: {
-    backgroundColor: Platform.select({ web: 'rgba(24,24,27,0.6)', default: C.s1 }),
-    borderWidth: 1,
-    borderColor: Platform.select({ web: 'rgba(255,255,255,0.06)', default: C.b }),
-    borderLeftWidth: 2, borderLeftColor: C.a,
-    ...Platform.select({ web: { backdropFilter: 'blur(20px) saturate(140%)', WebkitBackdropFilter: 'blur(20px) saturate(140%)' } as any }),
-  },
-  dpHeader: { paddingVertical: 12, paddingHorizontal: 18, borderBottomWidth: 1, borderBottomColor: C.b, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  dpTitle: { fontFamily: MONO, fontSize: 9, letterSpacing: 1, color: C.dim },
-  dpDots: { flexDirection: 'row', gap: 5 },
-  dpDot: { width: 7, height: 7, borderRadius: 3.5, backgroundColor: C.b2 },
-  dpLive: { backgroundColor: C.a },
-  dpSection: { borderBottomWidth: 1, borderBottomColor: C.b, paddingVertical: 14, paddingHorizontal: 18 },
-  dpSecLabel: { fontFamily: MONO, fontSize: 9, letterSpacing: 1, color: C.a, marginBottom: 10 },
-  dpRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', paddingVertical: 4, borderBottomWidth: 1, borderBottomColor: 'rgba(39,39,42,0.4)', opacity: 0 },
-  dpRowVisible: { opacity: 1 },
-  dpKey: { fontFamily: MONO, fontSize: 9, letterSpacing: 0.6, color: C.muted, width: 160 },
-  dpVal: { fontFamily: MONO, fontSize: 10, fontWeight: '500', color: C.text, flex: 1 },
-  dpPct: { fontFamily: MONO, fontSize: 10, fontWeight: '600', color: C.a, marginLeft: 12, minWidth: 40, textAlign: 'right' },
-
-  section: { paddingVertical: 100, paddingHorizontal: 32, maxWidth: 1280, alignSelf: 'center', width: '100%', borderTopWidth: 1, borderTopColor: C.b },
-  sectionBorder: { borderTopWidth: 1, borderTopColor: C.b },
-  sectionKicker: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 48 },
-  sectionKickerText: { fontFamily: MONO, fontSize: 9.5, letterSpacing: 2, color: C.a },
-  sectionKickerLine: { flex: 1, height: 1, backgroundColor: C.b },
-
-  capsGrid: { flexDirection: 'row', flexWrap: 'wrap', marginBottom: 80, backgroundColor: C.b },
-  capCard: { backgroundColor: C.s1, padding: 36, width: '50%' as any },
-  capSoon: { opacity: 0.7 },
-  capLabel: { fontFamily: MONO, fontSize: 9, letterSpacing: 1.4, color: C.dim, marginBottom: 10 },
-  capTitle: { fontSize: 22, fontWeight: '700', color: C.text, letterSpacing: -0.2, marginBottom: 10, lineHeight: 26 },
-  capDesc: { fontSize: 13, color: C.muted, lineHeight: 21 },
-
-  quoteBlock: { alignItems: 'center', paddingHorizontal: 40 },
-  quoteText: { fontFamily: SANS, fontSize: 36, fontWeight: '800', color: C.text, letterSpacing: -0.25, marginBottom: 20, lineHeight: 42, textAlign: 'center' },
-  quoteAttr: { fontFamily: MONO, fontSize: 9, letterSpacing: 1.4, color: C.dim },
-
-  pricingGrid: { flexDirection: 'row', backgroundColor: C.b },
-  priceCard: { backgroundColor: C.s1, padding: 32, flex: 1 },
-  priceCardFeatured: { backgroundColor: '#0d1000', borderWidth: 1, borderColor: C.a },
-  priceBadge: { position: 'absolute', top: 16, right: 18, backgroundColor: C.a, paddingVertical: 3, paddingHorizontal: 10 },
-  priceBadgeText: { fontFamily: MONO, fontSize: 8, letterSpacing: 1.2, color: C.bg },
-  priceTier: { fontFamily: MONO, fontSize: 9, letterSpacing: 1.8, color: C.dim, marginBottom: 16 },
-  priceNum: { fontFamily: SANS, fontSize: 44, fontWeight: '900', color: C.text, letterSpacing: -1, lineHeight: 44, marginBottom: 4 },
-  priceSup: { fontSize: 22, fontWeight: '700', verticalAlign: 'top' as any },
-  pricePer: { fontFamily: MONO, fontSize: 9, letterSpacing: 1, color: C.dim, marginBottom: 24 },
-  priceFeatures: { marginBottom: 28, gap: 9 },
-  pf: { flexDirection: 'row', gap: 10, alignItems: 'flex-start' },
-  pfBullet: { fontFamily: MONO, fontSize: 10, color: C.dim, marginTop: 1 },
-  pfText: { fontSize: 13, color: C.muted, lineHeight: 19, flex: 1 },
-  priceBtn: { paddingVertical: 10, alignItems: 'center' },
-  priceBtnGhost: { borderWidth: 1, borderColor: C.b },
-  priceBtnWhite: { borderWidth: 1, borderColor: C.text, backgroundColor: C.text },
-  priceBtnAccent: {
-    borderWidth: 1, borderColor: C.a, backgroundColor: C.a,
-    ...Platform.select({
-      web: {
-        background: `linear-gradient(105deg,${C.a} 0%,${C.a} 35%,rgba(255,255,255,.3) 50%,${C.a} 65%,${C.a} 100%)`,
-        backgroundSize: '300% 100%', backgroundPosition: '200% center',
-        animation: 'shimmer 3s ease-in-out 1.5s infinite',
-      } as any,
-    }),
-  },
-  priceBtnText: { fontFamily: MONO, fontSize: 10, letterSpacing: 1.2, color: C.muted },
-
-  footer: { height: 36, backgroundColor: C.s1, borderTopWidth: 1, borderTopColor: C.b, overflow: 'hidden' },
-  footerText: { fontFamily: MONO, fontSize: 9, letterSpacing: 1.2, color: C.dim, paddingHorizontal: 16 },
-});
+// ─── Export ───────────────────────────────────────────────────────────────────
+export default function LandingPageV3() {
+  if (Platform.OS === 'web') {
+    return <LandingPageWebDirect />;
+  }
+  return <LandingPageNative />;
+}
