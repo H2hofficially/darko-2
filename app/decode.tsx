@@ -1027,21 +1027,45 @@ export default function DecodeScreen() {
 
   // ── Image picker ───────────────────────────────────────────────────────────
 
-  const handlePickImage = async () => {
+  const handlePickImage = () => {
     if (tier === 'free') {
       showPaywall('Screenshot analysis requires DARKO PRO.');
       return;
     }
-    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Permission needed', 'Photo library access required.');
+
+    if (Platform.OS === 'web') {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'image/*';
+      input.onchange = () => {
+        const file = input.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+          const dataUrl = reader.result as string;
+          const [header, base64] = dataUrl.split(',');
+          const mimeType = header.match(/:(.*?);/)?.[1] ?? 'image/jpeg';
+          setSelectedImage({ base64, mimeType, uri: dataUrl });
+        };
+        reader.readAsDataURL(file);
+      };
+      input.click();
       return;
     }
-    const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], base64: true, quality: 0.4, exif: false });
-    if (!res.canceled && res.assets[0]) {
-      const a = res.assets[0];
-      setSelectedImage({ base64: a.base64!, mimeType: a.mimeType ?? 'image/jpeg', uri: a.uri });
-    }
+
+    // Native
+    (async () => {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission needed', 'Photo library access required.');
+        return;
+      }
+      const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], base64: true, quality: 0.4, exif: false });
+      if (!res.canceled && res.assets[0]) {
+        const a = res.assets[0];
+        setSelectedImage({ base64: a.base64!, mimeType: a.mimeType ?? 'image/jpeg', uri: a.uri });
+      }
+    })();
   };
 
   // ── Voice recorder ─────────────────────────────────────────────────────────
