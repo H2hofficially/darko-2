@@ -8,6 +8,7 @@ if (Platform.OS === 'web' && typeof document !== 'undefined') {
   const s = document.createElement('style');
   s.textContent = `
     @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
     *, *::before, *::after {
       -webkit-font-smoothing: antialiased;
       -moz-osx-font-smoothing: grayscale;
@@ -21,6 +22,16 @@ if (Platform.OS === 'web' && typeof document !== 'undefined') {
     ::-webkit-scrollbar-track { background: #09090B; }
     ::-webkit-scrollbar-thumb { background: #27272A; border-radius: 2px; }
     ::-webkit-scrollbar-thumb:hover { background: #3D3D40; }
+    
+    /* Shimmer animation for accent buttons */
+    @keyframes shimmer {
+      0% { background-position: 200% center; }
+      100% { background-position: -200% center; }
+    }
+    @-webkit-keyframes shimmer {
+      0% { background-position: 200% center; }
+      100% { background-position: -200% center; }
+    }
   `;
   document.head.appendChild(s);
 }
@@ -62,7 +73,9 @@ export default function RootLayout() {
         <Stack.Screen name="onboarding" />
         <Stack.Screen name="auth" />
         <Stack.Screen name="auth/callback" />
+        <Stack.Screen name="targets" />
         <Stack.Screen name="decode" />
+        <Stack.Screen name="campaigns" />
         <Stack.Screen name="privacy" />
         <Stack.Screen name="terms" />
         <Stack.Screen name="payment-success" />

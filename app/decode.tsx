@@ -14,7 +14,10 @@ import {
   Image,
   Alert,
   Modal,
+  useWindowDimensions,
 } from 'react-native';
+import { AppNav } from '../components/AppNav';
+import { AppStatusBar } from '../components/AppStatusBar';
 import Markdown from 'react-native-markdown-display';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -669,6 +672,208 @@ function CampaignBriefModal({ visible, submitting, onSubmit, onClose }: Campaign
   );
 }
 
+// ─── Web right panel (60/40 layout, wide screens only) ───────────────────────
+
+const DECODE_MONO = Platform.select({
+  ios: 'Courier New',
+  android: 'monospace',
+  default: "'JetBrains Mono', monospace",
+});
+
+function WebRightPanel({
+  profile,
+  lastScripts,
+  targetName,
+  phase,
+}: {
+  profile: TargetProfile | null;
+  lastScripts: string[];
+  targetName: string;
+  phase: number;
+}) {
+  const PHASE_LABEL: Record<number, string> = {
+    1: 'APPROACH', 2: 'BUILD', 3: 'DECIDE', 4: 'COMMIT', 5: 'COMMIT',
+  };
+
+  const rows1 = [
+    { k: 'ATTACHMENT_STYLE', v: profile?.attachment_style },
+    { k: 'COMM_STYLE', v: profile?.target_communication_style },
+    { k: 'VULNERABILITY', v: profile?.vulnerability_score },
+  ].filter((r) => r.v);
+
+  const rows2 = [
+    { k: 'ARCHETYPE', v: profile?.dominant_archetype },
+    { k: 'CAMPAIGN_PHASE', v: PHASE_LABEL[phase] ?? 'APPROACH' },
+    { k: 'POWER_DYNAMIC', v: profile?.power_dynamic },
+    { k: 'MOMENTUM', v: profile?.relationship_momentum },
+  ].filter((r) => r.v);
+
+  const script = lastScripts[0] ?? null;
+
+  return (
+    <View style={rp.panel}>
+      {/* Ambient glow */}
+      <View style={rp.glow} pointerEvents="none" />
+
+      {/* Header */}
+      <View style={rp.header}>
+        <Text style={rp.headerTitle}>// LIVE DOSSIER</Text>
+        <View style={rp.headerRight}>
+          <View style={rp.liveDot} />
+          <Text style={rp.liveText}>ACTIVE</Text>
+        </View>
+      </View>
+
+      <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
+        {/* Empty state */}
+        {!profile && (
+          <View style={rp.empty}>
+            <Text style={rp.emptyTitle}>AWAITING INTEL</Text>
+            <Text style={rp.emptySub}>Send a message to begin profiling {targetName.toUpperCase()}</Text>
+          </View>
+        )}
+
+        {/* Behavioral profile */}
+        {rows1.length > 0 && (
+          <View style={rp.section}>
+            <Text style={rp.secLabel}>// BEHAVIORAL PROFILE</Text>
+            {rows1.map((r) => (
+              <View key={r.k} style={rp.row}>
+                <Text style={rp.rowKey}>{r.k}</Text>
+                <Text style={rp.rowVal}>{r.v}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {/* Operational vectors */}
+        {rows2.length > 0 && (
+          <View style={rp.section}>
+            <Text style={rp.secLabel}>// OPERATIONAL VECTORS</Text>
+            {rows2.map((r) => (
+              <View key={r.k} style={rp.row}>
+                <Text style={rp.rowKey}>{r.k}</Text>
+                <Text style={[rp.rowVal, r.k === 'ARCHETYPE' && { color: ACCENT }]}>{r.v}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {/* Manipulation patterns */}
+        {profile?.manipulation_patterns && profile.manipulation_patterns.length > 0 && (
+          <View style={rp.section}>
+            <Text style={rp.secLabel}>// MANIPULATION VECTORS</Text>
+            {profile.manipulation_patterns.slice(0, 3).map((mp, i) => (
+              <View key={i} style={rp.bulletRow}>
+                <Text style={rp.bullet}>▸</Text>
+                <Text style={rp.bulletText}>{mp}</Text>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {/* Recommended move — script */}
+        {script && (
+          <View style={rp.section}>
+            <Text style={rp.secLabel}>// RECOMMENDED MOVE</Text>
+            <View style={rp.scriptBlock}>
+              <Text style={rp.scriptText}>{script}</Text>
+            </View>
+          </View>
+        )}
+
+        {/* Emotional state */}
+        {profile?.last_known_emotional_state && (
+          <View style={rp.section}>
+            <Text style={rp.secLabel}>// EMOTIONAL STATE</Text>
+            <Text style={rp.summaryText}>{profile.last_known_emotional_state}</Text>
+          </View>
+        )}
+      </ScrollView>
+    </View>
+  );
+}
+
+const rp = StyleSheet.create({
+  panel: {
+    flex: 0.4,
+    backgroundColor: 'rgba(24,24,27,0.6)' as any,
+    borderLeftWidth: 0, // left border is ACCENT on container
+    flexDirection: 'column',
+    position: 'relative' as any,
+    overflow: 'hidden' as any,
+  },
+  glow: {
+    position: 'absolute' as any,
+    bottom: -60,
+    right: -60,
+    width: 340,
+    height: 340,
+    borderRadius: 170,
+    backgroundColor: 'transparent' as any,
+    shadowColor: '#CCFF00',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.07,
+    shadowRadius: 80,
+  },
+  header: {
+    height: 40,
+    borderBottomWidth: 1,
+    borderBottomColor: '#27272A',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    flexShrink: 0,
+  },
+  headerTitle: {
+    fontFamily: DECODE_MONO as any,
+    fontSize: 9,
+    color: '#52525b',
+    letterSpacing: 2,
+  },
+  headerRight: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  liveDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#CCFF00' },
+  liveText: { fontFamily: DECODE_MONO as any, fontSize: 8, color: '#52525b', letterSpacing: 2 },
+  empty: { padding: 32, alignItems: 'center', gap: 10, marginTop: 40 },
+  emptyTitle: { fontFamily: DECODE_MONO as any, fontSize: 10, color: '#3f3f46', letterSpacing: 3 },
+  emptySub: { fontFamily: DECODE_MONO as any, fontSize: 9, color: '#3f3f46', letterSpacing: 1, textAlign: 'center', lineHeight: 16 },
+  section: {
+    borderBottomWidth: 1,
+    borderBottomColor: '#27272A',
+    padding: 14,
+    paddingHorizontal: 16,
+  },
+  secLabel: {
+    fontFamily: DECODE_MONO as any,
+    fontSize: 8,
+    color: '#CCFF00',
+    letterSpacing: 2,
+    marginBottom: 10,
+  },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    paddingVertical: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(39,39,42,0.5)',
+  },
+  rowKey: { fontFamily: DECODE_MONO as any, fontSize: 8, color: '#a1a1aa', letterSpacing: 1, flex: 0.45 },
+  rowVal: { fontFamily: DECODE_MONO as any, fontSize: 9, color: '#fafafa', fontWeight: '500', flex: 0.55 },
+  bulletRow: { flexDirection: 'row', gap: 8, marginBottom: 5 },
+  bullet: { fontFamily: DECODE_MONO as any, fontSize: 9, color: '#CCFF00' },
+  bulletText: { fontFamily: DECODE_MONO as any, fontSize: 9, color: '#a1a1aa', flex: 1, lineHeight: 14 },
+  scriptBlock: {
+    borderLeftWidth: 2,
+    borderLeftColor: '#CCFF00',
+    paddingLeft: 12,
+    paddingVertical: 8,
+    backgroundColor: 'rgba(204,255,0,0.03)' as any,
+  },
+  scriptText: { fontFamily: DECODE_MONO as any, fontSize: 11, color: '#fafafa', lineHeight: 18, fontStyle: 'italic' },
+  summaryText: { fontFamily: DECODE_MONO as any, fontSize: 10, color: '#a1a1aa', lineHeight: 16 },
+});
+
 // ─── Main screen ──────────────────────────────────────────────────────────────
 
 const DARKO_ALERT_BODIES: Record<string, string> = {
@@ -681,6 +886,8 @@ const DARKO_ALERT_BODIES: Record<string, string> = {
 export default function DecodeScreen() {
   const { targetId, targetName, darkoAlert } = useLocalSearchParams<{ targetId: string; targetName: string; darkoAlert?: string }>();
   const router = useRouter();
+  const { width } = useWindowDimensions();
+  const isWide = Platform.OS === 'web' && width > 1000;
 
   const [chatMessages, setChatMessages] = useState<ChatMsg[]>([]);
   const [currentPhase, setCurrentPhase] = useState(1);
@@ -706,6 +913,7 @@ export default function DecodeScreen() {
 
   const [paywallVisible, setPaywallVisible] = useState(false);
   const [paywallReason, setPaywallReason] = useState('');
+  const [lastDarkoScripts, setLastDarkoScripts] = useState<string[]>([]);
   const { tier } = useUser();
 
   const showPaywall = (reason: string) => {
@@ -1011,6 +1219,11 @@ export default function DecodeScreen() {
           ),
         );
 
+        // Update right panel scripts
+        if (darkoResponse.scripts?.length) {
+          setLastDarkoScripts(darkoResponse.scripts.filter(Boolean));
+        }
+
         // Phase update
         if (darkoResponse.phaseUpdate && darkoResponse.phaseUpdate > currentPhase) {
           const newPhase = darkoResponse.phaseUpdate;
@@ -1167,6 +1380,138 @@ export default function DecodeScreen() {
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
+  // ── Wide web layout (60/40 two-column) ────────────────────────────────────
+  if (isWide) {
+    return (
+      <View style={{ flex: 1, backgroundColor: BG, flexDirection: 'column' }}>
+        <StatusBar style="light" />
+        <AppNav />
+        {/* Two-column workspace */}
+        <View style={{ flex: 1, flexDirection: 'row', overflow: 'hidden' as any }}>
+          {/* Left 60% — chat */}
+          <View style={{ flex: 0.6, flexDirection: 'column', borderRightWidth: 1, borderRightColor: ACCENT }}>
+            {/* Header */}
+            <View style={styles.header}>
+              <View style={styles.headerTopRow}>
+                <TouchableOpacity onPress={() => router.push('/targets' as any)} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+                  <Text style={styles.backBtn}>← TARGETS</Text>
+                </TouchableOpacity>
+                <View style={{ flexDirection: 'row', gap: 16 }}>
+                  <TouchableOpacity
+                    onPress={() => {
+                      if (tier === 'free') { showPaywall('// BRIEF campaign planning requires DARKO PRO.'); return; }
+                      setCampaignBriefOpen(true);
+                    }}
+                    hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                  >
+                    <Text style={styles.dossierToggleBtn}>// BRIEF</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+              <Text style={styles.targetTitle}>{(targetName ?? '').toUpperCase()}</Text>
+            </View>
+            <PhaseBar phase={currentPhase} />
+            <View style={styles.phaseLabelRow}>
+              <Text style={styles.phaseLabelText}>{'PHASE ' + currentPhase + ' — ' + (PHASE_NAMES[currentPhase] ?? '')}</Text>
+            </View>
+            <View style={styles.divider} />
+            {/* Chat */}
+            <ScrollView
+              ref={webScrollRef}
+              style={{ flex: 1 }}
+              contentContainerStyle={styles.chatContent}
+              showsVerticalScrollIndicator={false}
+              onContentSizeChange={() => (webScrollRef.current as any)?.scrollToEnd({ animated: false })}
+            >
+              {chatMessages.length === 0 && !loading ? (
+                <View style={styles.emptyChat}>
+                  <Text style={styles.emptyChatText}>// OPERATIVE ONLINE</Text>
+                  <Text style={styles.emptyChatSubtext}>&gt; BRIEF DARKO ON THE TARGET. BEGIN RECONNAISSANCE.</Text>
+                </View>
+              ) : null}
+              {chatMessages.map((item) => (
+                item.type === 'user'
+                  ? <UserBubble key={item.id} msg={item} />
+                  : <DarkoBubble key={item.id} msg={item} onLongPress={() => handleDarkoBubbleLongPress(item)} />
+              ))}
+              {loading && !chatMessages.some((m) => m.type === 'darko' && (m as any).isStreaming) && (
+                <LoadingBubble text={loaderText} />
+              )}
+            </ScrollView>
+            {/* Input */}
+            <KeyboardAvoidingView behavior={undefined}>
+              <View style={styles.inputArea}>
+                {error && <Text style={styles.errorText}>{error}</Text>}
+                {selectedImage && (
+                  <View style={styles.imageThumbnailRow}>
+                    <Image source={{ uri: selectedImage.uri }} style={styles.imageThumbnail} />
+                    <TouchableOpacity onPress={() => setSelectedImage(null)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                      <Text style={styles.imageRemoveText}>✕</Text>
+                    </TouchableOpacity>
+                    <Text style={styles.imageLabel}>screenshot attached</Text>
+                  </View>
+                )}
+                {transcribing && <Text style={styles.transcribingText}>&gt; TRANSCRIBING AUDIO...</Text>}
+                <View style={[styles.cmdRow, cmdFocused && styles.cmdRowFocused]}>
+                  <Text style={styles.cmdPrefix}>CMD &gt;</Text>
+                  <TextInput
+                    style={styles.cmdInput}
+                    value={inputText}
+                    onChangeText={setInputText}
+                    placeholder={selectedImage ? 'add context...' : '// talk to darko'}
+                    placeholderTextColor={BORDER}
+                    multiline
+                    scrollEnabled
+                    returnKeyType="send"
+                    onSubmitEditing={canSend ? handleSend : undefined}
+                    blurOnSubmit={false}
+                    onFocus={() => setCmdFocused(true)}
+                    onBlur={() => setCmdFocused(false)}
+                  />
+                </View>
+                <View style={styles.actionRow}>
+                  <TouchableOpacity style={styles.iconButton} onPress={handlePickImage} disabled={loading}>
+                    <Text style={styles.iconButtonText}>📷</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={[styles.iconButton, isRecording && styles.iconButtonRecording]} onPress={handleMicPress} disabled={loading || transcribing}>
+                    <Animated.Text style={[styles.iconButtonText, isRecording && { color: RECORD_RED }]}>🎤</Animated.Text>
+                  </TouchableOpacity>
+                  {isRecording && (
+                    <Text style={styles.recordingLabel}>{'// REC ' + Math.floor(recordingSecondsLeft / 60) + ':' + String(recordingSecondsLeft % 60).padStart(2, '0')}</Text>
+                  )}
+                  <TouchableOpacity
+                    style={[styles.decodeButton, !canSend && styles.decodeButtonDisabled, sendHovered && canSend && styles.decodeButtonHovered]}
+                    onPress={handleSend}
+                    activeOpacity={0.85}
+                    disabled={!canSend}
+                    {...({ onMouseEnter: () => setSendHovered(true), onMouseLeave: () => setSendHovered(false) } as any)}
+                  >
+                    <Text style={styles.decodeButtonText}>{loading ? 'SENDING...' : 'DECODE'}</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </KeyboardAvoidingView>
+          </View>
+
+          {/* Right 40% — live dossier */}
+          <WebRightPanel
+            profile={profile}
+            lastScripts={lastDarkoScripts}
+            targetName={targetName ?? ''}
+            phase={currentPhase}
+          />
+        </View>
+        <AppStatusBar />
+
+        {/* Overlays */}
+        {phaseUnlocking !== null && <PhaseUnlockOverlay phase={phaseUnlocking} onComplete={handlePhaseUnlockComplete} />}
+        <CampaignBriefModal visible={campaignBriefOpen} submitting={briefSubmitting} onSubmit={handleSubmitBrief} onClose={() => setCampaignBriefOpen(false)} />
+        <PaywallModal visible={paywallVisible} onClose={() => setPaywallVisible(false)} reason={paywallReason} />
+      </View>
+    );
+  }
+
+  // ── Narrow / native layout ─────────────────────────────────────────────────
   return (
     <View style={{ flex: 1, backgroundColor: BG }}>
     <View style={[styles.root, Platform.OS === 'web' && styles.webColumn]}>
@@ -1400,7 +1745,7 @@ export default function DecodeScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: BG, paddingTop: 60 },
-  webColumn: { maxWidth: 480, alignSelf: 'center' as const, width: '100%' as any, borderLeftWidth: 1, borderRightWidth: 1, borderColor: '#1A1A1D' },
+  webColumn: { maxWidth: 900, alignSelf: 'center' as const, width: '100%' as any },
 
   header: { paddingHorizontal: 20, marginBottom: 8 },
   headerTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },

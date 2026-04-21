@@ -24,7 +24,7 @@ import { supabase } from '../lib/supabase';
 import { registerPushToken } from '../services/notifications';
 import { useUser, TIER_LIMITS } from '../context/UserContext';
 import { PaywallModal } from '../components/PaywallModal';
-import LandingPageV2 from '../components/LandingPageV2';
+import LandingPageV3 from '../components/LandingPageV3';
 
 const ACCENT = '#CCFF00';
 const BG = '#09090B';
@@ -411,7 +411,7 @@ const landing = StyleSheet.create({
 export default function ProfilesScreen() {
   const router = useRouter();
   const { width } = useWindowDimensions();
-  const isDesktop = Platform.OS === 'web' && width > 768;
+  const isDesktop = Platform.OS === 'web' && width > 1024;
   const [targets, setTargets] = useState<(Target & { decodeCount: number })[]>([]);
   const [modalVisible, setModalVisible] = useState(false);
   const [newName, setNewName] = useState('');
@@ -433,7 +433,7 @@ export default function ProfilesScreen() {
         if (!session) {
           setShowLanding(true);
         } else {
-          setAuthReady(true);
+          router.replace('/targets' as any);
         }
         return;
       }
@@ -457,7 +457,7 @@ export default function ProfilesScreen() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (Platform.OS === 'web') {
         if (!session) { setAuthReady(false); setShowLanding(true); }
-        else { setShowLanding(false); setAuthReady(true); }
+        else { setShowLanding(false); router.replace('/targets' as any); }
       } else {
         if (!session) router.replace('/auth');
       }
@@ -531,7 +531,7 @@ export default function ProfilesScreen() {
     />
   );
 
-  if (showLanding) return <LandingPageV2 />;
+  if (showLanding) return <LandingPageV3 />;
   if (!authReady) return <View style={{ flex: 1, backgroundColor: BG }} />;
 
   if (isDesktop) {
@@ -703,12 +703,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   webColumn: {
-    maxWidth: 480,
+    maxWidth: 680,
     alignSelf: 'center' as const,
     width: '100%' as any,
-    borderLeftWidth: 1,
-    borderRightWidth: 1,
-    borderColor: '#1A1A1D',
   },
   header: {
     marginBottom: 8,
