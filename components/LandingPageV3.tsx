@@ -427,12 +427,10 @@ function runV3Scripts(R: HTMLElement) {
   R.querySelector('.btn-accent-price')?.addEventListener('click', () => { window.location.href = '/pricing'; });
 }
 
-// ─── Web: direct HTML injection (pixel-perfect match) ────────────────────────
+// ─── Web: mount outside React tree to escape Stack transforms/overflow ────────
 function LandingPageWebDirect() {
-  const ref = useRef<HTMLDivElement | null>(null);
-
   useEffect(() => {
-    // Inject fonts
+    // Fonts
     if (!document.getElementById('v3-fonts')) {
       const l = document.createElement('link');
       l.id = 'v3-fonts';
@@ -440,37 +438,38 @@ function LandingPageWebDirect() {
       l.href = 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@300;400;500;600&display=swap';
       document.head.appendChild(l);
     }
-    // Inject CSS
-    if (!document.getElementById('v3-styles')) {
-      const s = document.createElement('style');
-      s.id = 'v3-styles';
-      s.textContent = V3_CSS;
-      document.head.appendChild(s);
-    }
 
-    const R = ref.current;
-    if (!R) return;
+    // CSS
+    const style = document.createElement('style');
+    style.id = 'v3-styles';
+    style.textContent = V3_CSS;
+    document.head.appendChild(style);
 
-    runV3Scripts(R);
+    // Mount directly on body — bypasses Expo Stack's transforms and overflow:hidden
+    const container = document.createElement('div');
+    container.id = 'v3-landing';
+    container.className = 'v3-root';
+    container.style.cssText = [
+      'position:fixed',
+      'top:0', 'left:0', 'right:0', 'bottom:0',
+      'z-index:9999',
+      'overflow-y:auto',
+      'overflow-x:hidden',
+      'background:#0a0a0a',
+    ].join(';');
+    container.innerHTML = V3_BODY;
+    document.body.appendChild(container);
+
+    runV3Scripts(container);
 
     return () => {
-      document.getElementById('v3-styles')?.remove();
+      style.remove();
+      container.remove();
     };
   }, []);
 
-  // Use React.createElement so dangerouslySetInnerHTML works (not available on RN View)
-  return React.createElement('div', {
-    ref,
-    className: 'v3-root',
-    dangerouslySetInnerHTML: { __html: V3_BODY },
-    style: {
-      position: 'fixed',
-      top: 0, left: 0, right: 0, bottom: 0,
-      overflowY: 'auto',
-      overflowX: 'hidden',
-      background: '#0a0a0a',
-    },
-  });
+  // Nothing in the React tree — entire page comes from the DOM node above
+  return null;
 }
 
 // ─── Native fallback (simplified) ─────────────────────────────────────────────
