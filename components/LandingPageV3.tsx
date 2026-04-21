@@ -55,11 +55,17 @@ function Navigation({ scrolled }: { scrolled: boolean }) {
         </View>
         
         <View style={styles.navLinks}>
+          <TouchableOpacity onPress={() => router.push('/auth' as any)}>
+            <Text style={styles.navLink}>DECODE</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => router.push('/auth' as any)}>
+            <Text style={styles.navLink}>TARGETS</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => router.push('/auth' as any)}>
+            <Text style={styles.navLink}>CAMPAIGNS</Text>
+          </TouchableOpacity>
           <TouchableOpacity onPress={() => router.push('/pricing' as any)}>
             <Text style={styles.navLink}>PRICING</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => router.push('/contact' as any)}>
-            <Text style={styles.navLink}>SUPPORT</Text>
           </TouchableOpacity>
         </View>
 
@@ -871,6 +877,14 @@ const styles = StyleSheet.create({
     paddingVertical: 11,
     paddingHorizontal: 28,
     backgroundColor: COLORS.text,
+    ...Platform.select({
+      web: {
+        background: `linear-gradient(105deg, ${COLORS.text} 0%, ${COLORS.text} 35%, rgba(255,255,255,0.55) 50%, ${COLORS.text} 65%, ${COLORS.text} 100%)`,
+        backgroundSize: '300% 100%',
+        backgroundPosition: '200% center',
+        animation: 'shimmer 3s ease-in-out infinite',
+      } as any,
+    }),
   },
   primaryButtonText: {
     fontFamily: MONO,
@@ -1097,6 +1111,8 @@ const styles = StyleSheet.create({
     padding: 36,
     ...Platform.select({
       web: {
+        width: '50%' as any,
+        boxSizing: 'border-box' as any,
         ':hover': {
           backgroundColor: COLORS.s2,
         },
@@ -1205,8 +1221,12 @@ const styles = StyleSheet.create({
     padding: 32,
     ...Platform.select({
       web: {
+        flex: 1,
         position: 'relative',
         overflow: 'hidden',
+      },
+      default: {
+        flex: 1,
       },
     }),
   },
