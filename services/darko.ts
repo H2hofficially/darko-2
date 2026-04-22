@@ -295,7 +295,8 @@ export function sendMessage(
           let errMsg = '// signal lost';
           try {
             const parsed = JSON.parse(event?.message ?? '');
-            if (parsed.error) errMsg = parsed.error;
+            // Our function uses .error; Supabase infrastructure uses .message
+            errMsg = parsed.error ?? parsed.message ?? `HTTP ${status}`;
           } catch {}
           onError(errMsg);
         } else {
