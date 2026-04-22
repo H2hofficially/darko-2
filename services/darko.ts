@@ -164,15 +164,17 @@ export function sendMessage(
   // Web fetch abort controller
   const abortController = Platform.OS === 'web' ? new AbortController() : null;
 
-  // Refresh session first to ensure token is valid before calling edge function
   supabase.auth.getSession().then(async ({ data: { session: existingSession } }) => {
     if (cancelled) return;
 
     let session = existingSession;
-    if (!session) {
-      // Try refreshing before giving up
+
+    // Force refresh if token is expired or expires within the next 60 seconds
+    const nowSec = Math.floor(Date.now() / 1000);
+    const expiresAt: number = (session as any)?.expires_at ?? 0;
+    if (!session || expiresAt < nowSec + 60) {
       const { data: refreshed } = await supabase.auth.refreshSession();
-      session = refreshed.session;
+      session = refreshed.session ?? session;
     }
 
     if (!session) { onError('Not authenticated'); return; }

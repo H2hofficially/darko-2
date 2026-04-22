@@ -1267,7 +1267,7 @@ export default function DecodeScreen() {
         let display: string;
         if (errMsg.startsWith('RATE LIMIT')) {
           display = '// ' + errMsg.slice(0, 60).toLowerCase() + '...';
-        } else if (errMsg === 'Not authenticated' || errMsg === 'UNAUTHORIZED' || errMsg.toLowerCase().includes('jwt')) {
+        } else if (errMsg === 'Not authenticated' || errMsg.toLowerCase().includes('jwt')) {
           display = '// session expired — sign out and back in';
         } else if (errMsg.toLowerCase().includes('unavailable') || errMsg.toLowerCase().includes('timed out')) {
           display = '// engine busy — tap to retry';
