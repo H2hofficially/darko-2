@@ -1264,9 +1264,16 @@ export default function DecodeScreen() {
       (errMsg) => {
         setLoading(false);
         setChatMessages((prev) => prev.filter((m) => m.id !== darkoMsgId));
-        const display = errMsg.startsWith('RATE LIMIT')
-          ? '// ' + errMsg.slice(0, 60).toLowerCase() + '...'
-          : '// signal lost';
+        let display: string;
+        if (errMsg.startsWith('RATE LIMIT')) {
+          display = '// ' + errMsg.slice(0, 60).toLowerCase() + '...';
+        } else if (errMsg === 'Not authenticated' || errMsg === 'UNAUTHORIZED' || errMsg.toLowerCase().includes('jwt')) {
+          display = '// session expired — sign out and back in';
+        } else if (errMsg.toLowerCase().includes('unavailable') || errMsg.toLowerCase().includes('timed out')) {
+          display = '// engine busy — tap to retry';
+        } else {
+          display = '// signal lost';
+        }
         setError(display);
       },
     );

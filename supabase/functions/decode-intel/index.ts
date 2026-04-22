@@ -889,26 +889,94 @@ serve(async (req: Request) => {
     }
     messages.push({ role: 'user', content: userMessageWithContext });
 
-    // ── Streaming DeepSeek call ───────────────────────────────────────────────
-    const streamRes = await fetch(DEEPSEEK_API_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model: 'deepseek-chat',
-        messages,
-        stream: true,
-        temperature: tier === 'pro' ? 0.8 : 0.6,
-      }),
-    });
+    // ── Streaming AI call (DeepSeek → Gemini fallback) ───────────────────────
+    console.log('[decode-intel] calling AI, tier=' + tier + ' userId=' + (userId ?? 'anon'));
 
-    if (!streamRes.ok) {
-      const errText = await streamRes.text();
-      console.error('[decode-intel] DeepSeek stream error:', streamRes.status, errText.slice(0, 300));
+    let streamRes: Response | null = null;
+    let usedModel = 'deepseek';
+
+    // Try DeepSeek with a hard 25-second timeout
+    try {
+      const dsAbort = new AbortController();
+      const dsTimeout = setTimeout(() => dsAbort.abort(), 25000);
+      const attempt = await fetch(DEEPSEEK_API_URL, {
+        method: 'POST',
+        signal: dsAbort.signal,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
+        },
+        body: JSON.stringify({
+          model: 'deepseek-chat',
+          messages,
+          stream: true,
+          temperature: tier === 'pro' ? 0.8 : 0.6,
+        }),
+      });
+      clearTimeout(dsTimeout);
+      if (attempt.ok) {
+        streamRes = attempt;
+      } else {
+        const errText = await attempt.text();
+        console.error('[decode-intel] DeepSeek error:', attempt.status, errText.slice(0, 200));
+      }
+    } catch (dsErr: any) {
+      console.error('[decode-intel] DeepSeek fetch failed:', dsErr?.message ?? dsErr);
+    }
+
+    // Gemini fallback — non-streaming, wraps into SSE-compatible stream
+    if (!streamRes && GEMINI_API_KEY) {
+      console.log('[decode-intel] falling back to Gemini');
+      usedModel = 'gemini';
+      try {
+        const GEMINI_CHAT_URL =
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+
+        const geminiMessages = messages
+          .filter((m) => m.role !== 'system')
+          .map((m) => ({
+            role: m.role === 'assistant' ? 'model' : 'user',
+            parts: [{ text: m.content }],
+          }));
+
+        const sysInstruction = messages.find((m) => m.role === 'system')?.content ?? '';
+
+        const gRes = await fetch(GEMINI_CHAT_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            system_instruction: { parts: [{ text: sysInstruction }] },
+            contents: geminiMessages,
+            generationConfig: { temperature: 0.7 },
+          }),
+        });
+
+        if (gRes.ok) {
+          const gData = await gRes.json();
+          const text: string = gData?.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+          if (text) {
+            // Wrap into SSE format matching what the client expects
+            const sseChunk = `data: ${JSON.stringify({ choices: [{ delta: { content: text }, finish_reason: null }] })}\n\ndata: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: 'stop' }] })}\n\ndata: [DONE]\n\n`;
+            streamRes = new Response(sseChunk, {
+              headers: {
+                ...corsHeaders,
+                'Content-Type': 'text/event-stream',
+                'Cache-Control': 'no-cache',
+              },
+            });
+          }
+        } else {
+          const gErr = await gRes.text();
+          console.error('[decode-intel] Gemini fallback error:', gRes.status, gErr.slice(0, 200));
+        }
+      } catch (gErr: any) {
+        console.error('[decode-intel] Gemini fallback failed:', gErr?.message ?? gErr);
+      }
+    }
+
+    if (!streamRes) {
       return new Response(
-        JSON.stringify({ error: 'AI request failed' }),
+        JSON.stringify({ error: 'AI engine temporarily unavailable. Try again in a moment.' }),
         { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
       );
     }
@@ -933,6 +1001,7 @@ serve(async (req: Request) => {
     console.log(
       JSON.stringify({
         event: 'message',
+        model: usedModel,
         userId: userId ?? 'anon',
         tier,
         target_id: target_id ?? 'unknown',
@@ -941,6 +1010,9 @@ serve(async (req: Request) => {
     );
 
     // ── Forward SSE stream to client ──────────────────────────────────────────
+    // If streamRes already has the right headers (Gemini fallback), return as-is
+    if (usedModel === 'gemini') return streamRes;
+
     return new Response(streamRes.body, {
       headers: {
         ...corsHeaders,

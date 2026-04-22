@@ -164,8 +164,17 @@ export function sendMessage(
   // Web fetch abort controller
   const abortController = Platform.OS === 'web' ? new AbortController() : null;
 
-  supabase.auth.getSession().then(({ data: { session } }) => {
+  // Refresh session first to ensure token is valid before calling edge function
+  supabase.auth.getSession().then(async ({ data: { session: existingSession } }) => {
     if (cancelled) return;
+
+    let session = existingSession;
+    if (!session) {
+      // Try refreshing before giving up
+      const { data: refreshed } = await supabase.auth.refreshSession();
+      session = refreshed.session;
+    }
+
     if (!session) { onError('Not authenticated'); return; }
 
     const body: Record<string, unknown> = {
@@ -227,7 +236,8 @@ export function sendMessage(
             let errMsg = '// signal lost';
             try {
               const errBody = await res.json();
-              if (errBody.error) errMsg = errBody.error;
+              // Our function uses .error; Supabase infrastructure uses .message
+              errMsg = errBody.error ?? errBody.message ?? `HTTP ${res.status}`;
             } catch {}
             if (!cancelled) onError(errMsg);
             return;
