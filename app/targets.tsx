@@ -252,7 +252,9 @@ function DetailDrawer({
   onCampaign: (t: TargetRow) => void;
   onDelete: (t: TargetRow) => void;
 }) {
-  const slideAnim = useRef(new Animated.Value(360)).current;
+  const { width: screenWidth } = useWindowDimensions();
+  const drawerWidth = Math.min(360, Math.max(260, screenWidth * 0.75));
+  const slideAnim = useRef(new Animated.Value(drawerWidth)).current;
   const prevTarget = useRef<TargetRow | null>(null);
 
   useEffect(() => {
@@ -280,7 +282,7 @@ function DetailDrawer({
   const phaseColor = PHASE_COLORS[phaseLbl] ?? MUTED;
 
   return (
-    <Animated.View style={[dd.drawer, { transform: [{ translateX: slideAnim }] }]}>
+    <Animated.View style={[dd.drawer, { width: drawerWidth, transform: [{ translateX: slideAnim }] }]}>
       {/* Header */}
       <View style={dd.header}>
         <View style={{ flex: 1 }}>
@@ -655,7 +657,7 @@ const FILTER_OPTIONS: FilterPhase[] = ['ALL', 'APPROACH', 'BUILD', 'DECIDE', 'CO
 export default function TargetsScreen() {
   const router = useRouter();
   const { width } = useWindowDimensions();
-  const isWeb = Platform.OS === 'web' && width > 700;
+  const isWeb = Platform.OS === 'web' && width >= 600;
   const { tier } = useUser();
 
   const [rows, setRows] = useState<TargetRow[]>([]);
@@ -797,7 +799,7 @@ export default function TargetsScreen() {
     <View style={s.root}>
       <StatusBar style="light" />
 
-      {isWeb && <AppNav />}
+      {(isWeb || Platform.OS === 'web') && <AppNav />}
 
       {/* Toolbar */}
       <View style={s.toolbar}>
@@ -880,7 +882,7 @@ export default function TargetsScreen() {
         )}
       </View>
 
-      {isWeb && <AppStatusBar />}
+      {(isWeb || Platform.OS === 'web') && <AppStatusBar />}
 
       {/* Create overlay */}
       {showCreate && (
@@ -928,8 +930,8 @@ const s = StyleSheet.create({
     borderBottomColor: BORDER,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 24,
-    gap: 12,
+    paddingHorizontal: 14,
+    gap: 8,
     flexShrink: 0,
   },
   toolbarTitle: { fontFamily: MONO as any, fontSize: 10, color: TEXT, letterSpacing: 3 },

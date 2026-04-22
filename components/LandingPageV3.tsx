@@ -130,14 +130,53 @@ const V3_CSS = `
 @keyframes blink{0%,49%{opacity:1}50%,100%{opacity:0}}
 .cursor{display:inline-block;width:0.5em;height:0.85em;background:var(--a);vertical-align:middle;animation:blink 1s step-end infinite;margin-left:1px;}
 
+/* ── Tablet (≤ 1024px) ───────────────────────────────────────────────── */
+@media(max-width:1024px){
+  .hero{padding-left:24px;padding-right:24px}
+  .caps-section{padding:80px 24px}
+  .pricing-section{padding:80px 24px}
+}
+
+/* ── Mobile (≤ 900px) ────────────────────────────────────────────────── */
 @media(max-width:900px){
-  .hero{grid-template-columns:1fr;padding-top:calc(var(--nav-h)+28px+16px)}
-  .hero-left{padding-right:0;border-right:none;border-bottom:1px solid var(--b);padding-bottom:36px}
-  .hero-right{padding-left:0;padding-top:36px}
+  .hero{grid-template-columns:1fr;padding-top:calc(var(--nav-h)+28px+16px);padding-left:20px;padding-right:20px;padding-bottom:48px}
+  .hero-left{padding-right:0;border-right:none;border-bottom:1px solid var(--b);padding-bottom:32px}
+  .hero-right{padding-left:0;padding-top:32px}
+  .hero-right::before{width:260px;height:260px}
   .caps-grid{grid-template-columns:1fr}
   .pricing-grid{grid-template-columns:1fr}
   .nav-links{display:none}
-  .headline{font-size:clamp(44px,11vw,64px)}
+  .headline{font-size:clamp(40px,10vw,60px)}
+  .sub{font-size:15px}
+  .caps-section{padding:64px 20px}
+  .pricing-section{padding:64px 20px}
+  .quote-block{padding:0 16px}
+  .quote-text{font-size:clamp(22px,6vw,36px)}
+  .cap-card{padding:28px 20px}
+  .price-card{padding:24px 20px}
+}
+
+/* ── Small mobile (≤ 480px) ──────────────────────────────────────────── */
+@media(max-width:480px){
+  :root{--nav-h:48px}
+  .nav{padding:0 16px}
+  .hero{padding-left:16px;padding-right:16px;gap:0}
+  .headline{font-size:clamp(36px,11vw,52px);letter-spacing:-0.03em}
+  .sub{font-size:14px;line-height:1.6}
+  .cta-row{flex-direction:column;align-items:flex-start;gap:16px}
+  .btn-primary{width:100%;text-align:center;padding:13px 20px}
+  .btn-ghost{font-size:11px}
+  .kicker{font-size:9px}
+  .caps-section{padding:48px 16px}
+  .pricing-section{padding:48px 16px}
+  .section-kicker{font-size:9px;margin-bottom:32px}
+  .cap-card{padding:24px 16px}
+  .cap-title{font-size:19px}
+  .price-card{padding:20px 16px}
+  .price-number{font-size:36px}
+  .dp-key{flex:0 0 120px}
+  .ticker-item{padding:0 12px;font-size:8px}
+  .decode-panel{margin:0}
 }
 `;
 

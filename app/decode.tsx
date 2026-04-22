@@ -887,7 +887,8 @@ export default function DecodeScreen() {
   const { targetId, targetName, darkoAlert } = useLocalSearchParams<{ targetId: string; targetName: string; darkoAlert?: string }>();
   const router = useRouter();
   const { width } = useWindowDimensions();
-  const isWide = Platform.OS === 'web' && width > 1000;
+  const isWide = Platform.OS === 'web' && width >= 1024;
+  const isWebMobile = Platform.OS === 'web' && width < 1024;
 
   const [chatMessages, setChatMessages] = useState<ChatMsg[]>([]);
   const [currentPhase, setCurrentPhase] = useState(1);
@@ -1537,7 +1538,8 @@ export default function DecodeScreen() {
 
   // ── Narrow / native layout ─────────────────────────────────────────────────
   return (
-    <View style={{ flex: 1, backgroundColor: BG }}>
+    <View style={{ flex: 1, backgroundColor: BG, flexDirection: 'column' }}>
+      {isWebMobile && <AppNav />}
     <View style={[styles.root, Platform.OS === 'web' && styles.webColumn]}>
       <StatusBar style="light" />
 
@@ -1761,6 +1763,7 @@ export default function DecodeScreen() {
         reason={paywallReason}
       />
     </View>
+      {isWebMobile && <AppStatusBar />}
     </View>
   );
 }
@@ -1768,8 +1771,8 @@ export default function DecodeScreen() {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: BG, paddingTop: 60 },
-  webColumn: { maxWidth: 900, alignSelf: 'center' as const, width: '100%' as any },
+  root: { flex: 1, backgroundColor: BG, paddingTop: Platform.OS !== 'web' ? 60 : 0 },
+  webColumn: { maxWidth: 760, alignSelf: 'center' as const, width: '100%' as any },
 
   header: { paddingHorizontal: 20, marginBottom: 8 },
   headerTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },

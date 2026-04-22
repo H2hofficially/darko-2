@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, Platform, Animated } from 'react-native';
+import { View, Text, StyleSheet, Platform, Animated, useWindowDimensions } from 'react-native';
 
 const BG = 'rgba(18,18,21,0.96)';
 const BORDER = '#27272A';
@@ -11,24 +11,48 @@ const MONO = Platform.select({
   default: "'JetBrains Mono', monospace",
 });
 
-const STATUS_ITEMS = [
-  { dot: true, label: 'HANDLER ONLINE' },
-  { dot: true, label: 'DECODE ENGINE ACTIVE' },
-  { label: 'ENGINE', val: 'DARKO v4.0' },
-  { label: 'LATENCY', val: '142ms' },
-  { label: 'ENCRYPTION', val: 'AES-256' },
-];
-
 export function AppStatusBar() {
   const [latency, setLatency] = useState(142);
+  const { width } = useWindowDimensions();
+  const isMobile = Platform.OS === 'web' && width < 640;
+  const isTablet = Platform.OS === 'web' && width >= 640 && width < 1024;
 
-  // Subtly vary latency to feel live
   useEffect(() => {
     const t = setInterval(() => {
       setLatency(130 + Math.floor(Math.random() * 30));
     }, 4000);
     return () => clearInterval(t);
   }, []);
+
+  if (isMobile) {
+    // Compact single-line on mobile
+    return (
+      <View style={s.bar}>
+        <View style={s.items}>
+          <StatusItem dot label="ONLINE" />
+          <Separator />
+          <StatusItem label="ENGINE" val="DARKO v4.0" />
+        </View>
+        <Text style={s.copy}>NXGEN · 2026</Text>
+      </View>
+    );
+  }
+
+  if (isTablet) {
+    // Medium — drop encryption, keep core items
+    return (
+      <View style={s.bar}>
+        <View style={s.items}>
+          <StatusItem dot label="HANDLER ONLINE" />
+          <Separator />
+          <StatusItem dot label="ENGINE ACTIVE" />
+          <Separator />
+          <StatusItem label="LATENCY" val={`${latency}ms`} />
+        </View>
+        <Text style={s.copy}>DARKO · 2026</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={s.bar}>
@@ -65,9 +89,7 @@ function StatusItem({ dot, label, val }: { dot?: boolean; label: string; val?: s
 
   return (
     <View style={s.item}>
-      {dot && (
-        <Animated.View style={[s.dot, { opacity: pulse }]} />
-      )}
+      {dot && <Animated.View style={[s.dot, { opacity: pulse }]} />}
       <Text style={s.label}>{label}</Text>
       {val && <Text style={s.val}> {val}</Text>}
     </View>
@@ -86,7 +108,7 @@ const s = StyleSheet.create({
     borderTopColor: BORDER,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 24,
+    paddingHorizontal: 20,
     flexShrink: 0,
   },
   items: {
@@ -94,11 +116,13 @@ const s = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
     flex: 1,
+    overflow: 'hidden',
   },
   item: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
+    flexShrink: 0,
   },
   dot: {
     width: 5,
@@ -128,5 +152,6 @@ const s = StyleSheet.create({
     fontSize: 8,
     color: DIM,
     letterSpacing: 1,
+    flexShrink: 0,
   },
 });

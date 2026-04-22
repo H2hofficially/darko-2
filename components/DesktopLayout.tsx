@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Platform, useWindowDimensions } from 'react-native';
+import { View, Platform, useWindowDimensions, StyleSheet } from 'react-native';
 
 interface DesktopLayoutProps {
   sidebar: React.ReactNode;
@@ -9,48 +9,78 @@ interface DesktopLayoutProps {
 
 export function DesktopLayout({ sidebar, main, panel }: DesktopLayoutProps) {
   const { width } = useWindowDimensions();
-  const isDesktop = Platform.OS === 'web' && width > 768;
 
-  if (!isDesktop) return <View style={{ flex: 1 }}>{main}</View>;
+  // Breakpoints
+  const isTablet  = Platform.OS === 'web' && width >= 640 && width < 1024;
+  const isDesktop = Platform.OS === 'web' && width >= 1024;
+  const isWide    = Platform.OS === 'web' && width >= 1400;
 
-  return (
-    <View
-      style={{
-        flex: 1,
-        flexDirection: 'row',
-        height: '100%' as any,
-        position: 'fixed' as any,
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-      }}
-    >
-      <View
-        style={{
-          width: 260,
-          borderRightWidth: 1,
-          borderRightColor: '#27272A',
-          backgroundColor: '#09090B',
-          paddingTop: 16,
-        }}
-      >
-        {sidebar}
+  // Mobile — main only
+  if (!isTablet && !isDesktop) {
+    return <View style={{ flex: 1 }}>{main}</View>;
+  }
+
+  // Tablet — sidebar + main, no panel
+  if (isTablet) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.sidebarTablet}>{sidebar}</View>
+        <View style={styles.main}>{main}</View>
       </View>
-      <View style={{ flex: 1, backgroundColor: '#09090B' }}>{main}</View>
+    );
+  }
+
+  // Desktop — sidebar + main + optional panel
+  return (
+    <View style={styles.container}>
+      <View style={styles.sidebar}>{sidebar}</View>
+      <View style={styles.main}>{main}</View>
       {panel && (
-        <View
-          style={{
-            width: 320,
-            borderLeftWidth: 1,
-            borderLeftColor: '#27272A',
-            backgroundColor: '#09090B',
-            paddingTop: 16,
-          }}
-        >
+        <View style={[styles.panel, isWide && styles.panelWide]}>
           {panel}
         </View>
       )}
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    flexDirection: 'row',
+    height: '100%' as any,
+    backgroundColor: '#09090B',
+  },
+  sidebarTablet: {
+    width: 220,
+    borderRightWidth: 1,
+    borderRightColor: '#27272A',
+    backgroundColor: '#09090B',
+    paddingTop: 20,
+  },
+  sidebar: {
+    width: 280,
+    borderRightWidth: 1,
+    borderRightColor: '#27272A',
+    backgroundColor: '#09090B',
+    paddingTop: 24,
+  },
+  main: {
+    flex: 1,
+    backgroundColor: '#09090B',
+    paddingTop: 24,
+    paddingHorizontal: 32,
+    minWidth: 0,
+  },
+  panel: {
+    width: 320,
+    borderLeftWidth: 1,
+    borderLeftColor: '#27272A',
+    backgroundColor: '#09090B',
+    paddingTop: 24,
+    paddingHorizontal: 20,
+  },
+  panelWide: {
+    width: 380,
+  },
+});

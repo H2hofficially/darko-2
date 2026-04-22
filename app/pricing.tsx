@@ -356,23 +356,25 @@ export default function PricingScreen() {
       {/* Feature comparison table */}
       <View style={s.section}>
         <Text style={s.sectionLabel}>// FEATURE COMPARISON</Text>
-        <View style={s.table}>
-          {/* Table header */}
-          <View style={[s.tableRow, s.tableHeader]}>
-            <Text style={[s.tableCell, s.tableCellLabel, s.tableHeaderText]}>FEATURE</Text>
-            <Text style={[s.tableCell, s.tableHeaderText, s.tableHeaderCenter]}>OBSERVER</Text>
-            <Text style={[s.tableCell, s.tableHeaderText, s.tableHeaderCenter, { color: ACCENT }]}>OPERATOR</Text>
-            <Text style={[s.tableCell, s.tableHeaderText, s.tableHeaderCenter]}>EXECUTIVE</Text>
-          </View>
-          {FEATURES.map((row, i) => (
-            <View key={row.label} style={[s.tableRow, i % 2 === 0 && s.tableRowAlt]}>
-              <Text style={[s.tableCell, s.tableCellLabel]}>{row.label}</Text>
-              <View style={s.tableCell}><Check value={row.observer} dim /></View>
-              <View style={s.tableCell}><Check value={row.operator} /></View>
-              <View style={s.tableCell}><Check value={row.executive} /></View>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          <View style={[s.table, { minWidth: 480 }]}>
+            {/* Table header */}
+            <View style={[s.tableRow, s.tableHeader]}>
+              <Text style={[s.tableCell, s.tableCellLabel, s.tableHeaderText]}>FEATURE</Text>
+              <Text style={[s.tableCell, s.tableHeaderText, s.tableHeaderCenter]}>OBSERVER</Text>
+              <Text style={[s.tableCell, s.tableHeaderText, s.tableHeaderCenter, { color: ACCENT }]}>OPERATOR</Text>
+              <Text style={[s.tableCell, s.tableHeaderText, s.tableHeaderCenter]}>EXECUTIVE</Text>
             </View>
-          ))}
-        </View>
+            {FEATURES.map((row, i) => (
+              <View key={row.label} style={[s.tableRow, i % 2 === 0 && s.tableRowAlt]}>
+                <Text style={[s.tableCell, s.tableCellLabel]}>{row.label}</Text>
+                <View style={s.tableCell}><Check value={row.observer} dim /></View>
+                <View style={s.tableCell}><Check value={row.operator} /></View>
+                <View style={s.tableCell}><Check value={row.executive} /></View>
+              </View>
+            ))}
+          </View>
+        </ScrollView>
       </View>
 
       {/* FAQ */}

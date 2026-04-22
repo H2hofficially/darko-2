@@ -444,7 +444,8 @@ export default function CampaignsScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ targetId?: string }>();
   const { width } = useWindowDimensions();
-  const isWide = Platform.OS === 'web' && width > 900;
+  const isWide = Platform.OS === 'web' && width >= 1024;
+  const isWebNarrow = Platform.OS === 'web' && width < 1024;
 
   const [targets, setTargets] = useState<CampaignTarget[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(params.targetId ?? null);
@@ -782,9 +783,9 @@ export default function CampaignsScreen() {
   return (
     <View style={s.root}>
       <StatusBar style="light" />
-      {isWide && <AppNav />}
+      {Platform.OS === 'web' && <AppNav />}
       {isWide ? renderWide() : renderNarrow()}
-      {isWide && <AppStatusBar />}
+      {Platform.OS === 'web' && <AppStatusBar />}
     </View>
   );
 }

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, Pressable, TouchableOpacity, StyleSheet, Platform } from 'react-native';
+import { View, Text, Pressable, TouchableOpacity, StyleSheet, Platform, useWindowDimensions, Modal, ScrollView } from 'react-native';
 import { useRouter, usePathname } from 'expo-router';
 import { supabase } from '../lib/supabase';
 import { useUser } from '../context/UserContext';
@@ -27,9 +27,16 @@ export function AppNav() {
   const router = useRouter();
   const pathname = usePathname();
   const { tier } = useUser();
+  const { width } = useWindowDimensions();
   const [userHovered, setUserHovered] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  // Breakpoints
+  const isMobile = Platform.OS === 'web' && width < 640;
+  const isTablet = Platform.OS === 'web' && width >= 640 && width < 1024;
 
   const handleSignOut = async () => {
+    setMenuOpen(false);
     await supabase.auth.signOut();
     router.replace('/');
   };
@@ -39,51 +46,115 @@ export function AppNav() {
     return pathname === route;
   };
 
+  const navigateTo = (route: string) => {
+    setMenuOpen(false);
+    if (route === '/decode') {
+      router.push('/targets' as any);
+    } else {
+      router.push(route as any);
+    }
+  };
+
   return (
-    <View style={s.nav}>
-      {/* Logo */}
-      <Pressable style={s.logo} onPress={() => router.push('/targets' as any)}>
-        <View style={s.logoSq} />
-        <Text style={s.logoText}>DARKO</Text>
-      </Pressable>
-
-      {/* Links */}
-      <View style={s.links}>
-        {NAV_LINKS.map((link) => (
-          <NavLink
-            key={link.route}
-            label={link.label}
-            active={isActive(link.route)}
-            onPress={() => {
-              if (link.route === '/decode') {
-                // Decode needs a targetId — go to targets first if no context
-                router.push('/targets' as any);
-              } else {
-                router.push(link.route as any);
-              }
-            }}
-          />
-        ))}
-      </View>
-
-      {/* Right */}
-      <View style={s.right}>
-        <View style={s.statusChip}>
-          <View style={s.dot} />
-          <Text style={s.statusText}>ENGINE ACTIVE</Text>
-        </View>
-
-        <Pressable
-          style={[s.userChip, userHovered && s.userChipHovered]}
-          onPress={handleSignOut}
-          onHoverIn={() => setUserHovered(true)}
-          onHoverOut={() => setUserHovered(false)}
-        >
-          <Text style={s.userTier}>{tier.toUpperCase()}</Text>
-          <Text style={s.userAction}>SIGN OUT</Text>
+    <>
+      <View style={s.nav}>
+        {/* Logo */}
+        <Pressable style={s.logo} onPress={() => router.push('/targets' as any)}>
+          <View style={s.logoSq} />
+          <Text style={s.logoText}>DARKO</Text>
         </Pressable>
+
+        {/* Links — hidden on mobile */}
+        {!isMobile && (
+          <View style={s.links}>
+            {NAV_LINKS.map((link) => (
+              <NavLink
+                key={link.route}
+                label={link.label}
+                active={isActive(link.route)}
+                onPress={() => navigateTo(link.route)}
+              />
+            ))}
+          </View>
+        )}
+
+        {/* Spacer on mobile */}
+        {isMobile && <View style={{ flex: 1 }} />}
+
+        {/* Right */}
+        <View style={s.right}>
+          {/* Status chip — hide on small mobile */}
+          {!isMobile && (
+            <View style={s.statusChip}>
+              <View style={s.dot} />
+              <Text style={s.statusText}>ENGINE ACTIVE</Text>
+            </View>
+          )}
+
+          {/* User chip — compact on mobile */}
+          {!isMobile ? (
+            <Pressable
+              style={[s.userChip, userHovered && s.userChipHovered]}
+              onPress={handleSignOut}
+              onHoverIn={() => setUserHovered(true)}
+              onHoverOut={() => setUserHovered(false)}
+            >
+              <Text style={s.userTier}>{tier.toUpperCase()}</Text>
+              <Text style={s.userAction}>SIGN OUT</Text>
+            </Pressable>
+          ) : null}
+
+          {/* Hamburger — mobile only */}
+          {isMobile && (
+            <Pressable style={s.hamburger} onPress={() => setMenuOpen(true)}>
+              <View style={s.hLine} />
+              <View style={s.hLine} />
+              <View style={s.hLine} />
+            </Pressable>
+          )}
+        </View>
       </View>
-    </View>
+
+      {/* Mobile menu sheet */}
+      {isMobile && menuOpen && (
+        <Modal transparent animationType="fade" onRequestClose={() => setMenuOpen(false)}>
+          <Pressable style={s.overlay} onPress={() => setMenuOpen(false)}>
+            <View style={s.sheet}>
+              {/* Header */}
+              <View style={s.sheetHeader}>
+                <View style={s.sheetLogoRow}>
+                  <View style={s.logoSq} />
+                  <Text style={s.logoText}>DARKO</Text>
+                </View>
+                <View style={s.statusChip}>
+                  <View style={s.dot} />
+                  <Text style={s.statusText}>{tier.toUpperCase()}</Text>
+                </View>
+              </View>
+
+              {/* Links */}
+              {NAV_LINKS.map((link) => (
+                <Pressable
+                  key={link.route}
+                  style={[s.sheetLink, isActive(link.route) && s.sheetLinkActive]}
+                  onPress={() => navigateTo(link.route)}
+                >
+                  <Text style={[s.sheetLinkText, isActive(link.route) && s.sheetLinkTextActive]}>
+                    {link.label}
+                  </Text>
+                  {isActive(link.route) && <View style={s.sheetActiveDot} />}
+                </Pressable>
+              ))}
+
+              {/* Sign out */}
+              <Pressable style={s.sheetSignOut} onPress={handleSignOut}>
+                <Text style={s.sheetSignOutText}>SIGN OUT</Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Modal>
+      )}
+    </>
   );
 }
 
@@ -99,7 +170,6 @@ function NavLink({ label, active, onPress }: { label: string; active: boolean; o
       <Text style={[s.navLink, (active || hovered) && s.navLinkActive]}>
         {label}
       </Text>
-      {/* underline accent */}
       {Platform.OS === 'web' && (
         <View
           style={[
@@ -115,12 +185,12 @@ function NavLink({ label, active, onPress }: { label: string; active: boolean; o
 const s = StyleSheet.create({
   nav: {
     height: 48,
-    backgroundColor: 'rgba(10,10,10,0.95)' as any,
+    backgroundColor: 'rgba(10,10,10,0.97)' as any,
     borderBottomWidth: 1,
     borderBottomColor: BORDER,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 24,
+    paddingHorizontal: 20,
     flexShrink: 0,
     zIndex: 500,
   },
@@ -214,6 +284,86 @@ const s = StyleSheet.create({
   userAction: {
     fontFamily: MONO as any,
     fontSize: 8,
+    color: DIM,
+    letterSpacing: 2,
+  },
+
+  // Hamburger
+  hamburger: {
+    width: 36,
+    height: 36,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 5,
+  },
+  hLine: {
+    width: 20,
+    height: 1,
+    backgroundColor: DIM,
+  },
+
+  // Mobile sheet
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    justifyContent: 'flex-start',
+  },
+  sheet: {
+    backgroundColor: S1,
+    borderBottomWidth: 1,
+    borderBottomColor: BORDER,
+    paddingBottom: 8,
+  },
+  sheetHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: BORDER,
+    marginBottom: 4,
+  },
+  sheetLogoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  sheetLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(39,39,42,0.5)' as any,
+  },
+  sheetLinkActive: {
+    backgroundColor: 'rgba(204,255,0,0.04)' as any,
+  },
+  sheetLinkText: {
+    fontFamily: MONO as any,
+    fontSize: 11,
+    color: DIM,
+    letterSpacing: 2,
+  },
+  sheetLinkTextActive: {
+    color: TEXT,
+  },
+  sheetActiveDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: ACCENT,
+  },
+  sheetSignOut: {
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    marginTop: 4,
+  },
+  sheetSignOutText: {
+    fontFamily: MONO as any,
+    fontSize: 10,
     color: DIM,
     letterSpacing: 2,
   },
