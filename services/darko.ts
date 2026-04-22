@@ -375,6 +375,7 @@ export async function generateTargetProfile(
       target_communication_style: data.target_communication_style ?? '',
       relationship_momentum: data.relationship_momentum ?? '',
       last_known_emotional_state: data.last_known_emotional_state ?? '',
+      relationship_narrative: data.relationship_narrative ?? undefined,
       generatedAt: data.generatedAt ?? new Date().toISOString(),
     };
   } catch {

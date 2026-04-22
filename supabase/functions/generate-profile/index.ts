@@ -69,7 +69,8 @@ Return this exact JSON structure:
   "operative_mistakes": ["tactical error the operative made — include approximate date if available", "second error", "..."],
   "target_communication_style": "describe exactly how this target writes — vocabulary, emoji usage, language mixing, formality level, typical message length",
   "relationship_momentum": "ADVANCING | STALLING | REGRESSING — one sentence why",
-  "last_known_emotional_state": "target's emotional state based on most recent messages in history"
+  "last_known_emotional_state": "target's emotional state based on most recent messages in history",
+  "relationship_narrative": "3 to 5 paragraphs. Write in cold, precise field-report prose — no therapy language, no flattery. Cover ALL of the following across the paragraphs: (1) Origin story — how they met or first connected, the circumstances, who initiated and why, what the early dynamic felt like; (2) Power dynamic — who holds frame and why, has it shifted, where the leverage sits right now; (3) Recurring patterns — the behavioral loops that repeat, what triggers them, what they reveal about her psychology; (4) What she responds to — specific inputs that move her, the register she opens up to, tactical approaches that have worked; (5) What she rejects or shuts down — approaches that cause withdrawal, what threatens her, her defensive postures; (6) The operative's specific frame with this target — if a named dynamic or frame has emerged (the forbidden thing, the safe confessor, the challenge she can't win), name it and describe how it functions. If history is thin, infer from archetype and attachment style and state your reasoning. Each paragraph 3-6 sentences. Total 200-350 words."
 }`;
 
     const res = await fetch(`${GEMINI_URL}?key=${GEMINI_API_KEY}`, {

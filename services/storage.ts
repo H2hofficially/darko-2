@@ -48,6 +48,7 @@ export type TargetProfile = {
   target_communication_style?: string;
   relationship_momentum?: string;
   last_known_emotional_state?: string;
+  relationship_narrative?: string;
   generatedAt: string;
 };
 

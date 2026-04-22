@@ -135,6 +135,18 @@ When you write a text for the user to send:
 
 If user hasn't shared his voice yet, ask for three real recent texts before writing for him.
 
+### REPHRASE PRESERVATION — HARD RULE
+
+When a user asks you to rephrase a message you already wrote:
+- Statement stays a statement. Question stays a question. Do not change the grammatical mode.
+- Length stays within 20% of original. Do not compress a 3-sentence message to one sentence, do not expand a one-liner to a paragraph.
+- The tactical structure is preserved: if the original had a hook-then-drop, keep the hook-then-drop. If it was a callback, stay a callback. If it was a pattern interrupt, stay a pattern interrupt.
+- Change ONLY the surface language — word choices, phrasing, rhythm. Not the move underneath.
+
+User asking to "make it sound more casual" does not mean make it shorter or change the move. It means reword it at the same length with the same structure in a more casual register.
+
+When in doubt: same structure, different words.
+
 ---
 
 ## LEGAL HARD STOPS — NARROW, IN-VOICE PIVOTS
@@ -441,21 +453,64 @@ async function extractImageContext(
   }
 }
 
-// ── Campaign state stub ───────────────────────────────────────────────────────
+// ── Campaign state — loads behavioral_profile from DB ────────────────────────
 
 async function getCampaignState(
-  _userId: string,
-  _targetId: string,
+  userId: string,
+  targetId: string,
+  supabaseUrl: string,
+  serviceKey: string,
 ): Promise<Record<string, unknown>> {
-  return {
-    target_archetype: null,
-    attachment_read: null,
-    current_phase: 1,
-    days_since_last_message: null,
-    last_advancement_signal: null,
-    completed_moves: [],
-    user_voice_profile_loaded: false,
-  };
+  try {
+    const admin = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } });
+    const { data } = await admin
+      .from('targets')
+      .select('behavioral_profile')
+      .eq('id', targetId)
+      .eq('user_id', userId)
+      .single();
+
+    const bp = data?.behavioral_profile as Record<string, unknown> | null;
+    if (!bp) {
+      return {
+        target_archetype: null,
+        attachment_read: null,
+        current_phase: 1,
+        days_since_last_message: null,
+        completed_moves: [],
+        user_voice_profile_loaded: false,
+        relationship_narrative: null,
+        behavioral_profile: null,
+      };
+    }
+
+    return {
+      target_archetype: bp.dominant_archetype ?? null,
+      attachment_read: bp.attachment_style ?? null,
+      current_phase: 1,
+      days_since_last_message: null,
+      completed_moves: [],
+      user_voice_profile_loaded: !!bp.target_communication_style,
+      relationship_narrative: bp.relationship_narrative ?? null,
+      power_dynamic: bp.power_dynamic ?? null,
+      relationship_momentum: bp.relationship_momentum ?? null,
+      predicted_next_behavior: bp.predicted_next_behavior ?? null,
+      last_known_emotional_state: bp.last_known_emotional_state ?? null,
+      vulnerability_score: bp.vulnerability_score ?? null,
+      behavioral_profile: bp,
+    };
+  } catch {
+    return {
+      target_archetype: null,
+      attachment_read: null,
+      current_phase: 1,
+      days_since_last_message: null,
+      completed_moves: [],
+      user_voice_profile_loaded: false,
+      relationship_narrative: null,
+      behavioral_profile: null,
+    };
+  }
 }
 
 // ── Context builders ──────────────────────────────────────────────────────────
@@ -773,17 +828,50 @@ serve(async (req: Request) => {
       }
     }
 
-    // ── Campaign state ────────────────────────────────────────────────────────
+    // ── Campaign state + behavioral profile ──────────────────────────────────
     const campaignState = userId && target_id
-      ? await getCampaignState(userId, target_id)
+      ? await getCampaignState(userId, target_id, SUPABASE_URL, SERVICE_KEY)
       : {};
+
     const stateBlock = `[CONTEXT: tier=${tier}, target_archetype=${campaignState.target_archetype ?? 'null'}, attachment_read=${campaignState.attachment_read ?? 'null'}, current_phase=${campaignState.current_phase ?? 1}, days_since_last_message=${campaignState.days_since_last_message ?? 'null'}, completed_moves=${JSON.stringify(campaignState.completed_moves ?? [])}, user_voice_profile_loaded=${campaignState.user_voice_profile_loaded ?? false}]`;
+
+    // ── Relationship narrative block ──────────────────────────────────────────
+    let narrativeBlock = '';
+    const narrative = campaignState.relationship_narrative as string | null;
+    if (narrative) {
+      narrativeBlock = `\n\n=== RELATIONSHIP NARRATIVE ===\n${narrative}\n\nThis is your primary intelligence. Every move you recommend must be consistent with this narrative arc.\n`;
+    }
+
+    // Compact behavioral profile summary for quick reference
+    let profileSummaryBlock = '';
+    const bp = campaignState.behavioral_profile as Record<string, unknown> | null;
+    if (bp) {
+      const lines: string[] = [];
+      if (bp.dominant_archetype) lines.push(`Archetype: ${bp.dominant_archetype}`);
+      if (bp.attachment_style) lines.push(`Attachment: ${bp.attachment_style}`);
+      if (bp.power_dynamic) lines.push(`Power dynamic: ${bp.power_dynamic}`);
+      if (bp.relationship_momentum) lines.push(`Momentum: ${bp.relationship_momentum}`);
+      if (bp.last_known_emotional_state) lines.push(`Last emotional state: ${bp.last_known_emotional_state}`);
+      if (bp.predicted_next_behavior) lines.push(`Predicted next move: ${bp.predicted_next_behavior}`);
+      if (bp.vulnerability_score) lines.push(`Vulnerability: ${bp.vulnerability_score}`);
+      if (Array.isArray(bp.manipulation_patterns) && bp.manipulation_patterns.length) {
+        lines.push(`Manipulation patterns: ${(bp.manipulation_patterns as string[]).join(' · ')}`);
+      }
+      if (Array.isArray(bp.operative_mistakes) && bp.operative_mistakes.length) {
+        lines.push(`Operative errors on record: ${(bp.operative_mistakes as string[]).join(' · ')}`);
+      }
+      if (lines.length) {
+        profileSummaryBlock = `\n\n=== DOSSIER SUMMARY ===\n${lines.join('\n')}\n`;
+      }
+    }
 
     // ── Build system prompt ───────────────────────────────────────────────────
     const systemPrompt =
       DARKO_SYSTEM_PROMPT +
       `\n\n=== WHAT YOU KNOW ===` +
       dossierContext +
+      narrativeBlock +
+      profileSummaryBlock +
       phaseDepth +
       temporalBlock +
       commStyleBlock +
