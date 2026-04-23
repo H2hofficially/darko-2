@@ -1800,12 +1800,6 @@ const styles = StyleSheet.create({
   dossierToggleBtn: { fontFamily: MONO, fontSize: 10, color: TEXT_DIM, letterSpacing: 2 },
   targetTitle: { fontFamily: MONO, fontSize: 22, fontWeight: '700', color: TEXT_PRIMARY, letterSpacing: 4 },
 
-  phaseBarTrack: { height: 2, backgroundColor: BORDER, marginHorizontal: 20 },
-  phaseBarFill: { height: 2, backgroundColor: ACCENT },
-
-  phaseLabelRow: { paddingHorizontal: 20, paddingTop: 6, paddingBottom: 2 },
-  phaseLabelText: { fontFamily: MONO, fontSize: 9, color: TEXT_DIM, letterSpacing: 2 },
-
   divider: { height: 1, backgroundColor: BORDER, marginHorizontal: 20, marginTop: 10, marginBottom: 0 },
 
   chatContent: { paddingHorizontal: 16, paddingBottom: 12, paddingTop: 12 },
@@ -1905,10 +1899,6 @@ const styles = StyleSheet.create({
   },
   alertLabel: { fontFamily: MONO, fontSize: 9, color: ERROR_RED, letterSpacing: 2, marginBottom: 4 },
   alertText: { fontFamily: SANS, fontSize: 14, color: ERROR_RED, lineHeight: 20 },
-
-  // Phase update block
-  phaseUpdateBlock: { marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: BORDER },
-  phaseUpdateText: { fontFamily: MONO, fontSize: 10, color: ACCENT, letterSpacing: 2 },
 
   // Scripts
   scriptsContainer: { marginTop: 12 },
