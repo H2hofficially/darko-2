@@ -139,13 +139,15 @@ const V3_CSS = `
 
 /* ── Mobile (≤ 900px) ────────────────────────────────────────────────── */
 @media(max-width:900px){
-  .hero{grid-template-columns:1fr;padding-top:calc(var(--nav-h)+28px+16px);padding-left:20px;padding-right:20px;padding-bottom:48px}
+  .hero{grid-template-columns:1fr;padding-top:calc(var(--nav-h) + 24px);padding-left:20px;padding-right:20px;padding-bottom:48px}
   .hero-left{padding-right:0;border-right:none;border-bottom:1px solid var(--b);padding-bottom:32px}
   .hero-right{padding-left:0;padding-top:32px}
   .hero-right::before{width:260px;height:260px}
   .caps-grid{grid-template-columns:1fr}
   .pricing-grid{grid-template-columns:1fr}
   .nav-links{display:none}
+  .ticker{display:none}
+  .kicker{display:none}
   .headline{font-size:clamp(40px,10vw,60px)}
   .sub{font-size:15px}
   .caps-section{padding:64px 20px}
