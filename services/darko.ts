@@ -9,6 +9,7 @@ export interface DarkoResponse {
   scripts: string[];
   alerts: string[];
   phaseUpdate: number | null;
+  phaseConfidence: number | null;
   reads: string[];
   isCampaign: boolean;
 }
@@ -33,6 +34,7 @@ const EMPTY_RESPONSE: DarkoResponse = {
   scripts: [],
   alerts: [],
   phaseUpdate: null,
+  phaseConfidence: null,
   reads: [],
   isCampaign: false,
 };
@@ -81,11 +83,28 @@ export function parseDarkoResponse(raw: string): DarkoResponse {
           ? parsed.hidden_intel.the_directive.map(String)
           : [];
 
+        // Phase update — accept numeric (phase_update) or Greene name (state_update.current_phase)
         let phaseUpdate: number | null = null;
+        const greeneToNumber: Record<string, number> = {
+          stray: 1, approach: 2, decide: 3, fall: 4,
+        };
         const rawPhase = parsed.phase_update ?? parsed.state_update?.current_phase;
         if (rawPhase !== null && rawPhase !== undefined) {
-          const n = parseInt(String(rawPhase), 10);
-          if (!isNaN(n)) phaseUpdate = n;
+          const asStr = String(rawPhase).trim().toLowerCase();
+          if (asStr in greeneToNumber) {
+            phaseUpdate = greeneToNumber[asStr];
+          } else {
+            const n = parseInt(asStr, 10);
+            if (!isNaN(n)) phaseUpdate = n;
+          }
+        }
+
+        // Phase confidence — 0.0-1.0 float emitted by handler on advance
+        let phaseConfidence: number | null = null;
+        const rawConf = parsed.phase_confidence ?? parsed.state_update?.phase_confidence;
+        if (rawConf !== null && rawConf !== undefined) {
+          const c = Number(rawConf);
+          if (!isNaN(c)) phaseConfidence = Math.max(0, Math.min(1, c));
         }
 
         // Case A: handler_note present and non-empty
@@ -117,6 +136,7 @@ export function parseDarkoResponse(raw: string): DarkoResponse {
           scripts,
           alerts,
           phaseUpdate,
+          phaseConfidence,
           reads: [],
           isCampaign: parsed.intent === 'campaign_brief',
         };
@@ -168,6 +188,7 @@ export function parseDarkoResponse(raw: string): DarkoResponse {
     scripts,
     alerts,
     phaseUpdate,
+    phaseConfidence: null,
     reads,
     isCampaign,
   };

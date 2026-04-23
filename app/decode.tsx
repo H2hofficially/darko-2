@@ -121,32 +121,34 @@ const LOADER_MESSAGES = [
   '> DRAFTING RESPONSE...',
 ];
 
+// 4-phase Greene model: internal keys (stray/approach/decide/fall) map to
+// descriptive user-facing labels. Framework names never surface to the user.
 const PHASE_NAMES = [
-  '',
-  'INITIAL RECONNAISSANCE',
-  'PATTERN RECOGNITION',
-  'PSYCHOLOGICAL PENETRATION',
-  'FRAME CONTROL',
-  'ESCALATION PROTOCOL',
+  '',                   // 0 — unused placeholder (phases are 1-indexed)
+  'INITIAL CONTACT',    // 1 — stray
+  'BUILDING TENSION',   // 2 — approach
+  'ADVANCING',          // 3 — decide
+  'ESTABLISHED',        // 4 — fall
 ];
 
+// Unlock line 1 is the same for every advance — the reveal is the dramatic
+// beat; the descriptive label from PHASE_NAMES lands on line 2.
 const PHASE_UNLOCK_LINE1: Record<number, string> = {
-  1: '// OPERATIVE ONLINE > TARGET ACQUIRED.',
-  2: '// PHASE 2 UNLOCKED > BEHAVIORAL PATTERN IDENTIFIED.',
-  3: '// PHASE 3 UNLOCKED > PSYCHOLOGICAL PROFILE ESTABLISHED.',
-  4: '// PHASE 4 UNLOCKED > FRAME DOMINANCE PROTOCOL ACTIVE.',
-  5: '// PHASE 5 UNLOCKED > MAXIMUM INTELLIGENCE CLEARANCE GRANTED.',
+  1: '// NEW INTEL UNLOCKED',
+  2: '// NEW INTEL UNLOCKED',
+  3: '// NEW INTEL UNLOCKED',
+  4: '// NEW INTEL UNLOCKED',
 };
 
 // ─── Phase computation ────────────────────────────────────────────────────────
-
+// Message-count thresholds are the FLOOR. Handler can push higher based on
+// signal evidence in the conversation. These defaults keep phase from lagging
+// behind activity when the handler hasn't yet emitted a phase advance.
 function computePhase(msgCount: number): number {
-  if (msgCount === 0) return 1;
-  if (msgCount >= 20) return 5;
-  if (msgCount >= 10) return 4;
-  if (msgCount >= 5) return 3;
-  if (msgCount >= 2) return 2;
-  return 1;
+  if (msgCount >= 50) return 4;  // fall
+  if (msgCount >= 20) return 3;  // decide
+  if (msgCount >= 5)  return 2;  // approach
+  return 1;                       // stray
 }
 
 // ─── Chat message types ───────────────────────────────────────────────────────
@@ -177,6 +179,7 @@ function conversationToChatMsgs(messages: ConversationMessage[]): ChatMsg[] {
       scripts: (msg.structured_data?.scripts ?? []).filter(Boolean),
       alerts: (msg.structured_data?.alerts ?? []).filter(Boolean),
       phaseUpdate: msg.structured_data?.phaseUpdate ?? null,
+      phaseConfidence: msg.structured_data?.phaseConfidence ?? null,
       reads: (msg.structured_data?.reads ?? []).filter(Boolean),
       isCampaign: msg.entry_type === 'campaign_brief',
     };
@@ -187,17 +190,6 @@ function conversationToChatMsgs(messages: ConversationMessage[]): ChatMsg[] {
       timestamp: msg.created_at,
     };
   });
-}
-
-// ─── Phase bar ────────────────────────────────────────────────────────────────
-
-function PhaseBar({ phase }: { phase: number }) {
-  const pct = (phase / 5) * 100;
-  return (
-    <View style={styles.phaseBarTrack}>
-      <View style={[styles.phaseBarFill, { width: `${pct}%` as any }]} />
-    </View>
-  );
 }
 
 // ─── Phase unlock overlay ─────────────────────────────────────────────────────
@@ -366,12 +358,8 @@ const DarkoBubble = React.memo(function DarkoBubble({
         </View>
       ))}
 
-      {/* Phase update */}
-      {response.phaseUpdate !== null && (
-        <View style={styles.phaseUpdateBlock}>
-          <Text style={styles.phaseUpdateText}>{`// PHASE ${response.phaseUpdate} INITIATED`}</Text>
-        </View>
-      )}
+      {/* Phase is hidden from user UI — the PhaseUnlockOverlay covers the advance reveal.
+          No inline footer in the bubble. */}
     </TouchableOpacity>
   );
 });
@@ -395,7 +383,6 @@ type DossierPanelProps = {
   targetName: string;
   leverage?: string;
   objective?: string;
-  currentPhase: number;
   profile: TargetProfile | null;
 };
 
@@ -425,7 +412,7 @@ function DossierSection({
   );
 }
 
-function DossierPanel({ visible, onClose, loading, targetName, leverage, objective, currentPhase, profile }: DossierPanelProps) {
+function DossierPanel({ visible, onClose, loading, targetName, leverage, objective, profile }: DossierPanelProps) {
   const slideAnim = useRef(new Animated.Value(PANEL_WIDTH)).current;
   const backdropAnim = useRef(new Animated.Value(0)).current;
 
@@ -442,8 +429,6 @@ function DossierPanel({ visible, onClose, loading, targetName, leverage, objecti
       ]).start();
     }
   }, [visible]);
-
-  const phaseName = PHASE_NAMES[currentPhase] ?? '';
 
   return (
     <>
@@ -573,23 +558,25 @@ function DossierPanel({ visible, onClose, loading, targetName, leverage, objecti
               ) : null}
 
               {/* ── RELATIONSHIP ARC ── */}
-              <Text style={styles.dossierSectionHeader}>{'// RELATIONSHIP ARC'}</Text>
-              <View style={[styles.dossierCard, { borderLeftColor: ACCENT }]}>
-                <Text style={styles.dossierCardTitle}>CURRENT MISSION PHASE</Text>
-                <Text style={styles.dossierItemMono}>{`PHASE ${currentPhase} — ${phaseName}`}</Text>
-                {profile?.power_dynamic ? (
-                  <>
-                    <Text style={[styles.dossierCardTitle, { marginTop: 10 }]}>POWER DYNAMIC</Text>
-                    <Text style={styles.dossierItem}>{profile.power_dynamic}</Text>
-                  </>
-                ) : null}
-                {profile?.predicted_next_behavior ? (
-                  <>
-                    <Text style={[styles.dossierCardTitle, { marginTop: 10 }]}>PREDICTED NEXT MOVE</Text>
-                    <Text style={[styles.dossierItem, { color: ACCENT }]}>{profile.predicted_next_behavior}</Text>
-                  </>
-                ) : null}
-              </View>
+              {(profile?.power_dynamic || profile?.predicted_next_behavior) ? (
+                <>
+                  <Text style={styles.dossierSectionHeader}>{'// RELATIONSHIP ARC'}</Text>
+                  <View style={[styles.dossierCard, { borderLeftColor: ACCENT }]}>
+                    {profile?.power_dynamic ? (
+                      <>
+                        <Text style={styles.dossierCardTitle}>POWER DYNAMIC</Text>
+                        <Text style={styles.dossierItem}>{profile.power_dynamic}</Text>
+                      </>
+                    ) : null}
+                    {profile?.predicted_next_behavior ? (
+                      <>
+                        <Text style={[styles.dossierCardTitle, { marginTop: profile?.power_dynamic ? 10 : 0 }]}>PREDICTED NEXT MOVE</Text>
+                        <Text style={[styles.dossierItem, { color: ACCENT }]}>{profile.predicted_next_behavior}</Text>
+                      </>
+                    ) : null}
+                  </View>
+                </>
+              ) : null}
               <DossierSection title="KEY TURNING POINTS" items={profile?.key_turning_points ?? []} sentiment="neutral" />
 
               {/* ── HANDLER ASSESSMENT ── */}
@@ -719,26 +706,20 @@ function WebRightPanel({
   profile,
   lastScripts,
   targetName,
-  phase,
 }: {
   profile: TargetProfile | null;
   lastScripts: string[];
   targetName: string;
-  phase: number;
 }) {
-  const PHASE_LABEL: Record<number, string> = {
-    1: 'APPROACH', 2: 'BUILD', 3: 'DECIDE', 4: 'COMMIT', 5: 'COMMIT',
-  };
-
   const rows1 = [
     { k: 'ATTACHMENT_STYLE', v: profile?.attachment_style },
     { k: 'COMM_STYLE', v: profile?.target_communication_style },
     { k: 'VULNERABILITY', v: profile?.vulnerability_score },
   ].filter((r) => r.v);
 
+  // Phase is intentionally omitted — framework layer is hidden from user UI.
   const rows2 = [
     { k: 'ARCHETYPE', v: profile?.dominant_archetype },
-    { k: 'CAMPAIGN_PHASE', v: PHASE_LABEL[phase] ?? 'APPROACH' },
     { k: 'POWER_DYNAMIC', v: profile?.power_dynamic },
     { k: 'MOMENTUM', v: profile?.relationship_momentum },
   ].filter((r) => r.v);
@@ -1008,6 +989,7 @@ export default function DecodeScreen() {
             scripts: [],
             alerts: [alertBody],
             phaseUpdate: null,
+            phaseConfidence: null,
             reads: [],
             isCampaign: false,
           },
@@ -1232,7 +1214,7 @@ export default function DecodeScreen() {
     const streamingMsg: ChatMsg = {
       id: darkoMsgId,
       type: 'darko',
-      response: { text: '', scripts: [], alerts: [], phaseUpdate: null, reads: [], isCampaign: false },
+      response: { text: '', scripts: [], alerts: [], phaseUpdate: null, phaseConfidence: null, reads: [], isCampaign: false },
       isStreaming: true,
       streamText: '',
       timestamp: new Date().toISOString(),
@@ -1268,6 +1250,7 @@ export default function DecodeScreen() {
           scripts: darkoResponse.scripts.filter(Boolean),
           alerts: darkoResponse.alerts.filter(Boolean),
           phaseUpdate: darkoResponse.phaseUpdate,
+          phaseConfidence: darkoResponse.phaseConfidence,
           reads: darkoResponse.reads.filter(Boolean),
         });
 
@@ -1284,13 +1267,22 @@ export default function DecodeScreen() {
           setLastDarkoScripts(darkoResponse.scripts.filter(Boolean));
         }
 
-        // Phase update
+        // Phase update — internal state advances on any phase_update signal,
+        // but the dramatic unlock overlay only fires when the handler signals
+        // a LOCKED read (phase_confidence >= 0.75). Tentative advances update
+        // state silently; confidence < 0.75 suppresses the overlay.
         if (darkoResponse.phaseUpdate && darkoResponse.phaseUpdate > currentPhase) {
           const newPhase = darkoResponse.phaseUpdate;
           setCurrentPhase(newPhase);
           saveMissionPhase(targetId, newPhase);
           pendingResultRef.current = { newPhase };
-          setPhaseUnlocking(newPhase);
+          const conf = darkoResponse.phaseConfidence;
+          // Fire overlay if confidence is explicitly high, OR if the handler
+          // omitted confidence (null) — unknown confidence defaults to "reveal"
+          // to avoid dead-ending the feature until the handler is fully wired.
+          if (conf === null || conf >= 0.75) {
+            setPhaseUnlocking(newPhase);
+          }
         }
 
         setTimeout(() => flatListRef.current?.scrollToOffset({ offset: 0, animated: true }), 80);
@@ -1371,7 +1363,7 @@ export default function DecodeScreen() {
     const streamingMsg: ChatMsg = {
       id: darkoMsgId,
       type: 'darko',
-      response: { text: '', scripts: [], alerts: [], phaseUpdate: null, reads: [], isCampaign: false },
+      response: { text: '', scripts: [], alerts: [], phaseUpdate: null, phaseConfidence: null, reads: [], isCampaign: false },
       isStreaming: true,
       streamText: '',
       timestamp: new Date().toISOString(),
@@ -1477,10 +1469,6 @@ export default function DecodeScreen() {
               </View>
               <Text style={styles.targetTitle}>{(targetName ?? '').toUpperCase()}</Text>
             </View>
-            <PhaseBar phase={currentPhase} />
-            <View style={styles.phaseLabelRow}>
-              <Text style={styles.phaseLabelText}>{'PHASE ' + currentPhase + ' — ' + (PHASE_NAMES[currentPhase] ?? '')}</Text>
-            </View>
             <View style={styles.divider} />
             {/* Chat */}
             <ScrollView
@@ -1565,7 +1553,6 @@ export default function DecodeScreen() {
             profile={profile}
             lastScripts={lastDarkoScripts}
             targetName={targetName ?? ''}
-            phase={currentPhase}
           />
         </View>
         <AppStatusBar />
@@ -1615,16 +1602,6 @@ export default function DecodeScreen() {
           </View>
         </View>
         <Text style={styles.targetTitle}>{(targetName ?? '').toUpperCase()}</Text>
-      </View>
-
-      {/* Phase bar */}
-      <PhaseBar phase={currentPhase} />
-
-      {/* Phase label */}
-      <View style={styles.phaseLabelRow}>
-        <Text style={styles.phaseLabelText}>
-          {'PHASE ' + currentPhase + ' — ' + (PHASE_NAMES[currentPhase] ?? '')}
-        </Text>
       </View>
 
       <View style={styles.divider} />
@@ -1785,7 +1762,6 @@ export default function DecodeScreen() {
           targetName={targetName ?? ''}
           leverage={targetLeverage}
           objective={targetObjective}
-          currentPhase={currentPhase}
           profile={profile}
         />
       )}
