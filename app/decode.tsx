@@ -62,6 +62,41 @@ const SANS = Platform.select({ ios: 'System', android: 'sans-serif', default: 's
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const PANEL_WIDTH = SCREEN_WIDTH * 0.85;
 
+// ─── Render-time safety: NEVER show raw JSON in a chat bubble ─────────────────
+// Belt-and-braces on top of services/darko.ts — catches stale DB rows, dev
+// mis-wires, or any future regression.
+
+const NEUTRAL_FALLBACK = 'Intel received. Awaiting your next input.';
+
+function looksLikeJSON(text: string): boolean {
+  const trimmed = (text ?? '').trim();
+  return trimmed.startsWith('{') || trimmed.startsWith('[');
+}
+
+function safeDisplayText(text: string | undefined | null): string {
+  const raw = text ?? '';
+  if (!looksLikeJSON(raw)) return raw;
+  // JSON-shaped: try full parse, then regex-rescue handler_note, then fallback.
+  try {
+    const parsed = JSON.parse(raw.trim());
+    if (parsed && typeof parsed === 'object') {
+      const candidates = [
+        typeof parsed.handler_note === 'string' ? parsed.handler_note : '',
+        typeof parsed.next_directive === 'string' ? parsed.next_directive : '',
+        typeof parsed.primary_response === 'string' ? parsed.primary_response : '',
+      ];
+      const picked = candidates.find((v) => v && v.trim().length > 0);
+      if (picked) return picked;
+    }
+  } catch {
+    const m = raw.match(/"handler_note"\s*:\s*"([\s\S]*?)(?<!\\)"/);
+    if (m) {
+      return m[1].replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\\\/g, '\\');
+    }
+  }
+  return NEUTRAL_FALLBACK;
+}
+
 // react-native-markdown-display style overrides to match app design
 const markdownStyles = {
   body: { color: TEXT_PRIMARY, fontFamily: SANS, fontSize: 14, lineHeight: 22 },
@@ -281,7 +316,7 @@ const DarkoBubble = React.memo(function DarkoBubble({
 
   // Streaming: strip block markers, render cleaned prose + cursor
   if (isStreaming) {
-    const displayText = stripStreamMarkers(streamText ?? '');
+    const displayText = safeDisplayText(stripStreamMarkers(streamText ?? ''));
     return (
       <View style={[styles.darkoBubble, { borderLeftColor: BORDER }]}>
         {displayText ? (
@@ -303,7 +338,7 @@ const DarkoBubble = React.memo(function DarkoBubble({
     >
       {/* Main prose with markdown rendering */}
       {response.text ? (
-        <Markdown style={markdownStyles}>{response.text}</Markdown>
+        <Markdown style={markdownStyles}>{safeDisplayText(response.text)}</Markdown>
       ) : null}
 
       {/* Reads — psychological analysis callouts */}

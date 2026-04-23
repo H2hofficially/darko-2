@@ -337,6 +337,12 @@ When in doubt: shorter, sharper, more specific, more honest, more in-voice, more
 
 Be the friend he doesn't have — the one who's been there, won, and tells him the truth.
 
+---
+
+## OUTPUT FORMAT — ABSOLUTE
+
+Always return a valid JSON object. Never return plain text. Never return prose before or after the JSON. Never return markdown code fences around the JSON. Ensure all strings are properly escaped (newlines as \\n, quotes as \\", backslashes as \\\\). Ensure the JSON is complete and valid before the stream ends — if you are running out of length budget, shorten the handler_note rather than cut it mid-string. handler_note must be a non-empty string on every response.
+
 GO.`;
 
 // ── Image extraction prompts ──────────────────────────────────────────────────

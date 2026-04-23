@@ -26,92 +26,179 @@ export interface MessageInput {
 
 // ── Block parser ───────────────────────────────────────────────────────────────
 
-export function parseDarkoResponse(raw: string): DarkoResponse {
-  // ── v4.0: JSON response with handler_note as primary output ──────────────────
+const NEUTRAL_FALLBACK = 'Intel received. Send your next input.';
+
+const EMPTY_RESPONSE: DarkoResponse = {
+  text: '',
+  scripts: [],
+  alerts: [],
+  phaseUpdate: null,
+  reads: [],
+  isCampaign: false,
+};
+
+// Decode the escape sequences present inside a JSON string literal we've
+// carved out with a regex (i.e. without the surrounding quotes).
+function unescapeJsonStringBody(body: string): string {
   try {
-    const parsed = JSON.parse(raw.trim());
-    if (parsed && typeof parsed === 'object' && 'handler_note' in parsed) {
-      const scripts: string[] = [];
-      if (parsed.visible_arsenal?.option_1_script)
-        scripts.push(parsed.visible_arsenal.option_1_script);
-      if (parsed.visible_arsenal?.option_2_script)
-        scripts.push(parsed.visible_arsenal.option_2_script);
-
-      const alerts: string[] = Array.isArray(parsed.hidden_intel?.the_directive)
-        ? parsed.hidden_intel.the_directive
-        : [];
-
-      let phaseUpdate: number | null = null;
-      const rawPhase = parsed.phase_update ?? parsed.state_update?.current_phase;
-      if (rawPhase !== null && rawPhase !== undefined) {
-        const n = parseInt(String(rawPhase), 10);
-        if (!isNaN(n)) phaseUpdate = n;
-      }
-
-      return {
-        text: parsed.handler_note ?? '',
-        scripts,
-        alerts,
-        phaseUpdate,
-        reads: [],
-        isCampaign: parsed.intent === 'campaign_brief',
-      };
-    }
+    return JSON.parse('"' + body + '"');
   } catch {
-    // Not complete JSON — fall through to legacy block-marker parser
+    return body
+      .replace(/\\n/g, '\n')
+      .replace(/\\r/g, '\r')
+      .replace(/\\t/g, '\t')
+      .replace(/\\"/g, '"')
+      .replace(/\\\\/g, '\\');
+  }
+}
+
+// Rescue handler_note from a malformed or truncated JSON blob. Matches an
+// unescaped closing quote OR end-of-string so partial streams still work.
+function rescueHandlerNote(raw: string): string | null {
+  const m = raw.match(/"handler_note"\s*:\s*"([\s\S]*?)(?<!\\)"/);
+  if (!m) return null;
+  return unescapeJsonStringBody(m[1]);
+}
+
+export function parseDarkoResponse(raw: string): DarkoResponse {
+  const trimmed = (raw ?? '').replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
+  if (!trimmed) return { ...EMPTY_RESPONSE };
+
+  const looksLikeJson = trimmed.startsWith('{') || trimmed.startsWith('[');
+
+  // ── Cases A / B: well-formed JSON ─────────────────────────────────────────────
+  if (looksLikeJson) {
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (parsed && typeof parsed === 'object') {
+        const scripts: string[] = [];
+        if (parsed.visible_arsenal?.option_1_script)
+          scripts.push(String(parsed.visible_arsenal.option_1_script));
+        if (parsed.visible_arsenal?.option_2_script)
+          scripts.push(String(parsed.visible_arsenal.option_2_script));
+
+        const alerts: string[] = Array.isArray(parsed.hidden_intel?.the_directive)
+          ? parsed.hidden_intel.the_directive.map(String)
+          : [];
+
+        let phaseUpdate: number | null = null;
+        const rawPhase = parsed.phase_update ?? parsed.state_update?.current_phase;
+        if (rawPhase !== null && rawPhase !== undefined) {
+          const n = parseInt(String(rawPhase), 10);
+          if (!isNaN(n)) phaseUpdate = n;
+        }
+
+        // Case A: handler_note present and non-empty
+        let text =
+          typeof parsed.handler_note === 'string' ? parsed.handler_note.trim() : '';
+
+        // Case B: handler_note null/empty → try next_directive, then first
+        // non-empty string in visible_arsenal.
+        if (!text && typeof parsed.next_directive === 'string') {
+          text = parsed.next_directive.trim();
+        }
+        if (
+          !text &&
+          parsed.visible_arsenal &&
+          typeof parsed.visible_arsenal === 'object'
+        ) {
+          for (const val of Object.values(parsed.visible_arsenal)) {
+            if (typeof val === 'string' && val.trim().length > 0) {
+              text = val.trim();
+              break;
+            }
+          }
+        }
+
+        if (!text) text = NEUTRAL_FALLBACK;
+
+        return {
+          text,
+          scripts,
+          alerts,
+          phaseUpdate,
+          reads: [],
+          isCampaign: parsed.intent === 'campaign_brief',
+        };
+      }
+    } catch {
+      // fall through to Case C
+    }
+
+    // ── Case C: malformed/truncated JSON — regex-rescue handler_note ───────────
+    const rescued = rescueHandlerNote(trimmed);
+    if (rescued && rescued.trim().length > 0) {
+      return { ...EMPTY_RESPONSE, text: rescued };
+    }
+
+    // JSON-shaped but unrecoverable → neutral fallback. NEVER surface raw JSON.
+    return { ...EMPTY_RESPONSE, text: NEUTRAL_FALLBACK };
   }
 
-  // ── Legacy v3: block-marker prose format ──────────────────────────────────────
+  // ── Case D: plain text (or legacy v3 block-marker format) ─────────────────────
   const scripts: string[] = [];
   const alerts: string[] = [];
   const reads: string[] = [];
   let phaseUpdate: number | null = null;
   let isCampaign = false;
 
-  const normalised = raw.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
   const blockPattern =
     /\/\/ (SCRIPT|ALERT|PHASE UPDATE(?: \[(\d+)\])?|READ|CAMPAIGN)\n([\s\S]*?)\/\/ END(?:\n|$)/g;
 
   let match: RegExpExecArray | null;
-  while ((match = blockPattern.exec(normalised)) !== null) {
+  while ((match = blockPattern.exec(trimmed)) !== null) {
     const type = match[1];
     const phaseNum = match[2];
     const content = (match[3] ?? '').trim();
     if (type === 'SCRIPT') scripts.push(content);
     else if (type === 'ALERT') alerts.push(content);
-    else if (type.startsWith('PHASE UPDATE')) phaseUpdate = phaseNum ? parseInt(phaseNum, 10) : null;
+    else if (type.startsWith('PHASE UPDATE'))
+      phaseUpdate = phaseNum ? parseInt(phaseNum, 10) : null;
     else if (type === 'READ') reads.push(content);
     else if (type === 'CAMPAIGN') isCampaign = true;
   }
 
-  const cleanText = normalised
+  const cleanText = trimmed
     .replace(blockPattern, '')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
 
-  return { text: cleanText, scripts, alerts, phaseUpdate, reads, isCampaign };
+  return {
+    text: cleanText || NEUTRAL_FALLBACK,
+    scripts,
+    alerts,
+    phaseUpdate,
+    reads,
+    isCampaign,
+  };
 }
 
-// Strip block markers / extract handler_note from in-progress streaming text
+// Progressive renderer for in-flight streams. Returns the text to display in
+// the streaming bubble. Caller is responsible for appending a cursor/ellipsis
+// when the return value is empty.
+//
+// Contract: NEVER returns raw JSON. If the stream is JSON-shaped but the
+// handler_note key hasn't arrived yet, returns '' so the bubble just shows
+// a cursor.
 export function stripStreamMarkers(text: string): string {
-  // v4.0: extract handler_note from partial JSON as it streams in
-  const match = text.match(/"handler_note"\s*:\s*"([\s\S]*?)(?:(?<!\\)"|$)/);
-  if (match) {
-    try {
-      // If the JSON is complete enough to close the string, parse it properly
-      return JSON.parse('"' + match[1] + '"');
-    } catch {
-      // Partial string — unescape manually for display
-      return match[1]
-        .replace(/\\n/g, '\n')
-        .replace(/\\"/g, '"')
-        .replace(/\\\\/g, '\\')
-        .replace(/\\t/g, '\t');
-    }
+  const normalised = (text ?? '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  const trimmed = normalised.trimStart();
+  if (!trimmed) return '';
+
+  // ── JSON-shaped stream ──────────────────────────────────────────────────────
+  if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+    // Match an open-ended handler_note value: captures whatever has streamed
+    // so far, up to an unescaped closing quote OR end-of-buffer.
+    const m = trimmed.match(/"handler_note"\s*:\s*"([\s\S]*?)(?:(?<!\\)"|$)/);
+    if (m) return unescapeJsonStringBody(m[1]);
+
+    // JSON started but handler_note hasn't streamed yet → empty buffer,
+    // so the caller renders only the blinking cursor. NEVER expose raw JSON.
+    return '';
   }
 
-  // Legacy v3: strip block markers
-  return text
+  // ── Plain text / legacy v3 block-marker format ──────────────────────────────
+  return normalised
     .replace(/\/\/ (SCRIPT|ALERT|READ|PHASE UPDATE[^\n]*|CAMPAIGN)\n/g, '')
     .replace(/\/\/ END\n?/g, '')
     .replace(/\n{3,}/g, '\n\n')
