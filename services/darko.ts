@@ -39,6 +39,21 @@ const EMPTY_RESPONSE: DarkoResponse = {
   isCampaign: false,
 };
 
+// Strip a wrapping Markdown code fence (```json ... ``` or ``` ... ```).
+// DeepSeek occasionally fences JSON output despite system-prompt instructions
+// telling it not to. Without this, fenced JSON slips past every JSON-shape
+// check below (which all test for a leading '{' or '['), leaving raw JSON to
+// be rendered as a Markdown code block in the chat bubble. Exported so the
+// render layer can apply the same defense before its own JSON checks.
+export function stripCodeFence(text: string): string {
+  const t = (text ?? '').trim();
+  if (!t.startsWith('```')) return t;
+  // ```lang? \n body \n ```   — body may itself contain ``` only if the outer
+  // fence was the model's own wrapping (one wrap deep is the case we've seen).
+  const m = t.match(/^```[a-zA-Z0-9_-]*\s*\n?([\s\S]*?)\n?```\s*$/);
+  return m ? m[1].trim() : t;
+}
+
 // Decode the escape sequences present inside a JSON string literal we've
 // carved out with a regex (i.e. without the surrounding quotes).
 function unescapeJsonStringBody(body: string): string {
@@ -63,7 +78,11 @@ function rescueHandlerNote(raw: string): string | null {
 }
 
 export function parseDarkoResponse(raw: string): DarkoResponse {
-  const trimmed = (raw ?? '').replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
+  const normalised = (raw ?? '').replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim();
+  // Strip Markdown code fence first — otherwise fenced JSON ('```json {...}')
+  // fails the leading-{ check below and falls through to the plain-text branch,
+  // which renders the raw JSON to the user.
+  const trimmed = stripCodeFence(normalised);
   if (!trimmed) return { ...EMPTY_RESPONSE };
 
   const looksLikeJson = trimmed.startsWith('{') || trimmed.startsWith('[');
@@ -203,7 +222,11 @@ export function parseDarkoResponse(raw: string): DarkoResponse {
 // a cursor.
 export function stripStreamMarkers(text: string): string {
   const normalised = (text ?? '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-  const trimmed = normalised.trimStart();
+  // Strip Markdown code fence so a fenced JSON stream is treated as JSON
+  // (and therefore hidden behind the cursor) instead of leaking through as
+  // a Markdown code block.
+  const fenceStripped = stripCodeFence(normalised);
+  const trimmed = fenceStripped.trimStart();
   if (!trimmed) return '';
 
   // ── JSON-shaped stream ──────────────────────────────────────────────────────

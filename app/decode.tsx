@@ -4,6 +4,7 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
+  Pressable,
   FlatList,
   ScrollView,
   StyleSheet,
@@ -30,11 +31,14 @@ import {
   generateTargetProfile,
   parseDarkoResponse,
   stripStreamMarkers,
+  stripCodeFence,
   type DarkoResponse,
   type MessageInput,
 } from '../services/darko';
 import {
   saveMessage,
+  updateMessage,
+  deleteMessagesAfter,
   getConversation,
   getTargetProfile,
   saveTargetProfile,
@@ -74,16 +78,22 @@ function looksLikeJSON(text: string): boolean {
 }
 
 function safeDisplayText(text: string | undefined | null): string {
-  const raw = text ?? '';
+  // Strip a wrapping Markdown code fence first. Without this, fenced JSON
+  // (```json {...} ```) fails looksLikeJSON's leading-'{' check and gets
+  // rendered raw as a Markdown code block in the chat bubble.
+  const raw = stripCodeFence(text ?? '');
   if (!looksLikeJSON(raw)) return raw;
   // JSON-shaped: try full parse, then regex-rescue handler_note, then fallback.
   try {
     const parsed = JSON.parse(raw.trim());
     if (parsed && typeof parsed === 'object') {
+      const va = parsed.visible_arsenal;
       const candidates = [
         typeof parsed.handler_note === 'string' ? parsed.handler_note : '',
         typeof parsed.next_directive === 'string' ? parsed.next_directive : '',
-        typeof parsed.primary_response === 'string' ? parsed.primary_response : '',
+        va && typeof va === 'object' && typeof va.option_1_script === 'string'
+          ? va.option_1_script
+          : '',
       ];
       const picked = candidates.find((v) => v && v.trim().length > 0);
       if (picked) return picked;
@@ -154,7 +164,7 @@ function computePhase(msgCount: number): number {
 // ─── Chat message types ───────────────────────────────────────────────────────
 
 type ChatMsg =
-  | { id: string; type: 'user'; text: string; imageUri?: string; timestamp: string }
+  | { id: string; dbId?: string; type: 'user'; text: string; imageUri?: string; timestamp: string }
   | {
       id: string;
       type: 'darko';
@@ -169,18 +179,32 @@ function conversationToChatMsgs(messages: ConversationMessage[]): ChatMsg[] {
     if (msg.role === 'user') {
       return {
         id: msg.id + '_u',
+        dbId: msg.id,
         type: 'user' as const,
         text: msg.content,
         timestamp: msg.created_at,
       };
     }
+    // Legacy rows (written before the fence-strip fix landed) sometimes have
+    // raw fenced JSON in `content` and an empty `structured_data` column.
+    // Re-parse the content so scripts / alerts / phase cards are rebuilt on
+    // read; prefer structured_data when it actually has data.
+    const sd = msg.structured_data ?? {};
+    const reparsed: DarkoResponse = looksLikeJSON(stripCodeFence(msg.content ?? ''))
+      ? parseDarkoResponse(msg.content ?? '')
+      : { text: '', scripts: [], alerts: [], phaseUpdate: null, phaseConfidence: null, reads: [], isCampaign: false };
+
+    const sdScripts = (sd.scripts ?? []).filter(Boolean);
+    const sdAlerts = (sd.alerts ?? []).filter(Boolean);
+    const sdReads = (sd.reads ?? []).filter(Boolean);
+
     const response: DarkoResponse = {
-      text: msg.content,
-      scripts: (msg.structured_data?.scripts ?? []).filter(Boolean),
-      alerts: (msg.structured_data?.alerts ?? []).filter(Boolean),
-      phaseUpdate: msg.structured_data?.phaseUpdate ?? null,
-      phaseConfidence: msg.structured_data?.phaseConfidence ?? null,
-      reads: (msg.structured_data?.reads ?? []).filter(Boolean),
+      text: safeDisplayText(msg.content),
+      scripts: sdScripts.length > 0 ? sdScripts : reparsed.scripts,
+      alerts: sdAlerts.length > 0 ? sdAlerts : reparsed.alerts,
+      phaseUpdate: sd.phaseUpdate ?? reparsed.phaseUpdate ?? null,
+      phaseConfidence: sd.phaseConfidence ?? reparsed.phaseConfidence ?? null,
+      reads: sdReads.length > 0 ? sdReads : reparsed.reads,
       isCampaign: msg.entry_type === 'campaign_brief',
     };
     return {
@@ -243,23 +267,104 @@ function PhaseUnlockOverlay({ phase, onComplete }: { phase: number; onComplete: 
 
 // ─── User bubble ──────────────────────────────────────────────────────────────
 
-function UserBubble({ msg }: { msg: Extract<ChatMsg, { type: 'user' }> }) {
+function UserBubble({
+  msg,
+  isEditing,
+  editDraft,
+  onEditStart,
+  onEditChange,
+  onEditSubmit,
+  onEditCancel,
+  editBlocked,
+}: {
+  msg: Extract<ChatMsg, { type: 'user' }>;
+  isEditing: boolean;
+  editDraft: string;
+  onEditStart: () => void;
+  onEditChange: (s: string) => void;
+  onEditSubmit: () => void;
+  onEditCancel: () => void;
+  editBlocked: boolean;
+}) {
+  const [hovered, setHovered] = useState(false);
+  // Editing disabled for image-only messages (we don't keep base64 after send,
+  // so we can't re-run image analysis on regenerate).
+  const canEdit = !!msg.dbId && !msg.imageUri && !editBlocked;
+
+  const handleLongPress = () => {
+    if (!canEdit || Platform.OS === 'web') return;
+    Alert.alert('MESSAGE', '', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Edit', onPress: onEditStart },
+    ]);
+  };
+
+  if (isEditing) {
+    return (
+      <View style={styles.userBubbleContainer}>
+        <View style={[styles.userBubble, styles.userBubbleEditing]}>
+          <TextInput
+            value={editDraft}
+            onChangeText={onEditChange}
+            multiline
+            autoFocus
+            style={styles.userBubbleEditInput}
+            placeholderTextColor={TEXT_DIM}
+          />
+          <View style={styles.userBubbleEditActions}>
+            <TouchableOpacity onPress={onEditCancel} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Text style={styles.userBubbleEditCancel}>CANCEL</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={onEditSubmit}
+              disabled={!editDraft.trim()}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Text style={[styles.userBubbleEditSave, !editDraft.trim() && { opacity: 0.35 }]}>
+                SAVE & REGEN
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.userBubbleContainer}>
-      <View style={styles.userBubble}>
-        {msg.imageUri ? (
-          <Image
-            source={{ uri: msg.imageUri }}
-            style={styles.userBubbleImage}
-            resizeMode="cover"
-          />
-        ) : null}
-        {msg.text && msg.text !== '[ image input ]' ? (
-          <Text style={[styles.userBubbleText, msg.imageUri ? styles.userBubbleTextWithImage : null]}>
-            {msg.text}
-          </Text>
-        ) : null}
-      </View>
+      <Pressable
+        onLongPress={handleLongPress}
+        onHoverIn={() => setHovered(true)}
+        onHoverOut={() => setHovered(false)}
+        delayLongPress={350}
+      >
+        <View style={styles.userBubble}>
+          {msg.imageUri ? (
+            <Image
+              source={{ uri: msg.imageUri }}
+              style={styles.userBubbleImage}
+              resizeMode="cover"
+            />
+          ) : null}
+          {msg.text && msg.text !== '[ image input ]' ? (
+            <Text style={[styles.userBubbleText, msg.imageUri ? styles.userBubbleTextWithImage : null]}>
+              {msg.text}
+            </Text>
+          ) : null}
+          {canEdit ? (
+            <TouchableOpacity
+              onPress={onEditStart}
+              style={[
+                styles.userBubbleEditIcon,
+                hovered ? styles.userBubbleEditIconHover : null,
+              ]}
+              hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+            >
+              <Text style={styles.userBubbleEditIconText}>✎</Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
+      </Pressable>
     </View>
   );
 }
@@ -933,6 +1038,9 @@ export default function DecodeScreen() {
   const [lastDarkoScripts, setLastDarkoScripts] = useState<string[]>([]);
   const { tier } = useUser();
 
+  const [editingMsgId, setEditingMsgId] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState('');
+
   const showPaywall = (reason: string) => {
     setPaywallReason(reason);
     setPaywallVisible(true);
@@ -1196,11 +1304,12 @@ export default function DecodeScreen() {
     const userContent = inputSnapshot || '[ image input ]';
 
     // Persist user message
-    await saveMessage(targetId, 'user', userContent);
+    const savedUserId = await saveMessage(targetId, 'user', userContent);
 
     // Add user bubble optimistically
     const userMsg: ChatMsg = {
       id: msgId + '_u',
+      dbId: savedUserId ?? undefined,
       type: 'user',
       text: userContent,
       imageUri: imageSnapshot?.uri,
@@ -1423,17 +1532,142 @@ export default function DecodeScreen() {
     Alert.alert('COPIED', 'Intelligence copied to clipboard.');
   }, []);
 
+  // ── Edit user message ──────────────────────────────────────────────────────
+
+  const handleEditStart = useCallback((msg: Extract<ChatMsg, { type: 'user' }>) => {
+    if (!msg.dbId || loading || phaseUnlocking) return;
+    setEditingMsgId(msg.id);
+    setEditDraft(msg.text);
+  }, [loading, phaseUnlocking]);
+
+  const handleEditCancel = useCallback(() => {
+    setEditingMsgId(null);
+    setEditDraft('');
+  }, []);
+
+  const handleEditSubmit = useCallback(async () => {
+    const msgId = editingMsgId;
+    const newText = editDraft.trim();
+    if (!msgId || !newText) return;
+
+    const target = chatMessages.find((m) => m.id === msgId);
+    if (!target || target.type !== 'user' || !target.dbId) {
+      handleEditCancel();
+      return;
+    }
+    if (newText === target.text) {
+      handleEditCancel();
+      return;
+    }
+
+    const idx = chatMessages.findIndex((m) => m.id === msgId);
+    if (idx < 0) { handleEditCancel(); return; }
+
+    // Persist: update the user row, wipe everything after it
+    const ok = await updateMessage(target.dbId, newText);
+    if (!ok) {
+      Alert.alert('EDIT FAILED', 'Could not save edit. Try again.');
+      return;
+    }
+    await deleteMessagesAfter(targetId, target.dbId);
+
+    // Truncate client state to [0..idx], replacing the edited bubble
+    const editedMsg: ChatMsg = { ...target, text: newText };
+    setChatMessages((prev) => [...prev.slice(0, idx), editedMsg]);
+    setEditingMsgId(null);
+    setEditDraft('');
+
+    // Regenerate DARKO response — same pattern as handleSend (no re-save user)
+    setLoading(true);
+    setError(null);
+    setLoaderText(LOADER_MESSAGES[0]);
+
+    const darkoMsgId = Date.now().toString() + '_d';
+    const streamingMsg: ChatMsg = {
+      id: darkoMsgId,
+      type: 'darko',
+      response: { text: '', scripts: [], alerts: [], phaseUpdate: null, phaseConfidence: null, reads: [], isCampaign: false },
+      isStreaming: true,
+      streamText: '',
+      timestamp: new Date().toISOString(),
+    };
+    setChatMessages((prev) => [...prev, streamingMsg]);
+
+    cancelStreamRef.current = sendMessage(
+      {
+        message: newText,
+        targetId,
+        leverage: targetLeverage,
+        objective: targetObjective,
+        missionPhase: currentPhase,
+        targetCommunicationStyle: profile?.target_communication_style,
+      },
+      (accumulatedText) => {
+        setChatMessages((prev) =>
+          prev.map((m) => (m.id === darkoMsgId ? { ...m, streamText: accumulatedText } : m)),
+        );
+        flatListRef.current?.scrollToOffset({ offset: 0, animated: false });
+      },
+      async (darkoResponse) => {
+        setLoading(false);
+        await saveMessage(targetId, 'darko', darkoResponse.text, {
+          scripts: darkoResponse.scripts.filter(Boolean),
+          alerts: darkoResponse.alerts.filter(Boolean),
+          phaseUpdate: darkoResponse.phaseUpdate,
+          phaseConfidence: darkoResponse.phaseConfidence,
+          reads: darkoResponse.reads.filter(Boolean),
+        });
+        setChatMessages((prev) =>
+          prev.map((m) =>
+            m.id === darkoMsgId
+              ? { ...m, response: darkoResponse, isStreaming: false, streamText: undefined }
+              : m,
+          ),
+        );
+        if (darkoResponse.scripts?.length) {
+          setLastDarkoScripts(darkoResponse.scripts.filter(Boolean));
+        }
+        if (darkoResponse.phaseUpdate && darkoResponse.phaseUpdate > currentPhase) {
+          const newPhase = darkoResponse.phaseUpdate;
+          setCurrentPhase(newPhase);
+          saveMissionPhase(targetId, newPhase);
+          pendingResultRef.current = { newPhase };
+          const conf = darkoResponse.phaseConfidence;
+          if (conf === null || conf >= 0.75) setPhaseUnlocking(newPhase);
+        }
+        setTimeout(() => flatListRef.current?.scrollToOffset({ offset: 0, animated: true }), 80);
+      },
+      (errMsg) => {
+        setLoading(false);
+        setChatMessages((prev) => prev.filter((m) => m.id !== darkoMsgId));
+        setError(errMsg.startsWith('RATE LIMIT') ? '// ' + errMsg.slice(0, 60).toLowerCase() + '...' : '// signal lost');
+      },
+    );
+  }, [editingMsgId, editDraft, chatMessages, targetId, targetLeverage, targetObjective, currentPhase, profile, handleEditCancel]);
+
   // ── Render item ────────────────────────────────────────────────────────────
 
-  const renderItem = useCallback(({ item }: { item: ChatMsg }) => {
+  const renderChatItem = useCallback((item: ChatMsg) => {
     if (item.type === 'user') {
-      return <UserBubble msg={item} />;
+      const isEditing = editingMsgId === item.id;
+      return (
+        <UserBubble
+          key={item.id}
+          msg={item}
+          isEditing={isEditing}
+          editDraft={isEditing ? editDraft : ''}
+          onEditStart={() => handleEditStart(item)}
+          onEditChange={setEditDraft}
+          onEditSubmit={handleEditSubmit}
+          onEditCancel={handleEditCancel}
+          editBlocked={loading || !!phaseUnlocking || (editingMsgId !== null && !isEditing)}
+        />
+      );
     }
-    if (item.type === 'darko') {
-      return <DarkoBubble msg={item} onLongPress={() => handleDarkoBubbleLongPress(item)} />;
-    }
-    return null;
-  }, [handleDarkoBubbleLongPress]);
+    return <DarkoBubble key={item.id} msg={item} onLongPress={() => handleDarkoBubbleLongPress(item)} />;
+  }, [handleDarkoBubbleLongPress, editingMsgId, editDraft, handleEditStart, handleEditSubmit, handleEditCancel, loading, phaseUnlocking]);
+
+  const renderItem = useCallback(({ item }: { item: ChatMsg }) => renderChatItem(item), [renderChatItem]);
 
   const canSend = (!!inputText.trim() || !!selectedImage) && !loading && !phaseUnlocking;
 
@@ -1484,11 +1718,7 @@ export default function DecodeScreen() {
                   <Text style={styles.emptyChatSubtext}>&gt; BRIEF DARKO ON THE TARGET. BEGIN RECONNAISSANCE.</Text>
                 </View>
               ) : null}
-              {chatMessages.map((item) => (
-                item.type === 'user'
-                  ? <UserBubble key={item.id} msg={item} />
-                  : <DarkoBubble key={item.id} msg={item} onLongPress={() => handleDarkoBubbleLongPress(item)} />
-              ))}
+              {chatMessages.map((item) => renderChatItem(item))}
               {loading && !chatMessages.some((m) => m.type === 'darko' && (m as any).isStreaming) && (
                 <LoadingBubble text={loaderText} />
               )}
@@ -1622,11 +1852,7 @@ export default function DecodeScreen() {
               <Text style={styles.emptyChatSubtext}>&gt; BRIEF DARKO ON THE TARGET. BEGIN RECONNAISSANCE.</Text>
             </View>
           ) : null}
-          {chatMessages.map((item) => (
-            item.type === 'user'
-              ? <UserBubble key={item.id} msg={item} />
-              : <DarkoBubble key={item.id} msg={item} onLongPress={() => handleDarkoBubbleLongPress(item)} />
-          ))}
+          {chatMessages.map((item) => renderChatItem(item))}
           {loading && !chatMessages.some((m) => m.type === 'darko' && (m as any).isStreaming) && (
             <LoadingBubble text={loaderText} />
           )}
@@ -1832,6 +2058,67 @@ const styles = StyleSheet.create({
     color: TEXT_DIM,
     letterSpacing: 2,
     marginTop: 6,
+  },
+  userBubbleEditing: {
+    borderColor: ACCENT,
+    minWidth: 260,
+    maxWidth: '92%',
+  },
+  userBubbleEditInput: {
+    fontFamily: SANS,
+    fontSize: 15,
+    color: TEXT_PRIMARY,
+    lineHeight: 22,
+    padding: 0,
+    minHeight: 60,
+    textAlignVertical: 'top',
+    ...(Platform.OS === 'web' ? ({ outlineStyle: 'none' } as any) : {}),
+  },
+  userBubbleEditActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 16,
+    marginTop: 10,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: BORDER,
+  },
+  userBubbleEditCancel: {
+    fontFamily: MONO,
+    fontSize: 10,
+    letterSpacing: 2,
+    color: TEXT_DIM,
+  },
+  userBubbleEditSave: {
+    fontFamily: MONO,
+    fontSize: 10,
+    letterSpacing: 2,
+    color: ACCENT,
+    fontWeight: '700',
+  },
+  userBubbleEditIcon: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    width: 22,
+    height: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: BG,
+    borderWidth: 1,
+    borderColor: BORDER,
+    opacity: 0.45,
+    ...(Platform.OS === 'web' ? ({ cursor: 'pointer' } as any) : {}),
+  },
+  userBubbleEditIconHover: {
+    opacity: 1,
+    borderColor: ACCENT,
+  },
+  userBubbleEditIconText: {
+    fontFamily: MONO,
+    fontSize: 12,
+    color: ACCENT,
+    lineHeight: 14,
   },
 
   // ── DARKO bubble ──
