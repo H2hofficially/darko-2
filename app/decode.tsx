@@ -192,7 +192,7 @@ function conversationToChatMsgs(messages: ConversationMessage[]): ChatMsg[] {
     const sd = msg.structured_data ?? {};
     const reparsed: DarkoResponse = looksLikeJSON(stripCodeFence(msg.content ?? ''))
       ? parseDarkoResponse(msg.content ?? '')
-      : { text: '', scripts: [], alerts: [], phaseUpdate: null, phaseConfidence: null, reads: [], isCampaign: false };
+      : { text: '', scripts: [], alerts: [], phaseUpdate: null, phaseConfidence: null, reads: [], isCampaign: false, expectedNextInput: null };
 
     const sdScripts = (sd.scripts ?? []).filter(Boolean);
     const sdAlerts = (sd.alerts ?? []).filter(Boolean);
@@ -206,6 +206,7 @@ function conversationToChatMsgs(messages: ConversationMessage[]): ChatMsg[] {
       phaseConfidence: sd.phaseConfidence ?? reparsed.phaseConfidence ?? null,
       reads: sdReads.length > 0 ? sdReads : reparsed.reads,
       isCampaign: msg.entry_type === 'campaign_brief',
+      expectedNextInput: sd.expected_next_input ?? reparsed.expectedNextInput ?? null,
     };
     return {
       id: msg.id + '_d',
@@ -1354,13 +1355,16 @@ export default function DecodeScreen() {
       async (darkoResponse) => {
         setLoading(false);
 
-        // Persist DARKO response
+        // Persist DARKO response. expected_next_input is read by the edge
+        // function on the next user message and used to bias the intent
+        // classifier — must round-trip through this column.
         await saveMessage(targetId, 'darko', darkoResponse.text, {
           scripts: darkoResponse.scripts.filter(Boolean),
           alerts: darkoResponse.alerts.filter(Boolean),
           phaseUpdate: darkoResponse.phaseUpdate,
           phaseConfidence: darkoResponse.phaseConfidence,
           reads: darkoResponse.reads.filter(Boolean),
+          expected_next_input: darkoResponse.expectedNextInput,
         });
 
         setChatMessages((prev) =>
@@ -1499,6 +1503,7 @@ export default function DecodeScreen() {
         await saveMessage(targetId, 'darko', darkoResponse.text, {
           scripts: darkoResponse.scripts.filter(Boolean),
           alerts: darkoResponse.alerts.filter(Boolean),
+          expected_next_input: darkoResponse.expectedNextInput,
         }, 'campaign_brief');
         setChatMessages((prev) =>
           prev.map((m) =>
@@ -1616,6 +1621,7 @@ export default function DecodeScreen() {
           phaseUpdate: darkoResponse.phaseUpdate,
           phaseConfidence: darkoResponse.phaseConfidence,
           reads: darkoResponse.reads.filter(Boolean),
+          expected_next_input: darkoResponse.expectedNextInput,
         });
         setChatMessages((prev) =>
           prev.map((m) =>

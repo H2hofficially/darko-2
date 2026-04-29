@@ -4,6 +4,18 @@ import { TargetProfile, saveTargetProfile, getConversation } from './storage';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
+// Mirrors the UserIntent taxonomy in supabase/functions/_shared/intent-types.ts.
+// Kept inline here (rather than imported from a shared module) because the
+// client and edge function can't share Deno/Node module paths cleanly without
+// build tooling — a five-string union is cheap to duplicate.
+export type ExpectedNextInput =
+  | 'target_message'
+  | 'draft_review'
+  | 'strategy_question'
+  | 'clarification'
+  | 'meta_question'
+  | null;
+
 export interface DarkoResponse {
   text: string;
   scripts: string[];
@@ -12,6 +24,10 @@ export interface DarkoResponse {
   phaseConfidence: number | null;
   reads: string[];
   isCampaign: boolean;
+  // Strategist's prediction of the next user input, used by the classifier on
+  // the next turn as a prior. Null on legacy rows or when the strategist
+  // didn't emit it.
+  expectedNextInput: ExpectedNextInput;
 }
 
 export interface MessageInput {
@@ -37,7 +53,31 @@ const EMPTY_RESPONSE: DarkoResponse = {
   phaseConfidence: null,
   reads: [],
   isCampaign: false,
+  expectedNextInput: null,
 };
+
+const VALID_EXPECTED_NEXT_INPUTS: ReadonlyArray<string> = [
+  'target_message',
+  'draft_review',
+  'strategy_question',
+  'clarification',
+  'meta_question',
+];
+
+// Pull the strategist's expected_next_input out of either the new
+// state_update.expected_next_input field or the deprecated top-level
+// expected_next_input field (some legacy responses). Returns null on
+// anything malformed.
+function readExpectedNextInput(parsed: any): ExpectedNextInput {
+  const raw =
+    parsed?.state_update?.expected_next_input ??
+    parsed?.expected_next_input ??
+    null;
+  if (typeof raw !== 'string') return null;
+  return VALID_EXPECTED_NEXT_INPUTS.includes(raw)
+    ? (raw as ExpectedNextInput)
+    : null;
+}
 
 // Strip a wrapping Markdown code fence (```json ... ``` or ``` ... ```).
 // DeepSeek occasionally fences JSON output despite system-prompt instructions
@@ -158,6 +198,7 @@ export function parseDarkoResponse(raw: string): DarkoResponse {
           phaseConfidence,
           reads: [],
           isCampaign: parsed.intent === 'campaign_brief',
+          expectedNextInput: readExpectedNextInput(parsed),
         };
       }
     } catch {
@@ -210,6 +251,9 @@ export function parseDarkoResponse(raw: string): DarkoResponse {
     phaseConfidence: null,
     reads,
     isCampaign,
+    // Plain-text / block-marker responses don't carry expected_next_input;
+    // null is the correct legacy default.
+    expectedNextInput: null,
   };
 }
 
