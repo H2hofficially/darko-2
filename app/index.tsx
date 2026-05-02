@@ -24,7 +24,10 @@ import { supabase } from '../lib/supabase';
 import { registerPushToken } from '../services/notifications';
 import { useUser, TIER_LIMITS } from '../context/UserContext';
 import { PaywallModal } from '../components/PaywallModal';
-import LandingPageV3 from '../components/LandingPageV3';
+// LandingPageV3 retained for rollback — flip the import + the render below to
+// revert if v6 misbehaves in production.
+// import LandingPageV3 from '../components/LandingPageV3';
+import LandingPageV4 from '../components/LandingPageV4';
 
 const ACCENT = '#CCFF00';
 const BG = '#09090B';
@@ -531,7 +534,7 @@ export default function ProfilesScreen() {
     />
   );
 
-  if (showLanding) return <LandingPageV3 />;
+  if (showLanding) return <LandingPageV4 />;
   if (!authReady) return <View style={{ flex: 1, backgroundColor: BG }} />;
 
   if (isDesktop) {
