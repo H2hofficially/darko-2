@@ -76,6 +76,12 @@
         "projectId": "d9531d74-c9f3-486b-a10d-f836e7f12a0f"
       }
     },
-    "owner": "h2hofficially"
+    "owner": "h2hofficially",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/d9531d74-c9f3-486b-a10d-f836e7f12a0f"
+    }
   }
 }

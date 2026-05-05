@@ -80,12 +80,15 @@ function TargetCard({ item, onPress, onDelete }: { item: TargetItem; onPress: ()
 
 function TargetForm({
   newName, setNewName, newLeverage, setNewLeverage, newObjective, setNewObjective,
-  creating, onCancel, onCreate,
+  creating, onCancel, onCreate, formError,
 }: {
   newName: string; setNewName: (s: string) => void;
   newLeverage: string; setNewLeverage: (s: string) => void;
   newObjective: string; setNewObjective: (s: string) => void;
   creating: boolean; onCancel: () => void; onCreate: () => void;
+  // BUG-06: surface an inline error on empty TARGET NAME instead of silent
+  // failure when the user hits ACQUIRE.
+  formError?: string | null;
 }) {
   return (
     <View style={styles.modalBox}>
@@ -101,6 +104,7 @@ function TargetForm({
         autoFocus
         returnKeyType="next"
       />
+      {formError ? <Text style={styles.modalError}>[ {formError} ]</Text> : null}
 
       <Text style={styles.modalFieldLabel}>LEVERAGE  <Text style={styles.modalOptional}>(optional)</Text></Text>
       <TextInput
@@ -425,6 +429,8 @@ export default function ProfilesScreen() {
   const [showLanding, setShowLanding] = useState(false);
   const [addBtnHovered, setAddBtnHovered] = useState(false);
   const [paywallVisible, setPaywallVisible] = useState(false);
+  // BUG-06: tracks inline errors for the ACQUIRE TARGET modal (empty name etc.).
+  const [formError, setFormError] = useState<string | null>(null);
   const { tier } = useUser();
 
   // Onboarding gate → Auth gate
@@ -490,12 +496,20 @@ export default function ProfilesScreen() {
     setNewName('');
     setNewLeverage('');
     setNewObjective('');
+    setFormError(null);
     setModalVisible(false);
   };
 
   const handleCreate = async () => {
+    if (creating) return;
     const name = newName.trim();
-    if (!name || creating) return;
+    // BUG-06: empty target name was a silent no-op. Surface an inline error so
+    // the user understands why ACQUIRE didn't fire.
+    if (!name) {
+      setFormError('TARGET NAME IS REQUIRED');
+      return;
+    }
+    setFormError(null);
 
     const limit = TIER_LIMITS[tier].targets;
     if (targets.length >= limit) {
@@ -578,6 +592,7 @@ export default function ProfilesScreen() {
               newLeverage={newLeverage} setNewLeverage={setNewLeverage}
               newObjective={newObjective} setNewObjective={setNewObjective}
               creating={creating} onCancel={resetModal} onCreate={handleCreate}
+              formError={formError}
             />
           </View>
         )}
@@ -607,12 +622,19 @@ export default function ProfilesScreen() {
         </View>
         <View style={styles.headerActions}>
           {tier === 'free' && (
-            <TouchableOpacity
-              onPress={() => router.push('/pricing' as any)}
-              hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-            >
-              <Text style={styles.upgradeLinkBtn}>↑ PRO</Text>
-            </TouchableOpacity>
+            <>
+              <TouchableOpacity
+                onPress={() => router.push('/pricing' as any)}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+              >
+                <Text style={styles.upgradeLinkBtn}>↑ PRO</Text>
+              </TouchableOpacity>
+              {/* BUG-20: Observer reset hint so the user knows when their daily
+                  session count resets without having to hit the cap first. */}
+              <Text style={styles.resetHint}>
+                resets at midnight UTC
+              </Text>
+            </>
           )}
           <TouchableOpacity
             onPress={() => supabase.auth.signOut()}
@@ -658,6 +680,7 @@ export default function ProfilesScreen() {
             newLeverage={newLeverage} setNewLeverage={setNewLeverage}
             newObjective={newObjective} setNewObjective={setNewObjective}
             creating={creating} onCancel={resetModal} onCreate={handleCreate}
+            formError={formError}
           />
         </View>
       )}
@@ -679,6 +702,7 @@ export default function ProfilesScreen() {
                 newLeverage={newLeverage} setNewLeverage={setNewLeverage}
                 newObjective={newObjective} setNewObjective={setNewObjective}
                 creating={creating} onCancel={resetModal} onCreate={handleCreate}
+                formError={formError}
               />
             </ScrollView>
           </KeyboardAvoidingView>
@@ -726,6 +750,13 @@ const styles = StyleSheet.create({
     fontSize: 9,
     color: ACCENT,
     letterSpacing: 2,
+  },
+  resetHint: {
+    fontFamily: MONO,
+    fontSize: 8,
+    color: '#3D3D40',
+    letterSpacing: 1,
+    marginTop: 2,
   },
   signOutBtn: {
     fontFamily: MONO,
@@ -929,6 +960,14 @@ const styles = StyleSheet.create({
   modalInputLast: {
     borderBottomColor: BORDER,
     marginBottom: 24,
+  },
+  modalError: {
+    fontFamily: MONO,
+    fontSize: 10,
+    color: '#FF4444',
+    letterSpacing: 2,
+    marginTop: -12,
+    marginBottom: 16,
   },
   modalButtons: {
     flexDirection: 'row',

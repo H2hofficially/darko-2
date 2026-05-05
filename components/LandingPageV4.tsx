@@ -137,6 +137,20 @@ const V4_CSS = `
 .nav-cta{padding:6px 12px;font-size:10px;letter-spacing:0.16em;background:var(--a);color:#000;text-decoration:none;transition:background 200ms var(--ease);}
 .nav-cta:hover{background:#fff}
 
+/* BUG-13: hamburger button — visible only below 768px since .nav-links is hidden there */
+.nav-toggle{display:flex;align-items:center;justify-content:center;width:36px;height:36px;background:transparent;border:1px solid var(--zinc-800);cursor:pointer;flex-direction:column;gap:5px;padding:0;margin-right:8px;}
+.nav-toggle span{display:block;width:18px;height:1px;background:var(--zinc-300);transition:transform 200ms var(--ease),opacity 200ms var(--ease);}
+.nav-toggle[aria-expanded="true"] span:nth-child(1){transform:translateY(6px) rotate(45deg);}
+.nav-toggle[aria-expanded="true"] span:nth-child(2){opacity:0;}
+.nav-toggle[aria-expanded="true"] span:nth-child(3){transform:translateY(-6px) rotate(-45deg);}
+
+/* BUG-13: slide-down mobile menu sheet */
+.nav-mobile-menu{position:fixed;top:var(--nav-h);left:0;right:0;background:rgba(9,9,11,0.98);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border-bottom:1px solid var(--zinc-800);z-index:49;display:none;flex-direction:column;}
+.nav-mobile-menu.open{display:flex;}
+.nav-mobile-menu a{display:block;padding:16px 20px;font-size:12px;letter-spacing:0.18em;color:var(--zinc-300);text-decoration:none;border-bottom:1px solid var(--zinc-800);transition:background 200ms var(--ease),color 200ms var(--ease);}
+.nav-mobile-menu a:last-child{border-bottom:none;}
+.nav-mobile-menu a:hover{background:rgba(204,255,0,0.04);color:var(--a);}
+
 /* Hero */
 .hero{position:relative;padding-top:112px;padding-bottom:64px;border-bottom:1px solid var(--zinc-800);}
 .hero-bg-grid{position:absolute;inset:0;opacity:0.4;pointer-events:none}
@@ -328,7 +342,32 @@ const V4_CSS = `
 
 @media (min-width:768px){
   .nav-links{display:flex}
+  /* BUG-13: hide hamburger + mobile menu on tablet/desktop */
+  .nav-toggle{display:none !important}
+  .nav-mobile-menu{display:none !important}
   .fit-grid{grid-template-columns:1fr 1fr;}
+}
+
+/* BUG-14: small-mobile guard. Below 400px the hero h1 (44px) and CTA can
+   overflow on devices like iPhone SE (375px). Tighten font and force wrapping. */
+@media (max-width:399px){
+  .hero{padding-top:96px;padding-bottom:48px;}
+  .hero-inner{padding:0 16px;}
+  .hero-h1{font-size:34px;line-height:1.05;letter-spacing:-0.02em;word-break:break-word;overflow-wrap:anywhere;}
+  .hero-sub{font-size:13px;}
+  .hero-cta-row{flex-wrap:wrap;gap:8px;}
+  .hero-cta{padding:10px 14px;font-size:11px;}
+  .nav-inner{padding:0 14px;}
+}
+
+/* BUG-14: also defend the live-decode panel — long strings (e.g. ANXIOUS-PROTEST)
+   were overflowing their containers at 375px. Allow break-anywhere on values. */
+@media (max-width:639px){
+  .dec-row-value, .dec-row-value.accent, .dec-fw-law, .dec-move{
+    overflow-wrap:anywhere;word-break:break-word;
+  }
+  .dec-input-text{overflow-wrap:anywhere;word-break:break-word;}
+  .hero-h1{overflow-wrap:anywhere;word-break:break-word;}
 }
 
 @media (min-width:1024px){
@@ -350,7 +389,17 @@ const V4_BODY = `
       <a href="#pricing" class="nav-link">PRICING</a>
       <a href="#faq" class="nav-link">FAQ</a>
     </nav>
+    <!-- BUG-13: hamburger replaces the nav links below 768px -->
+    <button class="nav-toggle" id="nav-toggle" aria-expanded="false" aria-controls="nav-mobile-menu" aria-label="Toggle menu" type="button">
+      <span></span><span></span><span></span>
+    </button>
     <a href="#" class="nav-cta" data-cta="trial">START&nbsp;TRIAL&nbsp;→</a>
+  </div>
+  <div class="nav-mobile-menu" id="nav-mobile-menu">
+    <a href="#problem" class="nav-mobile-link">PROBLEM</a>
+    <a href="#fit" class="nav-mobile-link">FIT</a>
+    <a href="#pricing" class="nav-mobile-link">PRICING</a>
+    <a href="#faq" class="nav-mobile-link">FAQ</a>
   </div>
 </header>
 
@@ -539,22 +588,25 @@ const V4_BODY = `
       <span class="rule"></span>
     </div>
 
+    <!-- BUG-09: canonical pricing copy. Pro $15/mo, 4-day trial, 8 targets, full features.
+         Annual ($150/yr) is shown but routes to /pricing where the live toggle lives. -->
     <div class="pricing-card">
       <div class="pricing-badge">DARKO PRO</div>
       <div class="pricing-row">
         <span class="pricing-num">$15</span>
         <span class="pricing-per">/month</span>
       </div>
-      <p class="pricing-tag">Less than one therapy session. Unlimited decodes.</p>
+      <p class="pricing-tag">150 messages a month · 8 targets · voice + image · dossier · brief · phase tracking. 4-day free trial.</p>
       <a href="#" class="pricing-cta" data-cta="trial">
         <span class="label">START 4-DAY FREE TRIAL</span>
         <span>→</span>
       </a>
     </div>
 
+    <!-- BUG-09: Executive line includes founder framing (first 100 at $100 forever). -->
     <div class="exec-strip">
-      <span><span class="name">DARKO EXECUTIVE</span> · $100/mo · invite-only</span>
-      <span class="ref">referral required</span>
+      <span><span class="name">DARKO EXECUTIVE</span> · $100/mo · first 100 founders locked at $100 forever</span>
+      <a href="/pricing" class="ref" data-route="/pricing">see full plans →</a>
     </div>
   </div>
 </section>
@@ -703,19 +755,53 @@ function runV4Scripts(R: HTMLElement) {
   R.addEventListener('scroll', onScroll, { passive: true });
   onScroll();
 
+  // Helper: scroll to a hash target inside this container, accounting for the
+  // fixed nav (~64px). Used by both anchor clicks and the BUG-08 deep-link path.
+  const scrollToHash = (hash: string, smooth = true) => {
+    if (!hash || hash === '#') return;
+    const target = R.querySelector<HTMLElement>(hash);
+    if (!target) return;
+    const rTop = R.getBoundingClientRect().top;
+    const tTop = target.getBoundingClientRect().top;
+    R.scrollTo({ top: R.scrollTop + tTop - rTop - 64, behavior: smooth ? 'smooth' : 'auto' });
+  };
+
   // Smooth scroll anchor links within the container
   R.querySelectorAll<HTMLAnchorElement>('a[href^="#"]').forEach(a => {
     a.addEventListener('click', e => {
       const href = a.getAttribute('href');
       if (!href || href === '#') return;
       e.preventDefault();
-      const target = R.querySelector<HTMLElement>(href);
-      if (target) {
-        const rTop = R.getBoundingClientRect().top;
-        const tTop = target.getBoundingClientRect().top;
-        R.scrollTo({ top: R.scrollTop + tTop - rTop - 64, behavior: 'smooth' });
-      }
+      scrollToHash(href, true);
+      // Also reflect in URL so the user can copy a deep-link to the section.
+      try { history.replaceState(null, '', href); } catch { /* ignore */ }
     });
+  });
+
+  // BUG-08: when the page loads with a hash (e.g. /#pricing), the original
+  // implementation did nothing — the container booted at scrollTop 0 regardless.
+  // Run the scroll once on mount, with a tick of delay to let layout settle.
+  if (typeof window !== 'undefined' && window.location.hash) {
+    const initialHash = window.location.hash;
+    setTimeout(() => scrollToHash(initialHash, false), 60);
+  }
+
+  // BUG-13: hamburger toggle for mobile nav.
+  const navToggleEl = R.querySelector<HTMLButtonElement>('#nav-toggle');
+  const navMenuEl   = R.querySelector<HTMLElement>('#nav-mobile-menu');
+  const setMenuOpen = (open: boolean) => {
+    if (!navToggleEl || !navMenuEl) return;
+    navToggleEl.setAttribute('aria-expanded', open ? 'true' : 'false');
+    navMenuEl.classList.toggle('open', open);
+  };
+  navToggleEl?.addEventListener('click', () => {
+    const isOpen = navToggleEl.getAttribute('aria-expanded') === 'true';
+    setMenuOpen(!isOpen);
+  });
+  // Close menu when a mobile link is tapped (the click also triggers the
+  // anchor handler above, which scrolls).
+  navMenuEl?.querySelectorAll<HTMLAnchorElement>('a').forEach(a => {
+    a.addEventListener('click', () => setMenuOpen(false));
   });
 
   // CTA wiring — every [data-cta="trial"] -> /auth?plan=pro

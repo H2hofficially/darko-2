@@ -10,10 +10,17 @@ import {
   ScrollView,
   ActivityIndicator,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../lib/supabase';
+
+// BUG-04: client-side email format validation. Lightweight regex — exists strictly
+// to catch obvious typos before a server round-trip, not to be RFC-5322 perfect.
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// BUG-11: minimum password length for signup. Server will enforce its own rule;
+// this short-circuits the round-trip when the password is obviously too short.
+const MIN_PASSWORD_LEN = 8;
 
 const ACCENT = '#CCFF00';
 const BG = '#09090B';
@@ -28,7 +35,15 @@ type Mode = 'login' | 'signup';
 
 export default function AuthScreen() {
   const router = useRouter();
-  const [mode, setMode] = useState<Mode>('login');
+  // BUG-07: hero CTAs from the landing page navigate here with `?plan=pro` (and
+  // `mode=signup` is also accepted as an explicit override). Default to signup
+  // when either is present so users land on the CREATE ACCOUNT form, not login.
+  const params = useLocalSearchParams<{ plan?: string; mode?: string }>();
+  const initialMode: Mode =
+    params?.mode === 'signup' || (typeof params?.plan === 'string' && params.plan.length > 0)
+      ? 'signup'
+      : 'login';
+  const [mode, setMode] = useState<Mode>(initialMode);
 
   // Shared fields
   const [email, setEmail] = useState('');
@@ -65,12 +80,28 @@ export default function AuthScreen() {
   // ── Login ────────────────────────────────────────────────────────────────────
 
   const handleLogin = async () => {
-    if (!email.trim() || !password) return;
+    // BUG-05: empty submit was a silent no-op. Surface specific field errors so
+    // the user knows which field is missing instead of staring at a dead button.
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail && !password) {
+      setError('EMAIL AND PASSWORD ARE REQUIRED');
+      return;
+    }
+    if (!trimmedEmail) { setError('EMAIL IS REQUIRED'); return; }
+    if (!password) { setError('PASSWORD IS REQUIRED'); return; }
+
+    // BUG-04: client-side email format check. Avoids a round-trip + the generic
+    // "INVALID LOGIN CREDENTIALS" message for an obviously malformed address.
+    if (!EMAIL_RE.test(trimmedEmail)) {
+      setError('PLEASE ENTER A VALID EMAIL ADDRESS');
+      return;
+    }
+
     setLoading(true);
     setError(null);
 
     const { error: err } = await supabase.auth.signInWithPassword({
-      email: email.trim(),
+      email: trimmedEmail,
       password,
     });
 
@@ -89,16 +120,32 @@ export default function AuthScreen() {
   const handleSignup = async () => {
     const name = fullName.trim();
     const ageNum = parseInt(age.trim(), 10);
+    const trimmedEmail = email.trim();
 
     if (!name) { setError('FULL NAME IS REQUIRED'); return; }
     if (!age.trim() || isNaN(ageNum)) { setError('ENTER YOUR AGE'); return; }
+    // BUG-10: also defend against negative ages here, since the on-change strip
+    // is the only thing currently preventing them — a paste or autofill could
+    // bypass that. Belt + suspenders.
+    if (ageNum < 0) { setError('AGE MUST BE A POSITIVE NUMBER'); return; }
     if (ageNum < 18) {
       setError('YOU MUST BE 18 OR OLDER TO USE DARKO');
       return;
     }
-    if (!email.trim()) { setError('EMAIL IS REQUIRED'); return; }
+    if (!trimmedEmail) { setError('EMAIL IS REQUIRED'); return; }
+    // BUG-04: same client-side email format guard as login.
+    if (!EMAIL_RE.test(trimmedEmail)) {
+      setError('PLEASE ENTER A VALID EMAIL ADDRESS');
+      return;
+    }
     if (!phone.trim()) { setError('PHONE NUMBER IS REQUIRED'); return; }
     if (!password) { setError('PASSWORD IS REQUIRED'); return; }
+    // BUG-11: enforce a visible minimum password length on the client. Hint text
+    // below the input also communicates the requirement up-front (see render).
+    if (password.length < MIN_PASSWORD_LEN) {
+      setError(`PASSWORD MUST BE AT LEAST ${MIN_PASSWORD_LEN} CHARACTERS`);
+      return;
+    }
 
     setLoading(true);
     setError(null);
@@ -348,6 +395,11 @@ export default function AuthScreen() {
                 onSubmitEditing={handleSignup}
               />
             </View>
+            {/* BUG-11: communicate the minimum length up-front so users aren't
+                surprised by the post-submit error. */}
+            <Text style={styles.fieldHint}>
+              minimum {MIN_PASSWORD_LEN} characters
+            </Text>
 
             {error && <Text style={styles.errorText}>[ {error} ]</Text>}
 
@@ -438,6 +490,14 @@ const styles = StyleSheet.create({
     color: TEXT_DIM,
     letterSpacing: 3,
     marginBottom: 8,
+  },
+  fieldHint: {
+    fontFamily: MONO as any,
+    fontSize: 9,
+    color: TEXT_DIM,
+    letterSpacing: 1,
+    marginTop: -12,
+    marginBottom: 20,
   },
   inputWrapper: {
     backgroundColor: CARD_BG,

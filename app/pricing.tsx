@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import {
   View,
   Text,
+  TextInput,
   TouchableOpacity,
   ScrollView,
   StyleSheet,
@@ -26,25 +27,60 @@ const TEXT_DIM = '#71717A';
 const ERROR_RED = '#FF4444';
 const MONO = Platform.select({ ios: 'Courier New', android: 'monospace', default: 'monospace' });
 
-const OPERATOR_MONTHLY_PRICE_ID = 'price_1TFJfkEmZWsJibucl22phWB3';
-const EXECUTIVE_PRICE_ID = 'price_1TFJfkEmZWsJibucAw0qXn6q';
+// BUG-09 + 16/17: Stripe price IDs are read from env vars so they can be empty
+// while products are being created. When empty, the corresponding tier CTA falls
+// back to a mailto link instead of attempting a broken Stripe checkout.
+//
+// Pro annual is intentionally not wired to Stripe yet — clicks show "coming soon"
+// inline (BUG-15). The env var is reserved for when the product exists.
+const STRIPE_PRICE_PRO_MONTHLY      = process.env.EXPO_PUBLIC_STRIPE_PRICE_PRO_MONTHLY      ?? 'price_1TFJfkEmZWsJibucl22phWB3';
+const STRIPE_PRICE_PRO_ANNUAL       = process.env.EXPO_PUBLIC_STRIPE_PRICE_PRO_ANNUAL       ?? '';
+const STRIPE_PRICE_EXECUTIVE_MONTHLY = process.env.EXPO_PUBLIC_STRIPE_PRICE_EXECUTIVE_MONTHLY ?? '';
+const STRIPE_PRICE_EXECUTIVE_ANNUAL  = process.env.EXPO_PUBLIC_STRIPE_PRICE_EXECUTIVE_ANNUAL  ?? '';
+
+// BUG-19: founder slot count for Executive tier. First 100 members lock at $100
+// forever. After 100, the card flips to a waitlist UI (BUG-22). The count is
+// read from a public env var so marketing can update it without a redeploy of
+// the Supabase function. Defaults to 0 (slots remaining = 100) when unset.
+const EXECUTIVE_FOUNDER_TOTAL = 100;
+const EXECUTIVE_FOUNDER_SOLD =
+  parseInt(process.env.EXPO_PUBLIC_EXECUTIVE_FOUNDER_SOLD ?? '0', 10) || 0;
+const EXECUTIVE_FOUNDER_REMAINING = Math.max(0, EXECUTIVE_FOUNDER_TOTAL - EXECUTIVE_FOUNDER_SOLD);
+const EXECUTIVE_FOUNDER_FULL = EXECUTIVE_FOUNDER_REMAINING <= 0;
+
+// Canonical pricing — must match LandingPageV4 pricing section copy.
+const PRICE = {
+  PRO_MONTHLY: 15,
+  PRO_ANNUAL: 150,
+  PRO_ANNUAL_SAVINGS: 30,   // 12 * 15 - 150
+  EXEC_MONTHLY: 100,
+  EXEC_ANNUAL: 900,
+  EXEC_ANNUAL_SAVINGS: 300, // 12 * 100 - 900
+} as const;
+
+const SUPPORT_EMAIL = 'support@darkoapp.com';
 
 // ─── Feature comparison table ───────────────────────────────────────────────
 
 type FeatureRow = { label: string; observer: string | boolean; operator: string | boolean; executive: string | boolean };
 
+// BUG-09: feature comparison rebuilt against the canonical spec (May 2026).
+// Headers renamed PRO/EXECUTIVE to match the spec; OBSERVER kept as the free tier.
 const FEATURES: FeatureRow[] = [
-  { label: 'Active targets',          observer: '1',        operator: '3',         executive: 'Unlimited' },
-  { label: 'Daily messages',          observer: '5 / day',  operator: '30 / day',  executive: 'Unlimited' },
-  { label: 'Conversation history',    observer: '10 msgs',  operator: '50 msgs',   executive: 'Full history' },
-  { label: 'Psychological profiling', observer: 'Basic',    operator: 'Full',      executive: 'Full' },
-  { label: 'Script generation',       observer: true,       operator: true,        executive: true },
-  { label: 'Mission phase tracking',  observer: true,       operator: true,        executive: true },
-  { label: '// DOSSIER (campaign)',    observer: false,      operator: true,        executive: true },
-  { label: 'Voice input',             observer: false,      operator: true,        executive: true },
-  { label: 'Screenshot analysis',     observer: false,      operator: true,        executive: true },
-  { label: 'Priority support',        observer: false,      operator: false,       executive: true },
-  { label: 'Early access features',   observer: false,      operator: false,       executive: true },
+  { label: 'Active targets',          observer: '1',                 operator: '8',                 executive: 'Unlimited' },
+  { label: 'Sessions',                 observer: '3 / day',           operator: '150 / month',       executive: 'Unlimited' },
+  { label: 'Campaign memory',          observer: 'Last 10 messages',  operator: 'Last 50 messages',  executive: 'Last 100 messages' },
+  { label: 'Psychological profiling',  observer: 'Basic handler',     operator: 'Full',              executive: 'Full + teaching layer' },
+  { label: 'Voice input',              observer: false,               operator: true,                executive: true },
+  { label: 'Image input',              observer: false,               operator: true,                executive: true },
+  { label: '// DOSSIER',                observer: false,               operator: true,                executive: true },
+  { label: '// BRIEF',                   observer: false,               operator: true,                executive: true },
+  { label: 'Phase tracking',           observer: false,               operator: true,                executive: true },
+  { label: 'Monthly campaign audits',  observer: false,               operator: false,               executive: true },
+  { label: 'Proactive check-ins',      observer: false,               operator: false,               executive: true },
+  { label: 'Crisis mode',              observer: false,               operator: false,               executive: true },
+  { label: 'Priority processing',      observer: false,               operator: false,               executive: true },
+  { label: 'Free trial',               observer: '—',                 operator: '4 days',            executive: 'No trial' },
 ];
 
 // ─── FAQ ─────────────────────────────────────────────────────────────────────
@@ -59,8 +95,8 @@ const FAQ_ITEMS = [
     a: 'Yes. Cancel any time from your account settings. Access continues until end of the current billing period. No partial-period refunds.',
   },
   {
-    q: 'How does EXECUTIVE access work?',
-    a: 'EXECUTIVE is invitation-only. If you have a code, enter it at checkout. Without a code, the standard checkout will not proceed.',
+    q: 'How does EXECUTIVE founder pricing work?',
+    a: 'The first 100 EXECUTIVE members lock in $100/mo (or $900/yr) forever. Once those 100 slots are gone, the EXECUTIVE card flips to a waitlist — leave your email and we will reach out when a slot opens.',
   },
   {
     q: 'Is my data private?',
@@ -155,12 +191,32 @@ export default function PricingScreen() {
   const [billing, setBilling] = useState<'monthly' | 'annual'>('monthly');
   const [loadingTier, setLoadingTier] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // BUG-15: Pro annual click → "coming soon" inline (no Stripe product yet).
+  const [proAnnualNotice, setProAnnualNotice] = useState<string | null>(null);
+  // BUG-22: waitlist email-capture state for Executive once founder slots fill.
+  const [waitlistEmail, setWaitlistEmail] = useState('');
+  const [waitlistStatus, setWaitlistStatus] = useState<'idle' | 'sending' | 'ok' | 'error'>('idle');
 
   const isObserver   = tier === 'free';
   const isOperator   = tier === 'pro';
   const isExecutive  = tier === 'executive';
 
-  async function handleCheckout(priceId: string, tierKey: string) {
+  // BUG-16/17: graceful fallback. When a Stripe price ID is empty (env var unset),
+  // open a mailto so the user still has a path forward instead of a broken checkout.
+  function mailtoFallback(planName: string) {
+    const subject = encodeURIComponent(`DARKO ${planName} access request`);
+    const body = encodeURIComponent(
+      `I'd like to subscribe to DARKO ${planName}. Please reach out with next steps.`,
+    );
+    Linking.openURL(`mailto:${SUPPORT_EMAIL}?subject=${subject}&body=${body}`);
+  }
+
+  async function handleCheckout(priceId: string, tierKey: string, planName: string) {
+    if (!priceId) {
+      // No Stripe product configured yet — offer mailto fallback.
+      mailtoFallback(planName);
+      return;
+    }
     setLoadingTier(tierKey);
     setError(null);
     try {
@@ -178,6 +234,30 @@ export default function PricingScreen() {
       setError((err.message ?? 'SOMETHING WENT WRONG').toUpperCase());
     } finally {
       setLoadingTier(null);
+    }
+  }
+
+  // BUG-22: persist a waitlist signup. Tries a Supabase RPC first; if it isn't
+  // wired yet, falls back to a mailto so the lead is never silently lost.
+  async function submitWaitlist() {
+    const email = waitlistEmail.trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setWaitlistStatus('error');
+      return;
+    }
+    setWaitlistStatus('sending');
+    try {
+      const { error: fnErr } = await supabase.functions.invoke('executive-waitlist', {
+        body: { email },
+      });
+      if (fnErr) throw fnErr;
+      setWaitlistStatus('ok');
+    } catch {
+      // Fallback so leads still reach the team while the function is being built.
+      const subject = encodeURIComponent('DARKO EXECUTIVE — waitlist signup');
+      const body = encodeURIComponent(`Add me to the Executive waitlist.\nEmail: ${email}`);
+      Linking.openURL(`mailto:${SUPPORT_EMAIL}?subject=${subject}&body=${body}`);
+      setWaitlistStatus('ok');
     }
   }
 
@@ -200,11 +280,11 @@ export default function PricingScreen() {
           <Text style={s.title}>// PRICING</Text>
           <Text style={s.subtitle}>Select your operational tier</Text>
         </View>
-        {/* Billing toggle */}
+        {/* Billing toggle — BUG-09: dollar-savings, not percentage */}
         <View style={s.toggle}>
           <TouchableOpacity
             style={[s.toggleBtn, billing === 'monthly' && s.toggleActive]}
-            onPress={() => setBilling('monthly')}
+            onPress={() => { setBilling('monthly'); setProAnnualNotice(null); }}
           >
             <Text style={[s.toggleLabel, billing === 'monthly' && s.toggleLabelActive]}>MONTHLY</Text>
           </TouchableOpacity>
@@ -213,7 +293,6 @@ export default function PricingScreen() {
             onPress={() => setBilling('annual')}
           >
             <Text style={[s.toggleLabel, billing === 'annual' && s.toggleLabelActive]}>ANNUAL</Text>
-            <Text style={s.toggleSaveBadge}>SAVE 20%</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -225,7 +304,7 @@ export default function PricingScreen() {
       {/* Tier cards */}
       <View style={[s.cards, isWide && s.cardsRow]}>
 
-        {/* OBSERVER */}
+        {/* OBSERVER — canonical spec: 3 sessions/day, 1 target, basic only */}
         <View style={[s.card, isWide && s.cardWide, isObserver && s.cardCurrent]}>
           <Text style={s.tierLabel}>OBSERVER</Text>
           <Text style={s.tierPrice}>$0</Text>
@@ -233,10 +312,10 @@ export default function PricingScreen() {
           <View style={s.cardDivider} />
           <View style={s.featureList}>
             <FeatureLine text="1 active target" />
-            <FeatureLine text="5 messages / day" />
-            <FeatureLine text="Basic profiling" />
-            <FeatureLine text="Script generation" />
-            <FeatureLine text="Phase tracking" />
+            <FeatureLine text="3 sessions / day" />
+            <FeatureLine text="Campaign memory: last 10 messages" />
+            <FeatureLine text="Basic handler only" />
+            <FeatureLine text="No voice, image, dossier, or brief" />
           </View>
           <View style={s.cardFooter}>
             {isObserver ? (
@@ -244,48 +323,43 @@ export default function PricingScreen() {
                 <Text style={s.btnGhostText}>CURRENT PLAN</Text>
               </View>
             ) : (
-              <TouchableOpacity style={[s.btn, s.btnGhost]} onPress={() => router.push('/auth' as any)}>
+              <TouchableOpacity style={[s.btn, s.btnGhost]} onPress={() => router.push('/auth?plan=free' as any)}>
                 <Text style={s.btnGhostText}>[ GET STARTED ]</Text>
               </TouchableOpacity>
             )}
           </View>
         </View>
 
-        {/* OPERATOR */}
+        {/* PRO — canonical spec. Annual: $150/yr, "coming soon" until Stripe wired (BUG-15). */}
         <View style={[s.card, s.cardOperator, isWide && s.cardWide, isOperator && s.cardCurrent]}>
           <View style={s.badge}>
             <Text style={s.badgeText}>MOST POPULAR</Text>
           </View>
-          <Text style={[s.tierLabel, { color: TEXT_PRIMARY }]}>OPERATOR</Text>
+          <Text style={[s.tierLabel, { color: TEXT_PRIMARY }]}>PRO</Text>
           <View style={s.priceRow}>
             <Text style={[s.tierPrice, { color: ACCENT }]}>
-              {billing === 'annual' ? '$12' : '$15'}
+              {billing === 'annual' ? `$${PRICE.PRO_ANNUAL}` : `$${PRICE.PRO_MONTHLY}`}
             </Text>
-            <Text style={s.perMonth}>/mo</Text>
+            <Text style={s.perMonth}>{billing === 'annual' ? '/year' : '/month'}</Text>
           </View>
           {billing === 'annual'
-            ? <Text style={s.tierPriceSub}>billed $144 annually</Text>
+            ? <Text style={[s.tierPriceSub, { color: ACCENT }]}>Save ${PRICE.PRO_ANNUAL_SAVINGS}/year</Text>
             : <Text style={s.tierPriceSub}>4-day free trial</Text>
           }
           <View style={s.cardDivider} />
           <View style={s.featureList}>
-            <FeatureLine text="3 active targets" accent />
-            <FeatureLine text="30 messages / day" accent />
-            <FeatureLine text="Full conversation history" accent />
-            <FeatureLine text="// DOSSIER — full profiling" accent />
-            <FeatureLine text="// CAMPAIGN — mission planner" accent />
-            <FeatureLine text="Voice input + transcription" accent />
-            <FeatureLine text="Screenshot analysis" accent />
+            <FeatureLine text="150 messages per month" accent />
+            <FeatureLine text="8 active targets" accent />
+            <FeatureLine text="Campaign memory: last 50 messages" accent />
+            <FeatureLine text="Voice input · image input" accent />
+            <FeatureLine text="// DOSSIER · // BRIEF · phase tracking" accent />
+            <FeatureLine text="4-day free trial" accent />
           </View>
 
-          {!isOperator && !isExecutive && (
-            <View style={s.betaNote}>
-              <Text style={s.betaNoteTitle}>// BETA ACCESS NOTICE</Text>
-              <Text style={s.betaNoteBody}>
-                {'Phase 1 Beta. Models are actively training — expect occasional latency or generation variance. You are the final authority on any generated script.'}
-              </Text>
-            </View>
-          )}
+          {/* BUG-15: Pro annual coming-soon notice */}
+          {proAnnualNotice ? (
+            <Text style={s.comingSoonText}>{proAnnualNotice}</Text>
+          ) : null}
 
           <View style={s.cardFooter}>
             {isOperator ? (
@@ -296,10 +370,18 @@ export default function PricingScreen() {
               <View style={[s.btn, s.btnGhost]}>
                 <Text style={s.btnGhostText}>INCLUDED IN EXECUTIVE</Text>
               </View>
+            ) : billing === 'annual' ? (
+              // BUG-15: annual click → inline "coming soon", no Stripe call.
+              <TouchableOpacity
+                style={[s.btn, s.btnAccent]}
+                onPress={() => setProAnnualNotice('// annual billing — coming soon')}
+              >
+                <Text style={s.btnAccentText}>[ GET PRO ANNUAL ]</Text>
+              </TouchableOpacity>
             ) : (
               <TouchableOpacity
                 style={[s.btn, s.btnAccent, loadingTier === 'operator' && { opacity: 0.5 }]}
-                onPress={() => handleCheckout(OPERATOR_MONTHLY_PRICE_ID, 'operator')}
+                onPress={() => handleCheckout(STRIPE_PRICE_PRO_MONTHLY, 'operator', 'PRO MONTHLY')}
                 disabled={loadingTier !== null}
               >
                 {loadingTier === 'operator'
@@ -308,43 +390,100 @@ export default function PricingScreen() {
                 }
               </TouchableOpacity>
             )}
-            {!isOperator && !isExecutive && (
+            {!isOperator && !isExecutive && billing === 'monthly' && (
               <Text style={s.trialNote}>4-day trial · No charge until trial ends · Cancel anytime</Text>
             )}
           </View>
         </View>
 
-        {/* EXECUTIVE */}
+        {/* EXECUTIVE — founder pricing first 100 (BUG-19), waitlist when full (BUG-22).
+            Stripe-or-mailto fallback (BUG-16/17). */}
         <View style={[s.card, isWide && s.cardWide, isExecutive && s.cardCurrent]}>
           <View style={[s.badge, s.badgeExec]}>
-            <Text style={[s.badgeText, { color: TEXT_DIM }]}>INVITE ONLY</Text>
+            <Text style={[s.badgeText, { color: ACCENT }]}>
+              {EXECUTIVE_FOUNDER_FULL ? 'WAITLIST' : 'FOUNDER PRICING'}
+            </Text>
           </View>
           <Text style={s.tierLabel}>EXECUTIVE</Text>
-          <Text style={s.tierPrice}>$100</Text>
-          <Text style={s.tierPriceSub}>per month</Text>
+          <View style={s.priceRow}>
+            <Text style={s.tierPrice}>
+              {billing === 'annual' ? `$${PRICE.EXEC_ANNUAL}` : `$${PRICE.EXEC_MONTHLY}`}
+            </Text>
+            <Text style={s.perMonth}>{billing === 'annual' ? '/year' : '/month'}</Text>
+          </View>
+          {billing === 'annual'
+            ? <Text style={[s.tierPriceSub, { color: ACCENT }]}>Save ${PRICE.EXEC_ANNUAL_SAVINGS}/year</Text>
+            : <Text style={s.tierPriceSub}>per month</Text>
+          }
+          {/* BUG-19: founder framing — only while slots remain */}
+          {!EXECUTIVE_FOUNDER_FULL && (
+            <Text style={s.founderNote}>
+              First 100 members locked at $100 forever
+              {EXECUTIVE_FOUNDER_SOLD > 0 ? ` · ${EXECUTIVE_FOUNDER_REMAINING} of ${EXECUTIVE_FOUNDER_TOTAL} left` : ''}
+            </Text>
+          )}
           <View style={s.cardDivider} />
           <View style={s.featureList}>
-            <FeatureLine text="Everything in OPERATOR" />
-            <FeatureLine text="Unlimited targets" />
             <FeatureLine text="Unlimited messages" />
-            <FeatureLine text="Full conversation history" />
-            <FeatureLine text="Priority support" />
-            <FeatureLine text="Early access to new features" />
+            <FeatureLine text="Unlimited targets" />
+            <FeatureLine text="Campaign memory: last 100 messages" />
+            <FeatureLine text="Everything in PRO" />
+            <FeatureLine text="Teaching layer · monthly audits" />
+            <FeatureLine text="Proactive check-ins · priority processing" />
+            <FeatureLine text="Crisis mode" />
           </View>
           <View style={s.cardFooter}>
             {isExecutive ? (
               <View style={[s.btn, s.btnGhost]}>
                 <Text style={s.btnGhostText}>CURRENT PLAN</Text>
               </View>
+            ) : EXECUTIVE_FOUNDER_FULL ? (
+              // BUG-22: founder slots full → email-capture waitlist.
+              <View>
+                {waitlistStatus === 'ok' ? (
+                  <Text style={s.waitlistOk}>// you're on the list. we'll be in touch.</Text>
+                ) : (
+                  <>
+                    <Text style={s.waitlistLabel}>Founder slots are full. Join the waitlist:</Text>
+                    <View style={s.waitlistRow}>
+                      <TextInput
+                        style={s.waitlistInput}
+                        value={waitlistEmail}
+                        onChangeText={(t) => { setWaitlistEmail(t); setWaitlistStatus('idle'); }}
+                        placeholder="you@domain.com"
+                        placeholderTextColor={TEXT_DIM}
+                        autoCapitalize="none"
+                        keyboardType="email-address"
+                      />
+                      <TouchableOpacity
+                        style={[s.btn, s.btnGhost, { paddingHorizontal: 16 }]}
+                        onPress={submitWaitlist}
+                        disabled={waitlistStatus === 'sending'}
+                      >
+                        <Text style={s.btnGhostText}>
+                          {waitlistStatus === 'sending' ? 'SENDING...' : 'JOIN'}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                    {waitlistStatus === 'error' && (
+                      <Text style={s.error}>[ ENTER A VALID EMAIL ]</Text>
+                    )}
+                  </>
+                )}
+              </View>
             ) : (
               <TouchableOpacity
                 style={[s.btn, s.btnGhost, loadingTier === 'executive' && { opacity: 0.5 }]}
-                onPress={() => handleCheckout(EXECUTIVE_PRICE_ID, 'executive')}
+                onPress={() => handleCheckout(
+                  billing === 'annual' ? STRIPE_PRICE_EXECUTIVE_ANNUAL : STRIPE_PRICE_EXECUTIVE_MONTHLY,
+                  'executive',
+                  billing === 'annual' ? 'EXECUTIVE ANNUAL' : 'EXECUTIVE MONTHLY',
+                )}
                 disabled={loadingTier !== null}
               >
                 {loadingTier === 'executive'
                   ? <ActivityIndicator color={TEXT_DIM} />
-                  : <Text style={s.btnGhostText}>[ REQUEST ACCESS ]</Text>
+                  : <Text style={s.btnGhostText}>[ GET EXECUTIVE ]</Text>
                 }
               </TouchableOpacity>
             )}
@@ -669,6 +808,55 @@ const s = StyleSheet.create({
     color: TEXT_DIM,
     letterSpacing: 0.3,
     lineHeight: 16,
+  },
+  // BUG-15: Pro annual coming-soon notice
+  comingSoonText: {
+    fontFamily: MONO as any,
+    fontSize: 10,
+    color: ACCENT,
+    letterSpacing: 1,
+    marginBottom: 12,
+  },
+  // BUG-19: founder framing line under the price
+  founderNote: {
+    fontFamily: MONO as any,
+    fontSize: 10,
+    color: ACCENT,
+    letterSpacing: 1,
+    marginTop: 4,
+    lineHeight: 16,
+  },
+  // BUG-22: waitlist UI (Executive when 100 founders are sold)
+  waitlistLabel: {
+    fontFamily: MONO as any,
+    fontSize: 10,
+    color: TEXT_DIM,
+    letterSpacing: 1,
+    marginBottom: 8,
+  },
+  waitlistRow: {
+    flexDirection: 'row' as const,
+    gap: 8,
+    alignItems: 'stretch' as const,
+  },
+  waitlistInput: {
+    flex: 1,
+    fontFamily: MONO as any,
+    fontSize: 12,
+    color: TEXT_PRIMARY,
+    backgroundColor: BG,
+    borderWidth: 1,
+    borderColor: BORDER,
+    borderRadius: 2,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  waitlistOk: {
+    fontFamily: MONO as any,
+    fontSize: 11,
+    color: ACCENT,
+    letterSpacing: 1,
+    paddingVertical: 8,
   },
   section: {
     marginBottom: 48,

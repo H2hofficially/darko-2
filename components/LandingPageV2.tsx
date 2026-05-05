@@ -27,19 +27,54 @@ function BlinkingCursor() {
 
 // ─── Demo Section ────────────────────────────────────────────────────────────
 
+const bubbleReceived = {
+  alignSelf: 'flex-start' as const,
+  backgroundColor: '#27272a',
+  borderRadius: 12,
+  borderBottomLeftRadius: 2,
+  paddingVertical: 10,
+  paddingHorizontal: 14,
+  maxWidth: '85%',
+} as const;
+const bubbleText = {
+  color: '#e4e4e7',
+  fontSize: 14,
+  lineHeight: 20,
+} as const;
+const analysisText = {
+  color: SUBTEXT,
+  fontSize: 14,
+  lineHeight: 22,
+  fontStyle: 'italic' as const,
+} as const;
+const bubbleSent = {
+  alignSelf: 'flex-end' as const,
+  backgroundColor: '#1a2e00',
+  borderRadius: 12,
+  borderBottomRightRadius: 2,
+  paddingVertical: 10,
+  paddingHorizontal: 14,
+  maxWidth: '85%',
+} as const;
+const bubbleTextSent = {
+  color: ACCENT,
+  fontSize: 14,
+  lineHeight: 20,
+} as const;
+
 const DEMO_STEPS = [
   {
     label: 'PASTE HER MESSAGE',
     content: (
-      <View style={demoStyles.bubbleReceived}>
-        <Text style={demoStyles.bubbleText}>idk maybe, I'll let you know lol</Text>
+      <View style={bubbleReceived}>
+        <Text style={bubbleText}>idk maybe, I'll let you know lol</Text>
       </View>
     ),
   },
   {
     label: 'GET THE READ',
     content: (
-      <Text style={demoStyles.analysisText}>
+      <Text style={analysisText}>
         She's testing whether you'll chase. The "lol" softens a rejection she hasn't committed
         to. Window still open.
       </Text>
@@ -48,8 +83,8 @@ const DEMO_STEPS = [
   {
     label: 'SEND THE MOVE',
     content: (
-      <View style={demoStyles.bubbleSent}>
-        <Text style={demoStyles.bubbleTextSent}>
+      <View style={bubbleSent}>
+        <Text style={bubbleTextSent}>
           No pressure. I'll be at [place] Saturday if you want to come through.
         </Text>
       </View>

@@ -276,6 +276,50 @@ export async function getConversation(
   return rows.reverse();
 }
 
+export async function updateMessage(
+  messageId: string,
+  content: string,
+): Promise<boolean> {
+  const { error } = await supabase
+    .from('conversation_messages')
+    .update({ content })
+    .eq('id', messageId);
+  if (error) {
+    console.error('[DARKO] updateMessage error:', error.message);
+    return false;
+  }
+  return true;
+}
+
+// Deletes every message for this target whose created_at is strictly greater
+// than the anchor message's created_at. Used by edit-and-regenerate: the
+// edited user message is kept, everything after it is wiped so DARKO can
+// rebuild its context from the edited point forward.
+export async function deleteMessagesAfter(
+  targetId: string,
+  afterMessageId: string,
+): Promise<boolean> {
+  const { data: anchor, error: anchorErr } = await supabase
+    .from('conversation_messages')
+    .select('created_at')
+    .eq('id', afterMessageId)
+    .single();
+  if (anchorErr || !anchor?.created_at) {
+    console.error('[DARKO] deleteMessagesAfter anchor lookup failed:', anchorErr?.message);
+    return false;
+  }
+  const { error } = await supabase
+    .from('conversation_messages')
+    .delete()
+    .eq('target_id', targetId)
+    .gt('created_at', anchor.created_at);
+  if (error) {
+    console.error('[DARKO] deleteMessagesAfter error:', error.message);
+    return false;
+  }
+  return true;
+}
+
 // ── Mission phase — Supabase ──────────────────────────────────────────────────
 
 export async function getMissionPhase(targetId: string): Promise<number> {

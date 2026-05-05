@@ -50,6 +50,7 @@ import {
 } from '../services/storage';
 import { useUser, TIER_LIMITS } from '../context/UserContext';
 import { PaywallModal } from '../components/PaywallModal';
+import { supabase } from '../lib/supabase';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -130,6 +131,34 @@ const LOADER_MESSAGES = [
   '> COMPILING STRATEGIC ASSESSMENT...',
   '> DRAFTING RESPONSE...',
 ];
+
+// BUG-18: canonical cap messages from the May 2026 pricing spec. Kept in module
+// scope so they're trivially snapshot-testable.
+// BUG-23: the Pro reset date is formatted in the user's local timezone — we use
+// the user's locale and let Intl.DateTimeFormat pick the appropriate format.
+export function formatProResetDate(now: Date = new Date()): string {
+  // Pro is metered per calendar month. Reset = 00:00 local on the 1st of next month.
+  const next = new Date(now.getFullYear(), now.getMonth() + 1, 1, 0, 0, 0);
+  return new Intl.DateTimeFormat(undefined, {
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+  }).format(next);
+}
+
+export const CAP_MESSAGE_OBSERVER =
+  "Three sessions today. I reset at midnight UTC. Pro opens the full product — 150 sessions a month, full memory, voice and image input, dossiers. $15. Or wait — I'll be here tomorrow.";
+
+export function buildCapMessageProMonthly(now: Date = new Date()): string {
+  return `Monthly sessions closed. Resets on ${formatProResetDate(now)}. Executive removes the cap entirely and opens the training layer. Request access or wait — your call.`;
+}
+
+export function buildCapMessage(tier: string, _msgLimit: number, now: Date = new Date()): string {
+  if (tier === 'free') return CAP_MESSAGE_OBSERVER;
+  if (tier === 'pro')  return buildCapMessageProMonthly(now);
+  // Executive shouldn't normally hit a cap — fall back to a neutral string.
+  return 'Daily message limit reached.';
+}
 
 // 4-phase Greene model: internal keys (stray/approach/decide/fall) map to
 // descriptive user-facing labels. Framework names never surface to the user.
@@ -1275,7 +1304,13 @@ export default function DecodeScreen() {
   // ── Send message ───────────────────────────────────────────────────────────
 
   const handleSend = async () => {
-    if (loading || phaseUnlocking || (!inputText.trim() && !selectedImage)) return;
+    if (loading || phaseUnlocking) return;
+    // BUG-06: empty submit was a silent no-op. Surface an inline error so the
+    // user knows the button reacted to their click.
+    if (!inputText.trim() && !selectedImage) {
+      setError('// type a message or attach a screenshot first');
+      return;
+    }
 
     // Daily message gate — count today's user messages in this conversation
     const todayStr = new Date().toDateString();
@@ -1284,11 +1319,11 @@ export default function DecodeScreen() {
     ).length;
     const msgLimit = TIER_LIMITS[tier].messagesPerTargetPerDay;
     if (todayUserMsgs >= msgLimit) {
-      showPaywall(
-        tier === 'free'
-          ? `Free tier allows ${msgLimit} messages per target per day. Upgrade for more.`
-          : `Daily message limit reached (${msgLimit}). Upgrade to Executive for unlimited access.`,
-      );
+      // BUG-18: cap messages use canonical handler-voice copy from the spec.
+      // BUG-23: Pro reset date is rendered in the user's local timezone — the
+      // Observer message references "midnight UTC" because that's the actual
+      // reset boundary for the daily counter (server-side).
+      showPaywall(buildCapMessage(tier, msgLimit));
       return;
     }
 
@@ -1408,7 +1443,18 @@ export default function DecodeScreen() {
         if (errMsg.startsWith('RATE LIMIT')) {
           display = '// ' + errMsg.slice(0, 60).toLowerCase() + '...';
         } else if (errMsg === 'Not authenticated' || errMsg.toLowerCase().includes('jwt')) {
-          display = '// session expired — sign out and back in';
+          // BUG-03: session expired — auto-redirect to /auth instead of inline error.
+          display = '// session expired — redirecting to sign in...';
+          setError(display);
+          // Best-effort sign-out (clears local session) then bounce to login.
+          // Wrapped in setTimeout so the inline message is briefly visible.
+          setTimeout(() => {
+            (async () => {
+              try { await supabase.auth.signOut(); } catch { /* ignore */ }
+              router.replace('/auth');
+            })();
+          }, 600);
+          return;
         } else if (errMsg.toLowerCase().includes('unavailable') || errMsg.toLowerCase().includes('timed out')) {
           display = '// engine busy — tap to retry';
         } else {
