@@ -1,5 +1,13 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { classifyUserIntent } from '../_shared/intent-classifier.ts';
+import {
+  CONFIDENCE_THRESHOLD,
+  INTENT_STRATEGY_GUIDANCE,
+  buildClarificationQuestion,
+  type ExpectedNextInput,
+  type IntentClassification,
+} from '../_shared/intent-types.ts';
 
 const DEEPSEEK_API_URL = 'https://api.deepseek.com/chat/completions';
 // Vision pipeline: cheap+fast Flash for "screenshot vs photo" classification,
@@ -282,6 +290,41 @@ Emergent, not curricular. Teach what's relevant to his situations. Train him to 
 
 ---
 
+## INPUT INTENT (read this FIRST on every message)
+
+Each user message arrives with an [INTENT: <type>] tag prepended in its
+[USER MESSAGE] block, plus a short [INTENT_REASONING] line. The intent tells
+you HOW to interpret the message. The five intents and their rules:
+
+- target_message — <<<INTENT_GUIDANCE_TARGET_MESSAGE>>>
+- draft_review — <<<INTENT_GUIDANCE_DRAFT_REVIEW>>>
+- strategy_question — <<<INTENT_GUIDANCE_STRATEGY_QUESTION>>>
+- clarification — <<<INTENT_GUIDANCE_CLARIFICATION>>>
+- meta_question — <<<INTENT_GUIDANCE_META_QUESTION>>>
+
+Hard rules:
+- NEVER decode a draft_review as if it were the target's words.
+- NEVER produce scripts on a meta_question.
+- On clarification, do NOT restart analysis from scratch — fold the new fact
+  into the line of reasoning from your prior turn.
+- If [INTENT_REASONING] disagrees with what you would have inferred, trust
+  the reasoning unless the user input contains an explicit override
+  ("she said:", "draft:", etc.).
+
+## EXPECTED NEXT INPUT (required field on every response)
+
+Every response MUST include \`expected_next_input\` inside \`state_update\`.
+Pick from: target_message | draft_review | strategy_question | clarification
+| meta_question. This is your prediction of what the user will send next —
+it seeds the next turn's intent classifier. Defaults:
+- After handing the user a script and asking them to report back her reply
+  → target_message.
+- After asking the user a direct question (anything ending with "?")
+  → clarification.
+- After offering tactical guidance with no specific message in play, leaving
+  the floor open → strategy_question.
+- After discussing app features or your own behavior → meta_question.
+
 ## OUTPUT FORMAT
 
 Return JSON matching this schema:
@@ -308,7 +351,8 @@ Return JSON matching this schema:
     "current_phase": "stray | approach | decide | fall",
     "phase_confidence": 0.0,
     "completed_moves": [],
-    "user_voice_profile_delta": "..."
+    "user_voice_profile_delta": "...",
+    "expected_next_input": "target_message | draft_review | strategy_question | clarification | meta_question"
   },
   "suggested_followups": [
     "Run another signal",
@@ -495,8 +539,8 @@ async function classifyImageType(
       }),
     });
     if (!res.ok) {
-      const errText = await res.text();
-      console.error('[decode-intel] Gemini classify error:', res.status, errText.slice(0, 200));
+      const errText = await res.text().catch(() => '');
+      console.error('[decode-intel] Gemini classify error:', res.status, errText.slice(0, 300));
       return 'screenshot';
     }
     const data = await res.json();
@@ -533,7 +577,7 @@ async function extractImageContext(
       }),
     });
     if (!res.ok) {
-      const errText = await res.text();
+      const errText = await res.text().catch(() => '');
       console.error('[decode-intel] Gemini extract error:', res.status, errText.slice(0, 300));
       return '';
     }
@@ -551,12 +595,180 @@ async function extractImageContext(
 
 // ── Campaign state — loads behavioral_profile from DB ────────────────────────
 
+// Tees an SSE body so the response forwards to the client unchanged while a
+// background task accumulates the assistant text, parses the final JSON, and
+// updates behavioral_profile with:
+//   - completed_moves entry (capped at 20) — what was recommended this turn
+//   - turn_phase / turn_phase_confidence / turn_phase_at — the model's per-turn
+//     phase read, gated by a -0.1 confidence guard so low-confidence noise
+//     can't displace a locked read (narrative or prior turn).
+// Also emits one structured decode_complete log line for recurrence
+// measurement: phase_source + phase_confidence used for THIS decode + whether
+// the model's chosen intent repeated a recent completed_move type.
+function captureCompletedMove<T extends ReadableStream<Uint8Array>>(
+  body: T,
+  admin: ReturnType<typeof createClient>,
+  userId: string,
+  targetId: string,
+  resolvedPhaseSource: 'narrative' | 'turn' | 'heuristic',
+  resolvedPhaseConfidence: number,
+): T {
+  const [forClient, forCapture] = body.tee() as [T, T];
+  (async () => {
+    const reader = forCapture.getReader();
+    const decoder = new TextDecoder();
+    let buf = '';
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+    }
+    buf += decoder.decode();
+
+    let assembled = '';
+    for (const line of buf.split('\n')) {
+      if (!line.startsWith('data: ')) continue;
+      const payload = line.slice(6).trim();
+      if (!payload || payload === '[DONE]') continue;
+      try {
+        const obj = JSON.parse(payload);
+        const delta = obj?.choices?.[0]?.delta?.content;
+        if (typeof delta === 'string') assembled += delta;
+      } catch {
+        /* skip malformed chunk */
+      }
+    }
+    if (!assembled.trim()) return;
+
+    const stripped = assembled.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '');
+    let parsed: any;
+    try {
+      parsed = JSON.parse(stripped);
+    } catch {
+      return; // model emitted prose, not the JSON envelope — nothing to record
+    }
+    if (!parsed || typeof parsed !== 'object') return;
+
+    const intent: string = typeof parsed.intent === 'string' ? parsed.intent : 'unknown';
+    const script: string =
+      typeof parsed.visible_arsenal?.option_1_script === 'string'
+        ? parsed.visible_arsenal.option_1_script
+        : typeof parsed.next_directive === 'string'
+          ? parsed.next_directive
+          : '';
+    const newMove = {
+      type: intent,
+      summary: script.slice(0, 120),
+      at: new Date().toISOString(),
+    };
+
+    // Per-turn phase emitted by the model in state_update.
+    const validPhases = ['stray', 'approach', 'decide', 'fall'];
+    const rawTurnPhase =
+      typeof parsed.state_update?.current_phase === 'string'
+        ? parsed.state_update.current_phase.toLowerCase()
+        : null;
+    const turnPhase = rawTurnPhase && validPhases.includes(rawTurnPhase) ? rawTurnPhase : null;
+    const rawTurnConf = parsed.state_update?.phase_confidence;
+    const turnConfNum = Number(rawTurnConf);
+    const turnConf = Number.isFinite(turnConfNum) ? Math.max(0, Math.min(1, turnConfNum)) : null;
+
+    try {
+      const { data: row } = await admin
+        .from('targets')
+        .select('behavioral_profile')
+        .eq('id', targetId)
+        .eq('user_id', userId)
+        .single();
+      const bp = ((row as any)?.behavioral_profile ?? {}) as Record<string, unknown>;
+
+      // completed_moves: append + cap, plus repeat detection over the last 10.
+      const existingMoves = Array.isArray(bp.completed_moves)
+        ? (bp.completed_moves as Array<Record<string, unknown>>)
+        : [];
+      const recentMoveTypes = existingMoves.slice(-10).map((m) =>
+        typeof m?.type === 'string' ? m.type : null,
+      );
+      const repeated = recentMoveTypes.includes(intent);
+      const nextMoves = [...existingMoves, newMove].slice(-20);
+
+      // Confidence guard: a turn-phase write must clear (max prior confidence) - 0.1.
+      // Protects locked reads (narrative ≥0.75 or a previously confident turn) from
+      // being displaced by hedged 0.4 reads on ambiguous turns.
+      const narrativeConf =
+        typeof bp.phase_confidence === 'number' ? (bp.phase_confidence as number) : null;
+      const priorTurnConf =
+        typeof bp.turn_phase_confidence === 'number' ? (bp.turn_phase_confidence as number) : null;
+      const guardCeiling = Math.max(narrativeConf ?? 0, priorTurnConf ?? 0);
+      const guardPasses =
+        turnPhase !== null && turnConf !== null && turnConf >= guardCeiling - 0.1;
+
+      const updatedBp: Record<string, unknown> = { ...bp, completed_moves: nextMoves };
+      if (guardPasses) {
+        updatedBp.turn_phase = turnPhase;
+        updatedBp.turn_phase_confidence = turnConf;
+        updatedBp.turn_phase_at = new Date().toISOString();
+      }
+
+      await admin
+        .from('targets')
+        .update({ behavioral_profile: updatedBp })
+        .eq('id', targetId)
+        .eq('user_id', userId);
+
+      // Single structured log per decode for recurrence measurement.
+      console.log(
+        JSON.stringify({
+          event: 'decode_complete',
+          userId,
+          target_id: targetId,
+          intent,
+          repeated,
+          phase_source: resolvedPhaseSource,
+          phase_confidence: resolvedPhaseConfidence,
+          turn_phase: turnPhase,
+          turn_phase_confidence: turnConf,
+          turn_phase_written: guardPasses,
+        }),
+      );
+    } catch (e) {
+      console.error('[decode-intel] capture persist failed:', (e as Error)?.message ?? e);
+    }
+  })().catch((e) => console.error('[decode-intel] capture pipeline failed:', (e as Error)?.message ?? e));
+  return forClient;
+}
+
+// Fallback phase derivation when no narrative-grounded current_phase is on the
+// behavioral_profile yet (new target, dossier not yet generated). Crude
+// message-count heuristic — kept low-confidence so the model treats it as
+// tentative compared to a narrative-derived read.
+function computePhase(messageCount: number): { phase: string; confidence: number } {
+  if (messageCount >= 30) return { phase: 'fall', confidence: 0.3 };
+  if (messageCount >= 15) return { phase: 'decide', confidence: 0.3 };
+  if (messageCount >= 5) return { phase: 'approach', confidence: 0.3 };
+  return { phase: 'stray', confidence: 0.3 };
+}
+
 async function getCampaignState(
   userId: string,
   targetId: string,
   supabaseUrl: string,
   serviceKey: string,
 ): Promise<Record<string, unknown>> {
+  const empty = {
+    target_archetype: null,
+    attachment_read: null,
+    current_phase: null,
+    phase_confidence: null,
+    turn_phase: null,
+    turn_phase_confidence: null,
+    turn_phase_at: null,
+    days_since_last_message: null,
+    completed_moves: [],
+    user_voice_profile_loaded: false,
+    relationship_narrative: null,
+    behavioral_profile: null,
+  };
   try {
     const admin = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } });
     const { data } = await admin
@@ -567,25 +779,28 @@ async function getCampaignState(
       .single();
 
     const bp = data?.behavioral_profile as Record<string, unknown> | null;
-    if (!bp) {
-      return {
-        target_archetype: null,
-        attachment_read: null,
-        current_phase: 1,
-        days_since_last_message: null,
-        completed_moves: [],
-        user_voice_profile_loaded: false,
-        relationship_narrative: null,
-        behavioral_profile: null,
-      };
-    }
+    if (!bp) return empty;
+
+    const validPhases = ['stray', 'approach', 'decide', 'fall'] as const;
+    const normPhase = (v: unknown) => {
+      const s = typeof v === 'string' ? v.toLowerCase() : null;
+      return s && (validPhases as readonly string[]).includes(s) ? s : null;
+    };
+    const normConf = (v: unknown) => {
+      const n = typeof v === 'number' ? v : Number(v);
+      return Number.isFinite(n) ? Math.max(0, Math.min(1, n)) : null;
+    };
 
     return {
       target_archetype: bp.dominant_archetype ?? null,
       attachment_read: bp.attachment_style ?? null,
-      current_phase: 1,
+      current_phase: normPhase(bp.current_phase),
+      phase_confidence: normConf(bp.phase_confidence),
+      turn_phase: normPhase(bp.turn_phase),
+      turn_phase_confidence: normConf(bp.turn_phase_confidence),
+      turn_phase_at: typeof bp.turn_phase_at === 'string' ? bp.turn_phase_at : null,
       days_since_last_message: null,
-      completed_moves: [],
+      completed_moves: Array.isArray(bp.completed_moves) ? bp.completed_moves : [],
       user_voice_profile_loaded: !!bp.target_communication_style,
       relationship_narrative: bp.relationship_narrative ?? null,
       power_dynamic: bp.power_dynamic ?? null,
@@ -596,16 +811,7 @@ async function getCampaignState(
       behavioral_profile: bp,
     };
   } catch {
-    return {
-      target_archetype: null,
-      attachment_read: null,
-      current_phase: 1,
-      days_since_last_message: null,
-      completed_moves: [],
-      user_voice_profile_loaded: false,
-      relationship_narrative: null,
-      behavioral_profile: null,
-    };
+    return empty;
   }
 }
 
@@ -853,13 +1059,18 @@ serve(async (req: Request) => {
     // which served only the first N messages and meant the handler was
     // reasoning about week-old context on long campaigns instead of what
     // just happened. Limits also raised since reasoner has 64K input window.
-    let conversationHistory: Array<{ role: string; content: string; created_at: string }> = [];
+    let conversationHistory: Array<{
+      role: string;
+      content: string;
+      structured_data: any;
+      created_at: string;
+    }> = [];
     if (target_id && userId) {
       try {
         const limit = tier === 'pro' ? 100 : 30;
         const { data: msgs } = await admin
           .from('conversation_messages')
-          .select('role, content, created_at')
+          .select('role, content, structured_data, created_at')
           .eq('target_id', target_id)
           .eq('user_id', userId)
           .order('created_at', { ascending: false })
@@ -937,7 +1148,47 @@ serve(async (req: Request) => {
       ? await getCampaignState(userId, target_id, SUPABASE_URL, SERVICE_KEY)
       : {};
 
-    const stateBlock = `[CONTEXT: tier=${tier}, target_archetype=${campaignState.target_archetype ?? 'null'}, attachment_read=${campaignState.attachment_read ?? 'null'}, current_phase=${campaignState.current_phase ?? 1}, days_since_last_message=${campaignState.days_since_last_message ?? 'null'}, completed_moves=${JSON.stringify(campaignState.completed_moves ?? [])}, user_voice_profile_loaded=${campaignState.user_voice_profile_loaded ?? false}]`;
+    // Resolve current_phase by priority:
+    //   1. narrative (current_phase) if confidence ≥ 0.75 — slow, deep synthesis
+    //   2. turn (turn_phase) if confidence ≥ 0.5 AND written within 7 days — fast, shallow
+    //   3. heuristic (message-count) — fallback for new targets with no signal
+    const TURN_PHASE_RECENT_DAYS = 7;
+    const narrativePhase = (campaignState.current_phase as string | null) ?? null;
+    const narrativeConf = (campaignState.phase_confidence as number | null) ?? null;
+    const turnPhase = (campaignState.turn_phase as string | null) ?? null;
+    const turnConf = (campaignState.turn_phase_confidence as number | null) ?? null;
+    const turnAt = (campaignState.turn_phase_at as string | null) ?? null;
+    const turnAgeDays = turnAt
+      ? Math.floor((Date.now() - new Date(turnAt).getTime()) / 86400000)
+      : null;
+    const turnIsRecent = turnAgeDays !== null && turnAgeDays <= TURN_PHASE_RECENT_DAYS;
+
+    let resolvedPhase: string;
+    let resolvedPhaseConfidence: number;
+    let phaseSource: 'narrative' | 'turn' | 'heuristic';
+    if (narrativePhase && narrativeConf !== null && narrativeConf >= 0.75) {
+      resolvedPhase = narrativePhase;
+      resolvedPhaseConfidence = narrativeConf;
+      phaseSource = 'narrative';
+    } else if (turnPhase && turnConf !== null && turnConf >= 0.5 && turnIsRecent) {
+      resolvedPhase = turnPhase;
+      resolvedPhaseConfidence = turnConf;
+      phaseSource = 'turn';
+    } else {
+      const fallback = computePhase(conversationHistory.length);
+      resolvedPhase = fallback.phase;
+      resolvedPhaseConfidence = fallback.confidence;
+      phaseSource = 'heuristic';
+    }
+
+    const completedMovesArr = Array.isArray(campaignState.completed_moves)
+      ? (campaignState.completed_moves as Array<Record<string, unknown>>)
+      : [];
+    const completedMovesTypes = completedMovesArr
+      .map((m) => (typeof m?.type === 'string' ? m.type : 'unknown'))
+      .join(',');
+
+    const stateBlock = `[CONTEXT: tier=${tier}, target_archetype=${campaignState.target_archetype ?? 'null'}, attachment_read=${campaignState.attachment_read ?? 'null'}, current_phase=${resolvedPhase}, phase_confidence=${resolvedPhaseConfidence?.toFixed(2) ?? 'null'}, phase_source=${phaseSource}, days_since_last_message=${campaignState.days_since_last_message ?? 'null'}, completed_moves=[${completedMovesTypes}], user_voice_profile_loaded=${campaignState.user_voice_profile_loaded ?? false}]`;
 
     // ── Relationship narrative block ──────────────────────────────────────────
     let narrativeBlock = '';
@@ -969,21 +1220,124 @@ serve(async (req: Request) => {
       }
     }
 
+    // ── Recent moves block ────────────────────────────────────────────────────
+    let completedMovesBlock = '';
+    if (completedMovesArr.length) {
+      const lines = completedMovesArr.slice(-10).map((m) => {
+        const t = typeof m?.type === 'string' ? m.type : 'unknown';
+        const s = typeof m?.summary === 'string' && m.summary ? ` — "${m.summary}"` : '';
+        const d = typeof m?.at === 'string' ? ` (${m.at.split('T')[0]})` : '';
+        return `- ${t}${s}${d}`;
+      });
+      completedMovesBlock =
+        `\n\n=== RECENT MOVES ===\nRecent moves recommended (do not repeat variations of these):\n${lines.join('\n')}\n`;
+    }
+
+    // ── Stage 1: Intent classifier (runs in parallel with prompt build) ──────
+    // Read the prior expectation that the previous Darko turn predicted.
+    // Used as a hint to the classifier to bias the next turn's interpretation.
+    const lastDarkoTurn = [...conversationHistory].reverse().find((m) => m.role === 'darko');
+    const priorExpectation: ExpectedNextInput =
+      (lastDarkoTurn?.structured_data?.expected_next_input as ExpectedNextInput) ?? null;
+
+    const classifierPromise: Promise<IntentClassification> = classifyUserIntent({
+      userMessage: message ?? '',
+      recentTurns: conversationHistory.slice(-3).map((m) => ({
+        role: m.role === 'darko' ? 'darko' : 'user',
+        content: m.content,
+      })),
+      priorExpectation,
+      deepseekApiKey: DEEPSEEK_API_KEY,
+    });
+
     // ── Build system prompt ───────────────────────────────────────────────────
+    // The DARKO_SYSTEM_PROMPT contains <<<INTENT_GUIDANCE_*>>> placeholders.
+    // Substitute them with the per-intent guidance from intent-types.ts so the
+    // strategist sees the same vocabulary the classifier emits.
+    const intentGuidanceSubbed = DARKO_SYSTEM_PROMPT
+      .replaceAll('<<<INTENT_GUIDANCE_TARGET_MESSAGE>>>', INTENT_STRATEGY_GUIDANCE.target_message)
+      .replaceAll('<<<INTENT_GUIDANCE_DRAFT_REVIEW>>>', INTENT_STRATEGY_GUIDANCE.draft_review)
+      .replaceAll('<<<INTENT_GUIDANCE_STRATEGY_QUESTION>>>', INTENT_STRATEGY_GUIDANCE.strategy_question)
+      .replaceAll('<<<INTENT_GUIDANCE_CLARIFICATION>>>', INTENT_STRATEGY_GUIDANCE.clarification)
+      .replaceAll('<<<INTENT_GUIDANCE_META_QUESTION>>>', INTENT_STRATEGY_GUIDANCE.meta_question);
+
     const systemPrompt =
-      DARKO_SYSTEM_PROMPT +
+      intentGuidanceSubbed +
       `\n\n=== WHAT YOU KNOW ===` +
       dossierContext +
       narrativeBlock +
       profileSummaryBlock +
+      completedMovesBlock +
       phaseDepth +
       temporalBlock +
       commStyleBlock +
       passageBlock;
 
+    // ── Await classifier (parallel work above usually completes first) ───────
+    const classification = await classifierPromise;
+    console.log(
+      `[decode-intel] classifier intent=${classification.intent} ` +
+      `confidence=${classification.confidence.toFixed(2)} ` +
+      `prior=${priorExpectation ?? 'none'} ` +
+      `reasoning="${classification.reasoning}"`
+    );
+
+    // ── Low-confidence short-circuit ──────────────────────────────────────────
+    // Below threshold → ask a clarifying question instead of guessing. We
+    // synthesize a single SSE chunk so the client streaming code handles it
+    // identically to a one-shot strategist response. Persisted with
+    // entry_type='clarification' so it doesn't pollute the strategist's
+    // history on subsequent turns.
+    if (classification.confidence < CONFIDENCE_THRESHOLD) {
+      const clarifierText = buildClarificationQuestion(classification);
+
+      if (target_id && userId) {
+        try {
+          await admin.from('conversation_messages').insert({
+            user_id: userId,
+            target_id,
+            role: 'darko',
+            content: clarifierText,
+            structured_data: {
+              classifier: classification,
+              expected_next_input: 'clarification',
+            },
+            entry_type: 'clarification',
+          });
+        } catch (e: any) {
+          console.warn('[decode-intel] clarifier persist failed:', e?.message ?? e);
+        }
+      }
+
+      const sseBody =
+        `data: ${JSON.stringify({
+          choices: [{ delta: { content: clarifierText }, finish_reason: null }],
+        })}\n\n` +
+        `data: ${JSON.stringify({
+          choices: [{ delta: {}, finish_reason: 'stop' }],
+        })}\n\n` +
+        `data: [DONE]\n\n`;
+
+      return new Response(sseBody, {
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          Connection: 'keep-alive',
+        },
+      });
+    }
+
     // ── Build messages array (OpenAI-compatible) ──────────────────────────────
+    // Inject the classified intent and reasoning into the user message block
+    // so the strategist's per-intent rules (defined in DARKO_SYSTEM_PROMPT)
+    // can branch on it.
+    const intentBlock =
+      `\n[INTENT: ${classification.intent} (confidence=${classification.confidence.toFixed(2)})]` +
+      `\n[INTENT_REASONING]: ${classification.reasoning}\n`;
+
     const userMessageWithContext =
-      stateBlock + imageContext + '\n\n[USER MESSAGE]: ' + (message ?? '');
+      stateBlock + imageContext + intentBlock + '\n\n[USER MESSAGE]: ' + (message ?? '');
 
     const messages: Array<{ role: string; content: string }> = [
       { role: 'system', content: systemPrompt },
@@ -1117,11 +1471,27 @@ serve(async (req: Request) => {
       }),
     );
 
-    // ── Forward SSE stream to client ──────────────────────────────────────────
-    // If streamRes already has the right headers (Gemini fallback), return as-is
-    if (usedModel === 'gemini') return streamRes;
+    // ── Forward SSE stream to client (tee for completed_moves + turn-phase capture) ──
+    let bodyForClient = streamRes.body;
+    if (bodyForClient && userId && target_id) {
+      bodyForClient = captureCompletedMove(
+        bodyForClient,
+        admin,
+        userId,
+        target_id,
+        phaseSource,
+        resolvedPhaseConfidence,
+      );
+    }
 
-    return new Response(streamRes.body, {
+    if (usedModel === 'gemini') {
+      // Gemini fallback already has the right SSE headers; preserve them but
+      // swap in the teed body if we forked it for capture.
+      if (bodyForClient === streamRes.body) return streamRes;
+      return new Response(bodyForClient, { headers: streamRes.headers });
+    }
+
+    return new Response(bodyForClient, {
       headers: {
         ...corsHeaders,
         'Content-Type': 'text/event-stream',

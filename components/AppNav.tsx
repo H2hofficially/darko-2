@@ -48,11 +48,7 @@ export function AppNav() {
 
   const navigateTo = (route: string) => {
     setMenuOpen(false);
-    if (route === '/decode') {
-      router.push('/targets' as any);
-    } else {
-      router.push(route as any);
-    }
+    router.push(route as any);
   };
 
   return (
