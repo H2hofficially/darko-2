@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Platform, Animated, useWindowDimensions } from 'react-native';
+import DarkoLogo from './DarkoLogo';
 
 const BG = 'rgba(18,18,21,0.96)';
 const BORDER = '#27272A';
@@ -49,7 +50,10 @@ export function AppStatusBar() {
           <Separator />
           <StatusItem label="LATENCY" val={`${latency}ms`} />
         </View>
-        <Text style={s.copy}>DARKO · 2026</Text>
+        <View style={s.copyRow}>
+          <DarkoLogo size={8} cursorColor={DIM} color={DIM} />
+          <Text style={s.copy}> · 2026</Text>
+        </View>
       </View>
     );
   }
@@ -67,7 +71,10 @@ export function AppStatusBar() {
         <Separator />
         <StatusItem label="ENCRYPTION" val="AES-256" />
       </View>
-      <Text style={s.copy}>DARKO · NXGEN MEDIA LLC · 2026</Text>
+      <View style={s.copyRow}>
+        <DarkoLogo size={8} cursorColor={DIM} color={DIM} />
+        <Text style={s.copy}> · NXGEN MEDIA LLC · 2026</Text>
+      </View>
     </View>
   );
 }
@@ -146,6 +153,11 @@ const s = StyleSheet.create({
     fontFamily: MONO as any,
     fontSize: 8,
     color: BORDER,
+  },
+  copyRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    flexShrink: 0,
   },
   copy: {
     fontFamily: MONO as any,

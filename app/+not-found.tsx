@@ -9,6 +9,7 @@ import React from 'react';
 import { View, Text, Pressable, StyleSheet, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import DarkoLogo from '../components/DarkoLogo';
 
 const ACCENT = '#CCFF00';
 const BG = '#09090B';
@@ -52,7 +53,10 @@ export default function NotFoundScreen() {
           </Pressable>
         </View>
 
-        <Text style={styles.foot}>// DARKO · NXGEN MEDIA LLC</Text>
+        <View style={styles.footRow}>
+          <DarkoLogo size={9} cursorColor="#3F3F46" color="#3F3F46" />
+          <Text style={styles.foot}> · NXGEN MEDIA LLC</Text>
+        </View>
       </View>
     </View>
   );
@@ -138,11 +142,15 @@ const styles = StyleSheet.create({
     color: TEXT_DIM,
     letterSpacing: 3,
   },
+  footRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    marginTop: 64,
+  },
   foot: {
     fontFamily: MONO as any,
     fontSize: 9,
     color: '#3F3F46',
     letterSpacing: 2,
-    marginTop: 64,
   },
 });

@@ -14,6 +14,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../lib/supabase';
+import DarkoLogo from '../components/DarkoLogo';
 
 // BUG-04: client-side email format validation. Lightweight regex — exists strictly
 // to catch obvious typos before a server round-trip, not to be RFC-5322 perfect.
@@ -186,7 +187,7 @@ export default function AuthScreen() {
             showsVerticalScrollIndicator={false}
           >
             <View style={styles.header}>
-              <Text style={styles.logo}>[ DARKO ]</Text>
+              <DarkoLogo size={32} />
               <Text style={styles.logoSub}>psychological intelligence system</Text>
             </View>
             <View style={styles.divider} />
@@ -222,7 +223,7 @@ export default function AuthScreen() {
               showsVerticalScrollIndicator={false}
             >
               <View style={styles.header}>
-                <Text style={styles.logo}>[ DARKO ]</Text>
+                <DarkoLogo size={32} />
                 <Text style={styles.logoSub}>psychological intelligence system</Text>
               </View>
 
@@ -307,7 +308,7 @@ export default function AuthScreen() {
             showsVerticalScrollIndicator={false}
           >
             <View style={styles.header}>
-              <Text style={styles.logo}>[ DARKO ]</Text>
+              <DarkoLogo size={32} />
               <Text style={styles.logoSub}>psychological intelligence system</Text>
             </View>
 

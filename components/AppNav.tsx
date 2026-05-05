@@ -3,6 +3,7 @@ import { View, Text, Pressable, TouchableOpacity, StyleSheet, Platform, useWindo
 import { useRouter, usePathname } from 'expo-router';
 import { supabase } from '../lib/supabase';
 import { useUser } from '../context/UserContext';
+import DarkoLogo from './DarkoLogo';
 
 const ACCENT = '#CCFF00';
 const BG = '#09090B';
@@ -56,8 +57,7 @@ export function AppNav() {
       <View style={s.nav}>
         {/* Logo */}
         <Pressable style={s.logo} onPress={() => router.push('/targets' as any)}>
-          <View style={s.logoSq} />
-          <Text style={s.logoText}>DARKO</Text>
+          <DarkoLogo size={15} />
         </Pressable>
 
         {/* Links — hidden on mobile */}
@@ -119,8 +119,7 @@ export function AppNav() {
               {/* Header */}
               <View style={s.sheetHeader}>
                 <View style={s.sheetLogoRow}>
-                  <View style={s.logoSq} />
-                  <Text style={s.logoText}>DARKO</Text>
+                  <DarkoLogo size={16} />
                 </View>
                 <View style={s.statusChip}>
                   <View style={s.dot} />

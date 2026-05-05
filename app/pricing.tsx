@@ -17,6 +17,7 @@ import { supabase } from '../lib/supabase';
 import { useUser } from '../context/UserContext';
 import { AppNav } from '../components/AppNav';
 import { AppStatusBar } from '../components/AppStatusBar';
+import DarkoLogo from '../components/DarkoLogo';
 
 const ACCENT = '#CCFF00';
 const BG = '#09090B';
@@ -522,9 +523,13 @@ export default function PricingScreen() {
         {FAQ_ITEMS.map(item => <FaqItem key={item.q} q={item.q} a={item.a} />)}
       </View>
 
-      <Text style={s.footnote}>
-        {'Payments processed securely via Stripe. Cancel anytime. No refunds on partial billing periods. · DARKO · NXGEN MEDIA LLC · 2026'}
-      </Text>
+      <View style={s.footnoteRow}>
+        <Text style={s.footnote}>
+          {'Payments processed securely via Stripe. Cancel anytime. No refunds on partial billing periods. · '}
+        </Text>
+        <DarkoLogo size={9} cursorColor="#3F3F46" color="#3F3F46" />
+        <Text style={s.footnote}>{' · NXGEN MEDIA LLC · 2026'}</Text>
+      </View>
     </ScrollView>
   );
 
@@ -905,6 +910,12 @@ const s = StyleSheet.create({
   },
   tableHeaderCenter: {
     textAlign: 'center' as const,
+  },
+  footnoteRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center' as const,
+    alignItems: 'baseline',
   },
   footnote: {
     fontFamily: MONO as any,

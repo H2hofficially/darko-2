@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Platform } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { supabase } from '../../lib/supabase';
+import DarkoLogo from '../../components/DarkoLogo';
 
 const ACCENT = '#CCFF00';
 const BG = '#000000';
@@ -71,7 +72,7 @@ export default function AuthCallbackScreen() {
         </>
       ) : (
         <>
-          <Text style={styles.label}>[ DARKO ]</Text>
+          <View style={{ marginBottom: 20 }}><DarkoLogo size={26} /></View>
           <Text style={styles.status}>{status}</Text>
         </>
       )}
