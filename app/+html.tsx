@@ -14,15 +14,21 @@ const SITE = {
 
 export default function Root({ children }: PropsWithChildren) {
   return (
-    <html lang="en">
+    <html lang="en" dir="ltr">
       <head>
         <meta charSet="utf-8" />
         <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
+        <meta httpEquiv="content-language" content="en" />
         <meta
           name="viewport"
           content="width=device-width, initial-scale=1, shrink-to-fit=no"
         />
         <meta name="theme-color" content="#09090B" />
+
+        {/* Tells Chrome/Safari not to offer translation — short technical
+            UPPERCASE copy ("DARKO ENGINE v4.0", "COMM_PATTERN") otherwise
+            trips the heuristic and gets flagged as German on mobile. */}
+        <meta name="google" content="notranslate" />
 
         {/* Animated SVG favicon — modern browsers; falls back to .ico/PNG below */}
         <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
@@ -58,7 +64,7 @@ export default function Root({ children }: PropsWithChildren) {
         */}
         <ScrollViewStyleReset />
       </head>
-      <body>{children}</body>
+      <body lang="en" className="notranslate" translate="no">{children}</body>
     </html>
   );
 }
