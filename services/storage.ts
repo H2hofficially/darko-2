@@ -246,20 +246,26 @@ export async function saveMessage(
 
 export async function getConversation(
   targetId: string,
-  limit = 100,
+  limit = 500,
 ): Promise<ConversationMessage[]> {
+  // Fetch the MOST RECENT `limit` messages, then reverse so callers receive
+  // them in chronological order (oldest → newest), matching how chat UIs
+  // expect to render. Previous version used ascending+limit, which silently
+  // truncated to the OLDEST N rows and made every message past row N
+  // invisible across all clients. Default limit bumped from 100 → 500 so
+  // long-running campaigns aren't truncated mid-thread on the UI.
   const { data, error } = await supabase
     .from('conversation_messages')
     .select('id, role, content, structured_data, entry_type, created_at')
     .eq('target_id', targetId)
-    .order('created_at', { ascending: true })
+    .order('created_at', { ascending: false })
     .limit(limit);
 
   if (error) {
     console.error('[DARKO] getConversation error:', error.message);
     return [];
   }
-  return (data ?? []).map((row) => ({
+  const rows = (data ?? []).map((row) => ({
     id: row.id,
     role: row.role as 'user' | 'darko',
     content: row.content,
@@ -267,6 +273,7 @@ export async function getConversation(
     entry_type: (row.entry_type ?? 'message') as 'message' | 'campaign_brief' | 'alert',
     created_at: row.created_at,
   }));
+  return rows.reverse();
 }
 
 // ── Mission phase — Supabase ──────────────────────────────────────────────────

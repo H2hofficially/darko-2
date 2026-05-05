@@ -10,8 +10,12 @@ import {
 } from '../_shared/intent-types.ts';
 
 const DEEPSEEK_API_URL = 'https://api.deepseek.com/chat/completions';
-const GEMINI_VISION_URL =
+// Vision pipeline: cheap+fast Flash for "screenshot vs photo" classification,
+// stronger Pro model for actual content extraction (better OCR + structure).
+const GEMINI_CLASSIFY_URL =
   'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
+const GEMINI_EXTRACT_URL =
+  'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-pro:generateContent';
 
 const BLOCKED_WORDS = ['stalk', 'hack', 'blackmail', 'illegal'];
 const FREE_DAILY_LIMIT = 30;
@@ -521,7 +525,7 @@ async function classifyImageType(
   apiKey: string,
 ): Promise<'screenshot' | 'photo'> {
   try {
-    const res = await fetch(`${GEMINI_VISION_URL}?key=${apiKey}`, {
+    const res = await fetch(`${GEMINI_CLASSIFY_URL}?key=${apiKey}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -531,18 +535,19 @@ async function classifyImageType(
             { text: 'Is this image (a) a screenshot of a text conversation, or (b) a photo of a person? Respond with one word: screenshot or photo.' },
           ],
         }],
+        generationConfig: { temperature: 0, maxOutputTokens: 8 },
       }),
     });
     if (!res.ok) {
       const errText = await res.text().catch(() => '');
-      console.error('[decode-intel] classifyImageType non-ok:', res.status, errText.slice(0, 300));
+      console.error('[decode-intel] Gemini classify error:', res.status, errText.slice(0, 300));
       return 'screenshot';
     }
     const data = await res.json();
     const answer = (data?.candidates?.[0]?.content?.parts?.[0]?.text ?? '').trim().toLowerCase();
     return answer.startsWith('photo') ? 'photo' : 'screenshot';
-  } catch (err) {
-    console.error('[decode-intel] classifyImageType threw:', (err as Error)?.message ?? err);
+  } catch (err: any) {
+    console.error('[decode-intel] Gemini classify failed:', err?.message ?? err);
     return 'screenshot';
   }
 }
@@ -554,7 +559,7 @@ async function extractImageContext(
   apiKey: string,
 ): Promise<string> {
   try {
-    const res = await fetch(`${GEMINI_VISION_URL}?key=${apiKey}`, {
+    const res = await fetch(`${GEMINI_EXTRACT_URL}?key=${apiKey}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -564,17 +569,26 @@ async function extractImageContext(
             { text: prompt },
           ],
         }],
+        generationConfig: {
+          temperature: 0.2,
+          maxOutputTokens: 2048,
+          responseMimeType: 'application/json',
+        },
       }),
     });
     if (!res.ok) {
       const errText = await res.text().catch(() => '');
-      console.error('[decode-intel] extractImageContext non-ok:', res.status, errText.slice(0, 300));
+      console.error('[decode-intel] Gemini extract error:', res.status, errText.slice(0, 300));
       return '';
     }
     const data = await res.json();
-    return data?.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
-  } catch (err) {
-    console.error('[decode-intel] extractImageContext threw:', (err as Error)?.message ?? err);
+    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? '';
+    if (!text) {
+      console.error('[decode-intel] Gemini extract returned empty:', JSON.stringify(data).slice(0, 300));
+    }
+    return text;
+  } catch (err: any) {
+    console.error('[decode-intel] Gemini extract failed:', err?.message ?? err);
     return '';
   }
 }
@@ -1040,6 +1054,11 @@ serve(async (req: Request) => {
     }
 
     // ── Fetch conversation history from DB ────────────────────────────────────
+    // Pull the MOST RECENT N messages (not oldest), then reverse to feed the
+    // model in chronological order. The previous query used ascending+limit,
+    // which served only the first N messages and meant the handler was
+    // reasoning about week-old context on long campaigns instead of what
+    // just happened. Limits also raised since reasoner has 64K input window.
     let conversationHistory: Array<{
       role: string;
       content: string;
@@ -1048,15 +1067,15 @@ serve(async (req: Request) => {
     }> = [];
     if (target_id && userId) {
       try {
-        const limit = tier === 'pro' ? 50 : 10;
+        const limit = tier === 'pro' ? 100 : 30;
         const { data: msgs } = await admin
           .from('conversation_messages')
           .select('role, content, structured_data, created_at')
           .eq('target_id', target_id)
           .eq('user_id', userId)
-          .order('created_at', { ascending: true })
+          .order('created_at', { ascending: false })
           .limit(limit);
-        conversationHistory = msgs ?? [];
+        conversationHistory = (msgs ?? []).slice().reverse();
       } catch {
         // non-fatal — proceed without history
       }
@@ -1332,12 +1351,16 @@ serve(async (req: Request) => {
     console.log('[decode-intel] calling AI, tier=' + tier + ' userId=' + (userId ?? 'anon'));
 
     let streamRes: Response | null = null;
-    let usedModel = 'deepseek';
+    let usedModel = 'deepseek-reasoner';
 
-    // Try DeepSeek with a hard 25-second timeout
+    // Try DeepSeek Reasoner — chain-of-thought model. Slower TTFB than chat,
+    // so we give it a 60s window to return headers. Once the SSE stream is
+    // open the connection stays alive as long as the client holds it.
+    // Reasoner ignores temperature/top_p/presence_penalty/frequency_penalty,
+    // so we omit them to keep the request payload clean.
     try {
       const dsAbort = new AbortController();
-      const dsTimeout = setTimeout(() => dsAbort.abort(), 25000);
+      const dsTimeout = setTimeout(() => dsAbort.abort(), 60000);
       const attempt = await fetch(DEEPSEEK_API_URL, {
         method: 'POST',
         signal: dsAbort.signal,
@@ -1346,10 +1369,10 @@ serve(async (req: Request) => {
           'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
         },
         body: JSON.stringify({
-          model: 'deepseek-chat',
+          model: 'deepseek-reasoner',
           messages,
           stream: true,
-          temperature: tier === 'pro' ? 0.8 : 0.6,
+          max_tokens: 8192,
         }),
       });
       clearTimeout(dsTimeout);
