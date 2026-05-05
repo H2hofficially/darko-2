@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, ScrollView, Pressable } from 'react-native';
 import type { Target } from '../services/storage';
+import DarkoLogo from './DarkoLogo';
 
 const ACCENT = '#CCFF00';
 const BG = '#09090B';
@@ -28,17 +29,7 @@ export function TargetSidebar({ targets, onSelectTarget, onNewTarget, tier }: Ta
           borderBottomColor: BORDER,
         }}
       >
-        <Text
-          style={{
-            fontFamily: MONO,
-            fontSize: 16,
-            fontWeight: '700',
-            color: TEXT_PRIMARY,
-            letterSpacing: 4,
-          }}
-        >
-          // DARKO
-        </Text>
+        <DarkoLogo size={16} />
         <Text
           style={{
             fontFamily: MONO,

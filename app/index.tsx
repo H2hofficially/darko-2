@@ -25,6 +25,7 @@ import { registerPushToken } from '../services/notifications';
 import { useUser, TIER_LIMITS } from '../context/UserContext';
 import { PaywallModal } from '../components/PaywallModal';
 import LandingPageV3 from '../components/LandingPageV3';
+import DarkoLogo from '../components/DarkoLogo';
 
 const ACCENT = '#CCFF00';
 const BG = '#09090B';
@@ -155,7 +156,7 @@ function LandingPage() {
         {/* Nav */}
         <View style={landing.nav}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-            <Text style={landing.navBrand}>// DARKO</Text>
+            <DarkoLogo size={18} />
             <View style={landing.betaBadge}>
               <Text style={landing.betaBadgeText}>BETA v1.0</Text>
             </View>
@@ -595,7 +596,7 @@ export default function ProfilesScreen() {
       <View style={styles.header}>
         <View>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <Text style={styles.headerLabel}>// DARKO</Text>
+            <DarkoLogo size={22} />
             <View style={styles.betaBadge}>
               <Text style={styles.betaBadgeText}>BETA v1.0</Text>
             </View>

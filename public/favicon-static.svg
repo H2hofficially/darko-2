@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Darko">
+  <rect width="64" height="64" rx="12" ry="12" fill="#09090B"/>
+  <text x="10" y="48"
+        font-family="ui-monospace, 'JetBrains Mono', Menlo, Consolas, 'Courier New', monospace"
+        font-size="48" font-weight="700" fill="#FAFAFA">D</text>
+  <text x="34" y="48"
+        font-family="ui-monospace, 'JetBrains Mono', Menlo, Consolas, 'Courier New', monospace"
+        font-size="48" font-weight="700" fill="#CCFF00">_</text>
+</svg>

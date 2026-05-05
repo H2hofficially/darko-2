@@ -23,8 +23,9 @@ const V3_CSS = `
 
 .nav{position:fixed;top:0;left:0;right:0;z-index:500;height:var(--nav-h);background:transparent;border-bottom:1px solid transparent;display:flex;align-items:center;padding:0 32px;gap:0;transition:background 300ms var(--ease),border-color 300ms var(--ease),backdrop-filter 300ms var(--ease);}
 .nav.scrolled{background:rgba(10,10,10,0.7);backdrop-filter:blur(20px) saturate(140%);-webkit-backdrop-filter:blur(20px) saturate(140%);border-bottom:1px solid var(--b);}
-.nav-logo{display:flex;align-items:center;gap:9px;font-family:var(--mono);font-size:13px;font-weight:600;letter-spacing:0.2em;color:var(--a);text-decoration:none;margin-right:40px;flex-shrink:0;}
-.nav-logo-sq{width:12px;height:12px;background:var(--a);flex-shrink:0}
+.nav-logo{display:inline-flex;align-items:baseline;gap:0;font-family:var(--mono);font-size:18px;font-weight:700;letter-spacing:-0.02em;color:var(--text);text-decoration:none;margin-right:40px;flex-shrink:0;line-height:1;}
+.nav-logo-cursor{color:var(--a);margin-left:1px;animation:darko-blink 1.06s steps(1,end) infinite;}
+@keyframes darko-blink{0%,49.99%{opacity:1}50%,100%{opacity:0}}
 .nav-links{display:flex;gap:28px;flex:1}
 .nav-link{font-family:var(--mono);font-size:10px;letter-spacing:0.14em;color:var(--dim);text-decoration:none;position:relative;padding-bottom:3px;transition:color 200ms var(--ease);}
 .nav-link::after{content:'';position:absolute;bottom:0;left:0;right:100%;height:1px;background:var(--a);transition:right 200ms var(--ease);}
@@ -185,7 +186,7 @@ const V3_CSS = `
 // ─── Exact HTML body from DARKO v3.html ──────────────────────────────────────
 const V3_BODY = `
 <nav class="nav">
-  <a href="#" class="nav-logo"><div class="nav-logo-sq"></div>DARKO</a>
+  <a href="#" class="nav-logo" aria-label="Darko">Darko<span class="nav-logo-cursor">_</span></a>
   <div class="nav-links">
     <a href="#capabilities" class="nav-link">CAPABILITIES</a>
     <a href="#pricing" class="nav-link">PRICING</a>
