@@ -18,11 +18,13 @@ const MONO = Platform.select({
   default: "'JetBrains Mono', monospace",
 });
 
-// Campaigns is no longer surfaced in the nav — its content moved into the
-// target detail bottom sheet as a Playbook section. The /campaigns route
-// still exists for any bookmarked deep links.
+// DECODE and CAMPAIGNS are no longer surfaced in the nav — both are
+// contextual operations that only make sense once a target is selected
+// (you decode FOR a target, you run a campaign FOR a target). They're
+// reachable from the target detail sheet's DECODE button and the inline
+// PLAYBOOK section. /decode and /campaigns routes still resolve for any
+// deep links.
 const NAV_LINKS = [
-  { label: 'DECODE', route: '/decode' },
   { label: 'TARGETS', route: '/targets' },
   { label: 'PRICING', route: '/pricing' },
 ];
