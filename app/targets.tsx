@@ -900,6 +900,14 @@ export default function TargetsScreen() {
         ) : (
           <>
             <FlatList
+              // flex:1 so the list constrains to the parent's bounded height
+              // (s.content has flex:1 + overflow:hidden). Without this, on web
+              // the list renders at its natural content height and rows below
+              // the viewport get clipped with no way to scroll. Was the cause
+              // of "mobile shows fewer targets than desktop" — the desktop
+              // WebTable wraps its ScrollView in a flex:1 container so it
+              // doesn't hit this.
+              style={{ flex: 1 }}
               data={displayed}
               keyExtractor={(item) => item.id}
               renderItem={renderNativeRow}
