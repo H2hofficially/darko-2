@@ -18,6 +18,24 @@ if (Platform.OS === 'web' && typeof document !== 'undefined') {
     [role="button"], button, a, select { cursor: pointer; }
     textarea, input { cursor: text; }
     * { outline: none; }
+
+    /* Make text long-press / drag-selectable across the app on web. RN's
+       <Text> sets user-select:none by default in react-native-web, so this
+       opt-in turns it back on. Inputs and contenteditable already select. */
+    *, *::before, *::after {
+      -webkit-user-select: text;
+      -moz-user-select: text;
+      -ms-user-select: text;
+      user-select: text;
+      -webkit-touch-callout: default;
+    }
+    /* But interactive controls should NOT show a text caret on tap. */
+    button, [role="button"], a, [role="link"] {
+      -webkit-user-select: none;
+      -moz-user-select: none;
+      -ms-user-select: none;
+      user-select: none;
+    }
     ::-webkit-scrollbar { width: 4px; height: 4px; }
     ::-webkit-scrollbar-track { background: #09090B; }
     ::-webkit-scrollbar-thumb { background: #27272A; border-radius: 2px; }
