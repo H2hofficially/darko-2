@@ -5,7 +5,6 @@ import {
   TextInput,
   TouchableOpacity,
   Pressable,
-  FlatList,
   ScrollView,
   StyleSheet,
   Platform,
@@ -899,32 +898,34 @@ export default function TargetsScreen() {
           </>
         ) : (
           <>
-            <FlatList
-              // flex:1 so the list constrains to the parent's bounded height
-              // (s.content has flex:1 + overflow:hidden). Without this, on web
-              // the list renders at its natural content height and rows below
-              // the viewport get clipped with no way to scroll. Was the cause
-              // of "mobile shows fewer targets than desktop" — the desktop
-              // WebTable wraps its ScrollView in a flex:1 container so it
-              // doesn't hit this.
+            {/*
+              ScrollView + map (instead of FlatList) for the phone card list.
+              FlatList virtualization on react-native-web was only rendering
+              the first batch of rows on mobile — Hari saw 5-7 of 18 targets
+              even after the flex:1 + bottom-padding fixes. Swapping to a
+              plain ScrollView pushes every row into the DOM upfront and lets
+              the browser's native scroll handle it. This is the same pattern
+              the desktop WebTable already uses, and it'll be the basis for
+              the upcoming unified-design refactor.
+            */}
+            <ScrollView
               style={{ flex: 1 }}
-              data={displayed}
-              keyExtractor={(item) => item.id}
-              renderItem={renderNativeRow}
-              // Extra bottom padding so the FAB (52px tall, anchored at
-              // bottom:50) doesn't cover the last card. AppStatusBar at the
-              // bottom is 30px tall, FAB ends at 102px from bottom edge of
-              // the screen, so 120px of bottom scroll margin keeps the last
-              // card clear of both.
               contentContainerStyle={[nat.list, { paddingBottom: 120 }]}
               showsVerticalScrollIndicator={false}
-              ListEmptyComponent={
+            >
+              {displayed.length === 0 ? (
                 <View style={nat.empty}>
                   <Text style={nat.emptyText}>NO TARGETS ACQUIRED</Text>
                   <Text style={nat.emptySub}>tap + to add one</Text>
                 </View>
-              }
-            />
+              ) : (
+                displayed.map((item) => (
+                  <React.Fragment key={item.id}>
+                    {renderNativeRow({ item })}
+                  </React.Fragment>
+                ))
+              )}
+            </ScrollView>
             {/* Phone web also gets the bottom-sheet drawer when a row is tapped */}
             {Platform.OS === 'web' && (
               <DetailDrawer
