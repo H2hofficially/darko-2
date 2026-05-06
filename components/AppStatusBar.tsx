@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, Platform, Animated, useWindowDimensions } from 'react-native';
+import { View, Text, StyleSheet, Platform, Animated } from 'react-native';
 import DarkoLogo from './DarkoLogo';
+import { useBreakpoint } from '../hooks/useBreakpoint';
 
 const BG = 'rgba(18,18,21,0.96)';
 const BORDER = '#27272A';
@@ -14,9 +15,9 @@ const MONO = Platform.select({
 
 export function AppStatusBar() {
   const [latency, setLatency] = useState(142);
-  const { width } = useWindowDimensions();
-  const isMobile = Platform.OS === 'web' && width < 640;
-  const isTablet = Platform.OS === 'web' && width >= 640 && width < 1024;
+  const { isPhone, isTablet } = useBreakpoint();
+  const isMobile = isPhone && Platform.OS === 'web';
+  const isTabletWeb = isTablet && Platform.OS === 'web';
 
   useEffect(() => {
     const t = setInterval(() => {
@@ -39,7 +40,7 @@ export function AppStatusBar() {
     );
   }
 
-  if (isTablet) {
+  if (isTabletWeb) {
     // Medium — drop encryption, keep core items
     return (
       <View style={s.bar}>

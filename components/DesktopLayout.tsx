@@ -1,5 +1,6 @@
 import React from 'react';
-import { View, Platform, useWindowDimensions, StyleSheet } from 'react-native';
+import { View, Platform, StyleSheet } from 'react-native';
+import { useBreakpoint } from '../hooks/useBreakpoint';
 
 interface DesktopLayoutProps {
   sidebar: React.ReactNode;
@@ -8,12 +9,10 @@ interface DesktopLayoutProps {
 }
 
 export function DesktopLayout({ sidebar, main, panel }: DesktopLayoutProps) {
-  const { width } = useWindowDimensions();
+  const { width, isTablet, isDesktop } = useBreakpoint();
 
-  // Breakpoints
-  const isTablet  = Platform.OS === 'web' && width >= 640 && width < 1024;
-  const isDesktop = Platform.OS === 'web' && width >= 1024;
-  const isWide    = Platform.OS === 'web' && width >= 1400;
+  // Wide desktop (≥1400) gets a slightly bigger right panel.
+  const isWide = isDesktop && width >= 1400;
 
   // Mobile — main only
   if (!isTablet && !isDesktop) {
