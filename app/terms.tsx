@@ -15,12 +15,18 @@ const LAST_UPDATED = 'May 6, 2026';
 export default function TermsScreen() {
   const router = useRouter();
 
+  // Same back-button fallback as privacy.tsx — see note there.
+  const handleBack = () => {
+    if (router.canGoBack()) router.back();
+    else router.replace('/' as any);
+  };
+
   return (
     <View style={styles.root}>
       <StatusBar style="light" />
       <View style={styles.inner}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+          <TouchableOpacity onPress={handleBack} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
             <Text style={styles.back}>← BACK</Text>
           </TouchableOpacity>
         </View>

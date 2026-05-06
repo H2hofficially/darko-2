@@ -911,7 +911,12 @@ export default function TargetsScreen() {
               data={displayed}
               keyExtractor={(item) => item.id}
               renderItem={renderNativeRow}
-              contentContainerStyle={nat.list}
+              // Extra bottom padding so the FAB (52px tall, anchored at
+              // bottom:50) doesn't cover the last card. AppStatusBar at the
+              // bottom is 30px tall, FAB ends at 102px from bottom edge of
+              // the screen, so 120px of bottom scroll margin keeps the last
+              // card clear of both.
+              contentContainerStyle={[nat.list, { paddingBottom: 120 }]}
               showsVerticalScrollIndicator={false}
               ListEmptyComponent={
                 <View style={nat.empty}>

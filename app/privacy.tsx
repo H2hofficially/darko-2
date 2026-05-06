@@ -15,12 +15,21 @@ const LAST_UPDATED = 'May 6, 2026';
 export default function PrivacyScreen() {
   const router = useRouter();
 
+  // The V4 landing's footer links use window.location.href = route (full
+  // navigation), which means /privacy can be loaded with no SPA history.
+  // router.back() does nothing in that case — fall back to home so the
+  // back button always works.
+  const handleBack = () => {
+    if (router.canGoBack()) router.back();
+    else router.replace('/' as any);
+  };
+
   return (
     <View style={styles.root}>
       <StatusBar style="light" />
       <View style={styles.inner}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+          <TouchableOpacity onPress={handleBack} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
             <Text style={styles.back}>← BACK</Text>
           </TouchableOpacity>
         </View>
