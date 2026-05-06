@@ -1,5 +1,8 @@
 [build]
-  command = "npx expo export --platform web"
+  # `inject-meta.mjs` patches dist/index.html with the meta tags +html.tsx
+  # defines (lang/notranslate/google notranslate/favicon/OG/title/etc) since
+  # Expo Router's "single" output mode ignores +html.tsx. See scripts/inject-meta.mjs.
+  command = "npx expo export --platform web && node scripts/inject-meta.mjs"
   publish = "dist"
 
 [[redirects]]
