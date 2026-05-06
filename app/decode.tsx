@@ -11,7 +11,6 @@ import {
   Platform,
   Animated,
   KeyboardAvoidingView,
-  Dimensions,
   Image,
   Alert,
   Modal,
@@ -51,6 +50,7 @@ import {
 import { useUser, TIER_LIMITS } from '../context/UserContext';
 import { PaywallModal } from '../components/PaywallModal';
 import { supabase } from '../lib/supabase';
+import { useBreakpoint } from '../hooks/useBreakpoint';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -64,8 +64,10 @@ const ERROR_RED = '#FF4444';
 const RECORD_RED = '#FF3333';
 const MONO = Platform.select({ ios: 'Courier New', android: 'monospace', default: 'monospace' });
 const SANS = Platform.select({ ios: 'System', android: 'sans-serif', default: 'sans-serif' });
-const SCREEN_WIDTH = Dimensions.get('window').width;
-const PANEL_WIDTH = SCREEN_WIDTH * 0.85;
+// PANEL_WIDTH_CAP is the desktop ceiling for the dossier panel. The actual
+// panel width is computed at render time from useWindowDimensions so it
+// updates on rotation/resize (was previously frozen at module load).
+const PANEL_WIDTH_CAP = 480;
 
 // ─── Render-time safety: NEVER show raw JSON in a chat bubble ─────────────────
 // Belt-and-braces on top of services/darko.ts — catches stale DB rows, dev
@@ -548,7 +550,10 @@ function DossierSection({
 }
 
 function DossierPanel({ visible, onClose, loading, targetName, leverage, objective, profile }: DossierPanelProps) {
-  const slideAnim = useRef(new Animated.Value(PANEL_WIDTH)).current;
+  const { width: vpWidth } = useWindowDimensions();
+  // Phone/iPad-portrait → near-full width sheet; desktop → side panel capped at 480.
+  const panelWidth = Math.min(PANEL_WIDTH_CAP, Math.max(320, vpWidth * 0.85));
+  const slideAnim = useRef(new Animated.Value(panelWidth)).current;
   const backdropAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -559,11 +564,11 @@ function DossierPanel({ visible, onClose, loading, targetName, leverage, objecti
       ]).start();
     } else {
       Animated.parallel([
-        Animated.timing(slideAnim, { toValue: PANEL_WIDTH, duration: 220, useNativeDriver: true }),
+        Animated.timing(slideAnim, { toValue: panelWidth, duration: 220, useNativeDriver: true }),
         Animated.timing(backdropAnim, { toValue: 0, duration: 220, useNativeDriver: true }),
       ]).start();
     }
-  }, [visible]);
+  }, [visible, panelWidth]);
 
   return (
     <>
@@ -576,7 +581,7 @@ function DossierPanel({ visible, onClose, loading, targetName, leverage, objecti
       </Animated.View>
 
       {/* Panel */}
-      <Animated.View style={[styles.dossierPanel, { transform: [{ translateX: slideAnim }] }]}>
+      <Animated.View style={[styles.dossierPanel, { width: panelWidth, transform: [{ translateX: slideAnim }] }]}>
         {/* Panel header */}
         <View style={styles.dossierHeader}>
           <Text style={styles.dossierHeaderTitle}>{'// TARGET INTELLIGENCE FILE'}</Text>
@@ -1037,9 +1042,10 @@ const DARKO_ALERT_BODIES: Record<string, string> = {
 export default function DecodeScreen() {
   const { targetId, targetName, darkoAlert } = useLocalSearchParams<{ targetId: string; targetName: string; darkoAlert?: string }>();
   const router = useRouter();
-  const { width } = useWindowDimensions();
-  const isWide = Platform.OS === 'web' && width >= 1024;
-  const isWebMobile = Platform.OS === 'web' && width < 1024;
+  const { isDesktop, isTablet, isPortrait } = useBreakpoint();
+  // Wide layout = desktop OR tablet-landscape. Tablet-portrait/phone use narrow.
+  const isWide = isDesktop || (isTablet && !isPortrait);
+  const isWebMobile = !isWide && Platform.OS === 'web';
 
   const [chatMessages, setChatMessages] = useState<ChatMsg[]>([]);
   const [currentPhase, setCurrentPhase] = useState(1);
@@ -2409,7 +2415,7 @@ const styles = StyleSheet.create({
     top: 0,
     right: 0,
     bottom: 0,
-    width: PANEL_WIDTH,
+    // width is set inline at render time from useWindowDimensions
     backgroundColor: BG,
     borderLeftWidth: 2,
     borderLeftColor: ACCENT,

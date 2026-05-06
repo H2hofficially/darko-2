@@ -8,7 +8,6 @@ import {
   StyleSheet,
   Platform,
   TextInput,
-  useWindowDimensions,
   Animated,
 } from 'react-native';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
@@ -24,6 +23,7 @@ import {
   type TargetProfile,
 } from '../services/storage';
 import { supabase } from '../lib/supabase';
+import { useBreakpoint } from '../hooks/useBreakpoint';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -188,16 +188,18 @@ function CampaignSidebar({
   selectedId,
   onSelect,
   onNew,
+  width,
 }: {
   targets: CampaignTarget[];
   selectedId: string | null;
   onSelect: (t: CampaignTarget) => void;
   onNew: () => void;
+  width?: number;
 }) {
   const phase = PHASES.find((p) => p.num === 1)!;
 
   return (
-    <View style={sb.sidebar}>
+    <View style={[sb.sidebar, width !== undefined && { width }]}>
       <View style={sb.header}>
         <Text style={sb.title}>CAMPAIGNS</Text>
         <TouchableOpacity style={sb.newBtn} onPress={onNew}>
@@ -354,14 +356,16 @@ function IntelPanel({
   target,
   notes,
   onNotesChange,
+  width,
 }: {
   target: CampaignTarget;
   notes: string;
   onNotesChange: (s: string) => void;
+  width?: number;
 }) {
   const p = target.profile;
   return (
-    <View style={ip.panel}>
+    <View style={[ip.panel, width !== undefined && { width }]}>
       <View style={ip.header}>
         <Text style={ip.title}>// INTEL</Text>
       </View>
@@ -443,9 +447,10 @@ const ip = StyleSheet.create({
 export default function CampaignsScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ targetId?: string }>();
-  const { width } = useWindowDimensions();
-  const isWide = Platform.OS === 'web' && width >= 1024;
-  const isWebNarrow = Platform.OS === 'web' && width < 1024;
+  const { isDesktop, isTablet, isPortrait } = useBreakpoint();
+  // Wide three-pane: desktop, OR tablet in landscape (≥640 wide, but only
+  // when the screen is actually wider than tall — iPad portrait uses narrow).
+  const isWide = isDesktop || (isTablet && !isPortrait);
 
   const [targets, setTargets] = useState<CampaignTarget[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(params.targetId ?? null);
@@ -627,6 +632,10 @@ export default function CampaignsScreen() {
     copyBtnText: { fontFamily: MONO as any, fontSize: 8, color: DIM, letterSpacing: 2 },
   });
 
+  // Tighter side panels on tablet landscape so the main content doesn't get squeezed.
+  const sidebarWidth = isDesktop ? 240 : 200;
+  const intelWidth = isDesktop ? 240 : 200;
+
   // ── Wide web layout ───────────────────────────────────────────────────────
   const renderWide = () => (
     <View style={{ flex: 1, flexDirection: 'row', overflow: 'hidden' as any }}>
@@ -636,6 +645,7 @@ export default function CampaignsScreen() {
         selectedId={selectedId}
         onSelect={(t) => setSelectedId(t.id)}
         onNew={() => router.push('/targets' as any)}
+        width={sidebarWidth}
       />
 
       {/* Main panel */}
@@ -734,6 +744,7 @@ export default function CampaignsScreen() {
                 target={selectedTarget}
                 notes={notes}
                 onNotesChange={handleNotesChange}
+                width={intelWidth}
               />
             </View>
           </>

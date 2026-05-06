@@ -30,6 +30,8 @@ import {
 } from '../services/storage';
 import { useUser, TIER_LIMITS } from '../context/UserContext';
 import { supabase } from '../lib/supabase';
+import { useBreakpoint } from '../hooks/useBreakpoint';
+import { Playbook } from '../components/Playbook';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -81,7 +83,6 @@ type TargetRow = Target & {
 };
 
 type SortKey = 'name' | 'phase' | 'confidence' | 'lastDecode';
-type FilterPhase = 'ALL' | 'APPROACH' | 'BUILD' | 'DECIDE' | 'COMMIT';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -243,18 +244,25 @@ function DetailDrawer({
   target,
   onClose,
   onDecode,
-  onCampaign,
   onDelete,
+  onPhaseAdvanced,
+  bottomSheet,
 }: {
   target: TargetRow | null;
   onClose: () => void;
   onDecode: (t: TargetRow) => void;
-  onCampaign: (t: TargetRow) => void;
   onDelete: (t: TargetRow) => void;
+  onPhaseAdvanced?: (newPhase: number) => void;
+  bottomSheet?: boolean;
 }) {
-  const { width: screenWidth } = useWindowDimensions();
-  const drawerWidth = Math.min(360, Math.max(260, screenWidth * 0.75));
-  const slideAnim = useRef(new Animated.Value(drawerWidth)).current;
+  const { width: screenWidth, height: screenHeight } = useWindowDimensions();
+  // Side mode: capped at 360, but never more than ~32% of viewport so a tablet-
+  // landscape (640–1023px) doesn't get a 360px drawer over a 280px table.
+  const sideWidth = Math.min(360, Math.max(280, screenWidth * 0.32));
+  // Bottom-sheet mode: full width, height capped at 85% of viewport (or 720).
+  const sheetHeight = Math.min(screenHeight * 0.85, 720);
+  const offscreen = bottomSheet ? sheetHeight : sideWidth;
+  const slideAnim = useRef(new Animated.Value(offscreen)).current;
   const prevTarget = useRef<TargetRow | null>(null);
 
   useEffect(() => {
@@ -267,12 +275,12 @@ function DetailDrawer({
       }).start();
     } else {
       Animated.timing(slideAnim, {
-        toValue: 360,
+        toValue: offscreen,
         duration: 200,
         useNativeDriver: true,
       }).start();
     }
-  }, [target]);
+  }, [target, offscreen]);
 
   const t = target ?? prevTarget.current;
   if (!t) return null;
@@ -281,8 +289,9 @@ function DetailDrawer({
   const phaseLbl = t.phaseLabel;
   const phaseColor = PHASE_COLORS[phaseLbl] ?? MUTED;
 
-  return (
-    <Animated.View style={[dd.drawer, { width: drawerWidth, transform: [{ translateX: slideAnim }] }]}>
+  // Shared content used in both side-drawer and bottom-sheet modes.
+  const inner = (
+    <>
       {/* Header */}
       <View style={dd.header}>
         <View style={{ flex: 1 }}>
@@ -351,6 +360,16 @@ function DetailDrawer({
             <Text style={dd.summary}>{p.summary}</Text>
           </View>
         )}
+
+        {/* Playbook — what was the Campaigns screen, now inline. */}
+        <View style={[dd.section, { paddingHorizontal: 0, paddingTop: 14, paddingBottom: 6 }]}>
+          <Text style={[dd.sectionLabel, { paddingHorizontal: 18 }]}>// PLAYBOOK</Text>
+          <Playbook
+            targetId={t.id}
+            currentPhase={t.phase}
+            onPhaseAdvanced={onPhaseAdvanced}
+          />
+        </View>
       </ScrollView>
 
       {/* Actions */}
@@ -358,13 +377,36 @@ function DetailDrawer({
         <TouchableOpacity style={dd.btnPrimary} onPress={() => onDecode(t)}>
           <Text style={dd.btnPrimaryText}>DECODE</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={dd.btnSecondary} onPress={() => onCampaign(t)}>
-          <Text style={dd.btnSecondaryText}>CAMPAIGN</Text>
-        </TouchableOpacity>
         <TouchableOpacity style={dd.btnDanger} onPress={() => onDelete(t)}>
           <Text style={dd.btnDangerText}>DELETE</Text>
         </TouchableOpacity>
       </View>
+    </>
+  );
+
+  if (bottomSheet) {
+    return (
+      <>
+        {target && <Pressable style={dd.backdrop} onPress={onClose} />}
+        <Animated.View
+          style={[
+            dd.sheet,
+            { height: sheetHeight, transform: [{ translateY: slideAnim }] },
+          ]}
+        >
+          {/* Drag handle */}
+          <View style={dd.sheetHandleWrap}>
+            <View style={dd.sheetHandle} />
+          </View>
+          {inner}
+        </Animated.View>
+      </>
+    );
+  }
+
+  return (
+    <Animated.View style={[dd.drawer, { width: sideWidth, transform: [{ translateX: slideAnim }] }]}>
+      {inner}
     </Animated.View>
   );
 }
@@ -390,6 +432,38 @@ const dd = StyleSheet.create({
     borderLeftColor: ACCENT,
     flexDirection: 'column',
     zIndex: 200,
+  },
+  sheet: {
+    position: 'absolute' as any,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(18,18,21,0.98)' as any,
+    borderTopWidth: 1,
+    borderTopColor: ACCENT,
+    flexDirection: 'column',
+    zIndex: 200,
+  },
+  backdrop: {
+    position: 'absolute' as any,
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.45)' as any,
+    zIndex: 199,
+  },
+  sheetHandleWrap: {
+    paddingTop: 8,
+    paddingBottom: 4,
+    alignItems: 'center',
+    flexShrink: 0,
+  },
+  sheetHandle: {
+    width: 36,
+    height: 3,
+    borderRadius: 2,
+    backgroundColor: B2,
   },
   header: {
     flexDirection: 'row',
@@ -652,18 +726,15 @@ const wt = StyleSheet.create({
 
 // ── Main Screen ───────────────────────────────────────────────────────────────
 
-const FILTER_OPTIONS: FilterPhase[] = ['ALL', 'APPROACH', 'BUILD', 'DECIDE', 'COMMIT'];
-
 export default function TargetsScreen() {
   const router = useRouter();
-  const { width } = useWindowDimensions();
-  const isWeb = Platform.OS === 'web' && width >= 600;
+  const { isPhone, useBottomSheet } = useBreakpoint();
+  // "Web table" view applies on tablet + desktop. Phone gets card list.
+  const isWeb = !isPhone && Platform.OS === 'web';
   const { tier } = useUser();
 
   const [rows, setRows] = useState<TargetRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<FilterPhase>('ALL');
-  const [search, setSearch] = useState('');
   const [sortKey, setSortKey] = useState<SortKey>('name');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
   const [selectedRow, setSelectedRow] = useState<TargetRow | null>(null);
@@ -721,29 +792,19 @@ export default function TargetsScreen() {
     }
   };
 
-  // Filter + sort + search
-  const displayed = rows
-    .filter((r) => filter === 'ALL' || r.phaseLabel === filter)
-    .filter((r) => {
-      if (!search) return true;
-      const q = search.toLowerCase();
-      return (
-        r.name.toLowerCase().includes(q) ||
-        (r.profile?.dominant_archetype ?? '').toLowerCase().includes(q)
-      );
-    })
-    .sort((a, b) => {
-      let cmp = 0;
-      if (sortKey === 'name') cmp = a.name.localeCompare(b.name);
-      else if (sortKey === 'phase') cmp = a.phase - b.phase;
-      else if (sortKey === 'confidence') cmp = a.confidence - b.confidence;
-      else if (sortKey === 'lastDecode') {
-        const da = a.lastDecode ? new Date(a.lastDecode).getTime() : 0;
-        const db = b.lastDecode ? new Date(b.lastDecode).getTime() : 0;
-        cmp = da - db;
-      }
-      return sortDir === 'asc' ? cmp : -cmp;
-    });
+  // Sort only — filter chips and search were removed (overkill for 1–10 targets).
+  const displayed = [...rows].sort((a, b) => {
+    let cmp = 0;
+    if (sortKey === 'name') cmp = a.name.localeCompare(b.name);
+    else if (sortKey === 'phase') cmp = a.phase - b.phase;
+    else if (sortKey === 'confidence') cmp = a.confidence - b.confidence;
+    else if (sortKey === 'lastDecode') {
+      const da = a.lastDecode ? new Date(a.lastDecode).getTime() : 0;
+      const db = b.lastDecode ? new Date(b.lastDecode).getTime() : 0;
+      cmp = da - db;
+    }
+    return sortDir === 'asc' ? cmp : -cmp;
+  });
 
   const handleCreate = async (name: string, leverage?: string, objective?: string) => {
     const limit = TIER_LIMITS[tier].targets;
@@ -767,16 +828,20 @@ export default function TargetsScreen() {
     router.push(`/decode?targetId=${t.id}&targetName=${encodeURIComponent(t.name)}` as any);
   };
 
-  const handleCampaign = (t: TargetRow) => {
-    router.push(`/campaigns?targetId=${t.id}` as any);
-  };
+  // When the playbook advances a target's mission_phase, refresh the list so
+  // the phase badge and progress reflect the new phase immediately.
+  const handlePhaseAdvanced = useCallback(() => {
+    loadAll();
+  }, [loadAll]);
 
   // ── Native list render ──────────────────────────────────────────────────────
 
   const renderNativeRow = ({ item }: { item: TargetRow }) => (
     <TouchableOpacity
       style={nat.card}
-      onPress={() => handleDecode(item)}
+      // Web: open bottom sheet for actions. Native (dead path on darkoapp.com):
+      // go straight to decode.
+      onPress={() => (Platform.OS === 'web' ? setSelectedRow(item) : handleDecode(item))}
       activeOpacity={0.7}
     >
       <View style={nat.cardTop}>
@@ -799,48 +864,14 @@ export default function TargetsScreen() {
     <View style={s.root}>
       <StatusBar style="light" />
 
-      {(isWeb || Platform.OS === 'web') && <AppNav />}
+      {Platform.OS === 'web' && <AppNav />}
 
-      {/* Toolbar */}
+      {/* Toolbar — minimal: just the screen title and count. Filter chips and
+          search were dropped (low value at typical target counts). "+ NEW" is
+          a floating button at the bottom-right. */}
       <View style={s.toolbar}>
         <Text style={s.toolbarTitle}>TARGETS</Text>
         <Text style={s.toolbarCount}>{rows.length}</Text>
-        <View style={s.sep} />
-
-        {/* Filter chips */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.filtersScroll}>
-          <View style={s.filters}>
-            {FILTER_OPTIONS.map((opt) => (
-              <Pressable
-                key={opt}
-                style={[s.filterChip, filter === opt && s.filterChipActive]}
-                onPress={() => setFilter(opt)}
-              >
-                {filter === opt && <View style={s.filterDot} />}
-                <Text style={[s.filterChipText, filter === opt && s.filterChipTextActive]}>
-                  {opt}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
-        </ScrollView>
-
-        {/* Search */}
-        <View style={s.searchWrap}>
-          <Text style={s.searchIcon}>⌕</Text>
-          <TextInput
-            style={s.searchInput}
-            value={search}
-            onChangeText={setSearch}
-            placeholder="SEARCH..."
-            placeholderTextColor={DIM}
-          />
-        </View>
-
-        {/* New target */}
-        <Pressable style={s.btnNew} onPress={() => setShowCreate(true)}>
-          <Text style={s.btnNewText}>+ NEW</Text>
-        </Pressable>
       </View>
 
       {/* Content */}
@@ -861,28 +892,50 @@ export default function TargetsScreen() {
               target={selectedRow}
               onClose={() => setSelectedRow(null)}
               onDecode={handleDecode}
-              onCampaign={handleCampaign}
               onDelete={handleDelete}
+              onPhaseAdvanced={handlePhaseAdvanced}
+              bottomSheet={useBottomSheet}
             />
           </>
         ) : (
-          <FlatList
-            data={displayed}
-            keyExtractor={(item) => item.id}
-            renderItem={renderNativeRow}
-            contentContainerStyle={nat.list}
-            showsVerticalScrollIndicator={false}
-            ListEmptyComponent={
-              <View style={nat.empty}>
-                <Text style={nat.emptyText}>NO TARGETS ACQUIRED</Text>
-                <Text style={nat.emptySub}>tap + NEW to add one</Text>
-              </View>
-            }
-          />
+          <>
+            <FlatList
+              data={displayed}
+              keyExtractor={(item) => item.id}
+              renderItem={renderNativeRow}
+              contentContainerStyle={nat.list}
+              showsVerticalScrollIndicator={false}
+              ListEmptyComponent={
+                <View style={nat.empty}>
+                  <Text style={nat.emptyText}>NO TARGETS ACQUIRED</Text>
+                  <Text style={nat.emptySub}>tap + to add one</Text>
+                </View>
+              }
+            />
+            {/* Phone web also gets the bottom-sheet drawer when a row is tapped */}
+            {Platform.OS === 'web' && (
+              <DetailDrawer
+                target={selectedRow}
+                onClose={() => setSelectedRow(null)}
+                onDecode={handleDecode}
+                onDelete={handleDelete}
+                onPhaseAdvanced={handlePhaseAdvanced}
+                bottomSheet
+              />
+            )}
+          </>
         )}
       </View>
 
-      {(isWeb || Platform.OS === 'web') && <AppStatusBar />}
+      {Platform.OS === 'web' && <AppStatusBar />}
+
+      {/* FAB — primary "new target" affordance everywhere. Hide when an
+          overlay is open so the user can't double-tap into it. */}
+      {!selectedRow && !showCreate && (
+        <Pressable style={s.fab} onPress={() => setShowCreate(true)}>
+          <Text style={s.fabText}>+</Text>
+        </Pressable>
+      )}
 
       {/* Create overlay */}
       {showCreate && (
@@ -896,7 +949,7 @@ export default function TargetsScreen() {
       )}
 
       {/* Native create modal */}
-      {!isWeb && (
+      {Platform.OS !== 'web' && (
         <Modal visible={showCreate} transparent animationType="slide">
           <KeyboardAvoidingView behavior="padding" style={s.nativeModal}>
             <Pressable style={StyleSheet.absoluteFill} onPress={() => setShowCreate(false)} />
@@ -924,63 +977,40 @@ export default function TargetsScreen() {
 const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: BG, flexDirection: 'column' },
   toolbar: {
-    height: 44,
+    height: 40,
     backgroundColor: S1,
     borderBottomWidth: 1,
     borderBottomColor: BORDER,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 14,
-    gap: 8,
+    paddingHorizontal: 16,
+    gap: 10,
     flexShrink: 0,
   },
   toolbarTitle: { fontFamily: MONO as any, fontSize: 10, color: TEXT, letterSpacing: 3 },
   toolbarCount: { fontFamily: MONO as any, fontSize: 9, color: DIM, letterSpacing: 2 },
-  sep: { width: 1, height: 20, backgroundColor: BORDER, marginHorizontal: 4 },
-  filtersScroll: { flexShrink: 0 },
-  filters: { flexDirection: 'row', gap: 6 },
-  filterChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-    borderWidth: 1,
-    borderColor: BORDER,
-  },
-  filterChipActive: { borderColor: ACCENT },
-  filterDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: ACCENT },
-  filterChipText: { fontFamily: MONO as any, fontSize: 9, color: DIM, letterSpacing: 2 },
-  filterChipTextActive: { color: ACCENT },
-  searchWrap: {
-    flex: 1,
-    maxWidth: 280,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: BG,
-    borderWidth: 1,
-    borderColor: BORDER,
-    paddingHorizontal: 8,
-    marginLeft: 'auto' as any,
-  },
-  searchIcon: { fontFamily: MONO as any, fontSize: 12, color: DIM, marginRight: 4 },
-  searchInput: {
-    flex: 1,
-    fontFamily: MONO as any,
-    fontSize: 10,
-    color: TEXT,
-    paddingVertical: 5,
-    outlineStyle: 'none',
-  } as any,
-  btnNew: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 16,
-    paddingVertical: 5,
+  fab: {
+    position: 'absolute' as any,
+    right: 18,
+    // Clears the AppStatusBar (height 30) plus a comfortable thumb margin.
+    bottom: 50,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     backgroundColor: ACCENT,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 250,
+    // Subtle shadow on web (boxShadow is honored by react-native-web)
+    boxShadow: '0 4px 14px rgba(204,255,0,0.35)',
+  } as any,
+  fabText: {
+    fontFamily: SANS as any,
+    fontSize: 30,
+    fontWeight: '300',
+    color: BG,
+    marginTop: -3,
   },
-  btnNewText: { fontFamily: MONO as any, fontSize: 9, color: BG, fontWeight: '700', letterSpacing: 2 },
   content: { flex: 1, position: 'relative' as any, overflow: 'hidden' as any },
   overlay: {
     ...StyleSheet.absoluteFillObject,

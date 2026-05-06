@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { View, Text, Pressable, TouchableOpacity, StyleSheet, Platform, useWindowDimensions, Modal, ScrollView } from 'react-native';
+import { View, Text, Pressable, TouchableOpacity, StyleSheet, Platform, Modal, ScrollView } from 'react-native';
 import { useRouter, usePathname } from 'expo-router';
 import { supabase } from '../lib/supabase';
 import { useUser } from '../context/UserContext';
 import DarkoLogo from './DarkoLogo';
+import { useBreakpoint } from '../hooks/useBreakpoint';
 
 const ACCENT = '#CCFF00';
 const BG = '#09090B';
@@ -17,10 +18,12 @@ const MONO = Platform.select({
   default: "'JetBrains Mono', monospace",
 });
 
+// Campaigns is no longer surfaced in the nav — its content moved into the
+// target detail bottom sheet as a Playbook section. The /campaigns route
+// still exists for any bookmarked deep links.
 const NAV_LINKS = [
   { label: 'DECODE', route: '/decode' },
   { label: 'TARGETS', route: '/targets' },
-  { label: 'CAMPAIGNS', route: '/campaigns' },
   { label: 'PRICING', route: '/pricing' },
 ];
 
@@ -28,13 +31,12 @@ export function AppNav() {
   const router = useRouter();
   const pathname = usePathname();
   const { tier } = useUser();
-  const { width } = useWindowDimensions();
+  const { isPhone } = useBreakpoint();
   const [userHovered, setUserHovered] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
-  // Breakpoints
-  const isMobile = Platform.OS === 'web' && width < 640;
-  const isTablet = Platform.OS === 'web' && width >= 640 && width < 1024;
+  // Mobile = phone breakpoint (was: width < 640 on web)
+  const isMobile = isPhone && Platform.OS === 'web';
 
   const handleSignOut = async () => {
     setMenuOpen(false);
