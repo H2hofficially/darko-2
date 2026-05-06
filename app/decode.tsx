@@ -443,14 +443,18 @@ const DarkoBubble = React.memo(function DarkoBubble({
 }) {
   const { response, isStreaming, streamText } = msg;
 
-  // Streaming: strip block markers, render cleaned prose + cursor
+  // Streaming: strip block markers, render cleaned prose + cursor.
+  // Render NOTHING while the stream hasn't produced visible text yet — the
+  // LoadingBubble (with its cycling "what's happening in the background"
+  // text) covers that gap. Otherwise an empty bubble with a bare cursor
+  // would flash for a few seconds and the descriptive loader would never
+  // surface (this was the cause of the inconsistent loading behavior).
   if (isStreaming) {
     const displayText = safeDisplayText(stripStreamMarkers(streamText ?? ''));
+    if (!displayText) return null;
     return (
       <View style={[styles.darkoBubble, { borderLeftColor: BORDER }]}>
-        {displayText ? (
-          <Markdown style={markdownStyles}>{displayText}</Markdown>
-        ) : null}
+        <Markdown style={markdownStyles}>{displayText}</Markdown>
         <Text style={styles.streamingCursor}>▊</Text>
       </View>
     );
@@ -1152,14 +1156,16 @@ export default function DecodeScreen() {
   }, [targetId]);
 
   // ── Loader cycling ─────────────────────────────────────────────────────────
-
+  // 1100ms per message: slow enough to actually read each one, fast enough
+  // that you cycle through 2-3 messages before a typical response starts
+  // streaming.
   useEffect(() => {
     if (!loading) return;
     let idx = 0;
     const iv = setInterval(() => {
       idx = (idx + 1) % LOADER_MESSAGES.length;
       setLoaderText(LOADER_MESSAGES[idx]);
-    }, 800);
+    }, 1100);
     return () => clearInterval(iv);
   }, [loading]);
 
@@ -1777,7 +1783,7 @@ export default function DecodeScreen() {
                 </View>
               ) : null}
               {chatMessages.map((item) => renderChatItem(item))}
-              {loading && !chatMessages.some((m) => m.type === 'darko' && (m as any).isStreaming) && (
+              {loading && !chatMessages.some((m) => m.type === 'darko' && (m as any).isStreaming && (((m as any).streamText ?? '').trim().length > 0)) && (
                 <LoadingBubble text={loaderText} />
               )}
             </ScrollView>
@@ -1911,7 +1917,7 @@ export default function DecodeScreen() {
             </View>
           ) : null}
           {chatMessages.map((item) => renderChatItem(item))}
-          {loading && !chatMessages.some((m) => m.type === 'darko' && (m as any).isStreaming) && (
+          {loading && !chatMessages.some((m) => m.type === 'darko' && (m as any).isStreaming && (((m as any).streamText ?? '').trim().length > 0)) && (
             <LoadingBubble text={loaderText} />
           )}
         </ScrollView>
@@ -1928,7 +1934,7 @@ export default function DecodeScreen() {
           removeClippedSubviews
           maxToRenderPerBatch={10}
           windowSize={10}
-          ListHeaderComponent={loading && !chatMessages.some((m) => m.type === 'darko' && (m as any).isStreaming) ? <LoadingBubble text={loaderText} /> : null}
+          ListHeaderComponent={loading && !chatMessages.some((m) => m.type === 'darko' && (m as any).isStreaming && (((m as any).streamText ?? '').trim().length > 0)) ? <LoadingBubble text={loaderText} /> : null}
           ListEmptyComponent={
             !loading ? (
               <View style={styles.emptyChat}>

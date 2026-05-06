@@ -440,7 +440,7 @@ const V4_BODY = `
             <span class="dec-tb-dot"></span>
             <span class="dec-tb-dot live"></span>
           </div>
-          <span class="dec-tb-title">DARKO // DECODE.v2.4</span>
+          <span class="dec-tb-title">DARKO 1.0</span>
         </div>
         <div class="dec-tb-right">
           <span class="pulse">●</span>
@@ -589,6 +589,13 @@ const V4_BODY = `
       <span class="rule"></span>
     </div>
 
+    <!-- Observer (free) strip above the Pro card. Same pattern as exec-strip
+         below — tonally minor, but lets visitors see all three tiers at once. -->
+    <div class="exec-strip">
+      <span><span class="name">DARKO OBSERVER</span> · $0 · free forever · 5 reads / month · sample the engine</span>
+      <a href="/pricing" class="ref" data-route="/pricing">see full plans →</a>
+    </div>
+
     <!-- BUG-09: canonical pricing copy. Pro $15/mo, 4-day trial, 8 targets, full features.
          Annual ($150/yr) is shown but routes to /pricing where the live toggle lives. -->
     <div class="pricing-card">
@@ -696,7 +703,7 @@ const V4_BODY = `
       <a href="#" data-route="/terms">TERMS</a>
       <a href="#" data-route="/contact">CONTACT</a>
     </div>
-    <div class="footer-copy">© 2026 DARKO LABS</div>
+    <div class="footer-copy">© 2026 NXGEN MEDIA LLC</div>
   </div>
 </footer>
 `;
@@ -1085,7 +1092,7 @@ function LandingPageNative() {
           </View>
           <View style={{ borderWidth: 1, borderColor: '#27272a', backgroundColor: '#0b0b0d' }}>
             <View style={{ borderBottomWidth: 1, borderBottomColor: '#27272a', paddingHorizontal: 16, paddingVertical: 10, flexDirection: 'row', justifyContent: 'space-between' }}>
-              <Text style={{ fontFamily: 'Courier New', fontSize: 10, color: '#71717a', letterSpacing: 1.8 }}>DARKO // DECODE.v2.4</Text>
+              <Text style={{ fontFamily: 'Courier New', fontSize: 10, color: '#71717a', letterSpacing: 1.8 }}>DARKO 1.0</Text>
               <Text style={{ fontFamily: 'Courier New', fontSize: 10, color: '#CCFF00' }}>{'●'} LIVE</Text>
             </View>
             <View style={{ padding: 16, borderBottomWidth: 1, borderBottomColor: '#27272a' }}>
