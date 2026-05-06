@@ -31,6 +31,7 @@ import {
 import { useUser, TIER_LIMITS } from '../context/UserContext';
 import { supabase } from '../lib/supabase';
 import { useBreakpoint } from '../hooks/useBreakpoint';
+import { Playbook } from '../components/Playbook';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -82,7 +83,6 @@ type TargetRow = Target & {
 };
 
 type SortKey = 'name' | 'phase' | 'confidence' | 'lastDecode';
-type FilterPhase = 'ALL' | 'APPROACH' | 'BUILD' | 'DECIDE' | 'COMMIT';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -244,15 +244,15 @@ function DetailDrawer({
   target,
   onClose,
   onDecode,
-  onCampaign,
   onDelete,
+  onPhaseAdvanced,
   bottomSheet,
 }: {
   target: TargetRow | null;
   onClose: () => void;
   onDecode: (t: TargetRow) => void;
-  onCampaign: (t: TargetRow) => void;
   onDelete: (t: TargetRow) => void;
+  onPhaseAdvanced?: (newPhase: number) => void;
   bottomSheet?: boolean;
 }) {
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
@@ -360,15 +360,22 @@ function DetailDrawer({
             <Text style={dd.summary}>{p.summary}</Text>
           </View>
         )}
+
+        {/* Playbook — what was the Campaigns screen, now inline. */}
+        <View style={[dd.section, { paddingHorizontal: 0, paddingTop: 14, paddingBottom: 6 }]}>
+          <Text style={[dd.sectionLabel, { paddingHorizontal: 18 }]}>// PLAYBOOK</Text>
+          <Playbook
+            targetId={t.id}
+            currentPhase={t.phase}
+            onPhaseAdvanced={onPhaseAdvanced}
+          />
+        </View>
       </ScrollView>
 
       {/* Actions */}
       <View style={dd.actions}>
         <TouchableOpacity style={dd.btnPrimary} onPress={() => onDecode(t)}>
           <Text style={dd.btnPrimaryText}>DECODE</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={dd.btnSecondary} onPress={() => onCampaign(t)}>
-          <Text style={dd.btnSecondaryText}>CAMPAIGN</Text>
         </TouchableOpacity>
         <TouchableOpacity style={dd.btnDanger} onPress={() => onDelete(t)}>
           <Text style={dd.btnDangerText}>DELETE</Text>
@@ -719,8 +726,6 @@ const wt = StyleSheet.create({
 
 // ── Main Screen ───────────────────────────────────────────────────────────────
 
-const FILTER_OPTIONS: FilterPhase[] = ['ALL', 'APPROACH', 'BUILD', 'DECIDE', 'COMMIT'];
-
 export default function TargetsScreen() {
   const router = useRouter();
   const { isPhone, useBottomSheet } = useBreakpoint();
@@ -730,8 +735,6 @@ export default function TargetsScreen() {
 
   const [rows, setRows] = useState<TargetRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<FilterPhase>('ALL');
-  const [search, setSearch] = useState('');
   const [sortKey, setSortKey] = useState<SortKey>('name');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
   const [selectedRow, setSelectedRow] = useState<TargetRow | null>(null);
@@ -789,29 +792,19 @@ export default function TargetsScreen() {
     }
   };
 
-  // Filter + sort + search
-  const displayed = rows
-    .filter((r) => filter === 'ALL' || r.phaseLabel === filter)
-    .filter((r) => {
-      if (!search) return true;
-      const q = search.toLowerCase();
-      return (
-        r.name.toLowerCase().includes(q) ||
-        (r.profile?.dominant_archetype ?? '').toLowerCase().includes(q)
-      );
-    })
-    .sort((a, b) => {
-      let cmp = 0;
-      if (sortKey === 'name') cmp = a.name.localeCompare(b.name);
-      else if (sortKey === 'phase') cmp = a.phase - b.phase;
-      else if (sortKey === 'confidence') cmp = a.confidence - b.confidence;
-      else if (sortKey === 'lastDecode') {
-        const da = a.lastDecode ? new Date(a.lastDecode).getTime() : 0;
-        const db = b.lastDecode ? new Date(b.lastDecode).getTime() : 0;
-        cmp = da - db;
-      }
-      return sortDir === 'asc' ? cmp : -cmp;
-    });
+  // Sort only — filter chips and search were removed (overkill for 1–10 targets).
+  const displayed = [...rows].sort((a, b) => {
+    let cmp = 0;
+    if (sortKey === 'name') cmp = a.name.localeCompare(b.name);
+    else if (sortKey === 'phase') cmp = a.phase - b.phase;
+    else if (sortKey === 'confidence') cmp = a.confidence - b.confidence;
+    else if (sortKey === 'lastDecode') {
+      const da = a.lastDecode ? new Date(a.lastDecode).getTime() : 0;
+      const db = b.lastDecode ? new Date(b.lastDecode).getTime() : 0;
+      cmp = da - db;
+    }
+    return sortDir === 'asc' ? cmp : -cmp;
+  });
 
   const handleCreate = async (name: string, leverage?: string, objective?: string) => {
     const limit = TIER_LIMITS[tier].targets;
@@ -835,9 +828,11 @@ export default function TargetsScreen() {
     router.push(`/decode?targetId=${t.id}&targetName=${encodeURIComponent(t.name)}` as any);
   };
 
-  const handleCampaign = (t: TargetRow) => {
-    router.push(`/campaigns?targetId=${t.id}` as any);
-  };
+  // When the playbook advances a target's mission_phase, refresh the list so
+  // the phase badge and progress reflect the new phase immediately.
+  const handlePhaseAdvanced = useCallback(() => {
+    loadAll();
+  }, [loadAll]);
 
   // ── Native list render ──────────────────────────────────────────────────────
 
@@ -871,88 +866,13 @@ export default function TargetsScreen() {
 
       {Platform.OS === 'web' && <AppNav />}
 
-      {/* Toolbar — single row on tablet+, two rows on phone (no inline + NEW; FAB instead) */}
-      {isPhone ? (
-        <>
-          <View style={s.toolbarPhoneTop}>
-            <Text style={s.toolbarTitle}>TARGETS</Text>
-            <Text style={s.toolbarCount}>{rows.length}</Text>
-            <View style={{ flex: 1 }} />
-          </View>
-          <View style={s.toolbarPhoneBottom}>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              style={s.filtersScrollPhone}
-              contentContainerStyle={s.filters}
-            >
-              {FILTER_OPTIONS.map((opt) => (
-                <Pressable
-                  key={opt}
-                  style={[s.filterChip, filter === opt && s.filterChipActive]}
-                  onPress={() => setFilter(opt)}
-                >
-                  {filter === opt && <View style={s.filterDot} />}
-                  <Text style={[s.filterChipText, filter === opt && s.filterChipTextActive]}>
-                    {opt}
-                  </Text>
-                </Pressable>
-              ))}
-            </ScrollView>
-            <View style={[s.searchWrap, s.searchWrapPhone]}>
-              <Text style={s.searchIcon}>⌕</Text>
-              <TextInput
-                style={s.searchInput}
-                value={search}
-                onChangeText={setSearch}
-                placeholder="SEARCH..."
-                placeholderTextColor={DIM}
-              />
-            </View>
-          </View>
-        </>
-      ) : (
-        <View style={s.toolbar}>
-          <Text style={s.toolbarTitle}>TARGETS</Text>
-          <Text style={s.toolbarCount}>{rows.length}</Text>
-          <View style={s.sep} />
-
-          {/* Filter chips */}
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.filtersScroll}>
-            <View style={s.filters}>
-              {FILTER_OPTIONS.map((opt) => (
-                <Pressable
-                  key={opt}
-                  style={[s.filterChip, filter === opt && s.filterChipActive]}
-                  onPress={() => setFilter(opt)}
-                >
-                  {filter === opt && <View style={s.filterDot} />}
-                  <Text style={[s.filterChipText, filter === opt && s.filterChipTextActive]}>
-                    {opt}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
-          </ScrollView>
-
-          {/* Search */}
-          <View style={s.searchWrap}>
-            <Text style={s.searchIcon}>⌕</Text>
-            <TextInput
-              style={s.searchInput}
-              value={search}
-              onChangeText={setSearch}
-              placeholder="SEARCH..."
-              placeholderTextColor={DIM}
-            />
-          </View>
-
-          {/* New target */}
-          <Pressable style={s.btnNew} onPress={() => setShowCreate(true)}>
-            <Text style={s.btnNewText}>+ NEW</Text>
-          </Pressable>
-        </View>
-      )}
+      {/* Toolbar — minimal: just the screen title and count. Filter chips and
+          search were dropped (low value at typical target counts). "+ NEW" is
+          a floating button at the bottom-right. */}
+      <View style={s.toolbar}>
+        <Text style={s.toolbarTitle}>TARGETS</Text>
+        <Text style={s.toolbarCount}>{rows.length}</Text>
+      </View>
 
       {/* Content */}
       <View style={s.content}>
@@ -972,8 +892,8 @@ export default function TargetsScreen() {
               target={selectedRow}
               onClose={() => setSelectedRow(null)}
               onDecode={handleDecode}
-              onCampaign={handleCampaign}
               onDelete={handleDelete}
+              onPhaseAdvanced={handlePhaseAdvanced}
               bottomSheet={useBottomSheet}
             />
           </>
@@ -988,7 +908,7 @@ export default function TargetsScreen() {
               ListEmptyComponent={
                 <View style={nat.empty}>
                   <Text style={nat.emptyText}>NO TARGETS ACQUIRED</Text>
-                  <Text style={nat.emptySub}>tap + NEW to add one</Text>
+                  <Text style={nat.emptySub}>tap + to add one</Text>
                 </View>
               }
             />
@@ -998,8 +918,8 @@ export default function TargetsScreen() {
                 target={selectedRow}
                 onClose={() => setSelectedRow(null)}
                 onDecode={handleDecode}
-                onCampaign={handleCampaign}
                 onDelete={handleDelete}
+                onPhaseAdvanced={handlePhaseAdvanced}
                 bottomSheet
               />
             )}
@@ -1009,8 +929,9 @@ export default function TargetsScreen() {
 
       {Platform.OS === 'web' && <AppStatusBar />}
 
-      {/* FAB — phone only (replaces inline + NEW button). Hide when sheet/overlay is open. */}
-      {isPhone && !selectedRow && !showCreate && (
+      {/* FAB — primary "new target" affordance everywhere. Hide when an
+          overlay is open so the user can't double-tap into it. */}
+      {!selectedRow && !showCreate && (
         <Pressable style={s.fab} onPress={() => setShowCreate(true)}>
           <Text style={s.fabText}>+</Text>
         </Pressable>
@@ -1056,44 +977,18 @@ export default function TargetsScreen() {
 const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: BG, flexDirection: 'column' },
   toolbar: {
-    height: 44,
+    height: 40,
     backgroundColor: S1,
     borderBottomWidth: 1,
     borderBottomColor: BORDER,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 14,
-    gap: 8,
+    paddingHorizontal: 16,
+    gap: 10,
     flexShrink: 0,
   },
-  toolbarPhoneTop: {
-    height: 36,
-    backgroundColor: S1,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(39,39,42,0.5)' as any,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 14,
-    gap: 8,
-    flexShrink: 0,
-  },
-  toolbarPhoneBottom: {
-    height: 44,
-    backgroundColor: S1,
-    borderBottomWidth: 1,
-    borderBottomColor: BORDER,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 14,
-    gap: 8,
-    flexShrink: 0,
-  },
-  filtersScrollPhone: { flexShrink: 1, flexGrow: 0 },
-  searchWrapPhone: {
-    flex: 1,
-    minWidth: 90,
-    marginLeft: 8 as any,
-  } as any,
+  toolbarTitle: { fontFamily: MONO as any, fontSize: 10, color: TEXT, letterSpacing: 3 },
+  toolbarCount: { fontFamily: MONO as any, fontSize: 9, color: DIM, letterSpacing: 2 },
   fab: {
     position: 'absolute' as any,
     right: 18,
@@ -1116,53 +1011,6 @@ const s = StyleSheet.create({
     color: BG,
     marginTop: -3,
   },
-  toolbarTitle: { fontFamily: MONO as any, fontSize: 10, color: TEXT, letterSpacing: 3 },
-  toolbarCount: { fontFamily: MONO as any, fontSize: 9, color: DIM, letterSpacing: 2 },
-  sep: { width: 1, height: 20, backgroundColor: BORDER, marginHorizontal: 4 },
-  filtersScroll: { flexShrink: 0 },
-  filters: { flexDirection: 'row', gap: 6 },
-  filterChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-    borderWidth: 1,
-    borderColor: BORDER,
-  },
-  filterChipActive: { borderColor: ACCENT },
-  filterDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: ACCENT },
-  filterChipText: { fontFamily: MONO as any, fontSize: 9, color: DIM, letterSpacing: 2 },
-  filterChipTextActive: { color: ACCENT },
-  searchWrap: {
-    flex: 1,
-    maxWidth: 280,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: BG,
-    borderWidth: 1,
-    borderColor: BORDER,
-    paddingHorizontal: 8,
-    marginLeft: 'auto' as any,
-  },
-  searchIcon: { fontFamily: MONO as any, fontSize: 12, color: DIM, marginRight: 4 },
-  searchInput: {
-    flex: 1,
-    fontFamily: MONO as any,
-    fontSize: 10,
-    color: TEXT,
-    paddingVertical: 5,
-    outlineStyle: 'none',
-  } as any,
-  btnNew: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 16,
-    paddingVertical: 5,
-    backgroundColor: ACCENT,
-  },
-  btnNewText: { fontFamily: MONO as any, fontSize: 9, color: BG, fontWeight: '700', letterSpacing: 2 },
   content: { flex: 1, position: 'relative' as any, overflow: 'hidden' as any },
   overlay: {
     ...StyleSheet.absoluteFillObject,

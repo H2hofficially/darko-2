@@ -339,3 +339,41 @@ export async function saveMissionPhase(targetId: string, phase: number): Promise
     .eq('id', targetId);
   if (error) console.error('[DARKO] saveMissionPhase error:', error.message);
 }
+
+// ── Playbook (per-target tactic checklist + operator notes) ──────────────────
+// Was previously inlined in app/campaigns.tsx; lifted here so the target
+// detail sheet on the Targets screen can use the same data.
+
+export async function loadChecklist(targetId: string): Promise<Record<string, boolean>> {
+  const { data } = await supabase
+    .from('targets')
+    .select('campaign_checklist')
+    .eq('id', targetId)
+    .single();
+  return (data as any)?.campaign_checklist ?? {};
+}
+
+export async function saveChecklist(targetId: string, checklist: Record<string, boolean>): Promise<void> {
+  const { error } = await supabase
+    .from('targets')
+    .update({ campaign_checklist: checklist } as any)
+    .eq('id', targetId);
+  if (error) console.error('[DARKO] saveChecklist error:', error.message);
+}
+
+export async function loadNotes(targetId: string): Promise<string> {
+  const { data } = await supabase
+    .from('targets')
+    .select('campaign_notes')
+    .eq('id', targetId)
+    .single();
+  return (data as any)?.campaign_notes ?? '';
+}
+
+export async function saveNotes(targetId: string, notes: string): Promise<void> {
+  const { error } = await supabase
+    .from('targets')
+    .update({ campaign_notes: notes } as any)
+    .eq('id', targetId);
+  if (error) console.error('[DARKO] saveNotes error:', error.message);
+}
