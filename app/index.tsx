@@ -164,9 +164,6 @@ function LandingPage() {
         <View style={landing.nav}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
             <DarkoLogo size={18} />
-            <View style={landing.betaBadge}>
-              <Text style={landing.betaBadgeText}>BETA v1.0</Text>
-            </View>
           </View>
           <View style={{ flexDirection: 'row', gap: 24 }}>
             <TouchableOpacity onPress={() => router.push('/pricing' as any)}>
@@ -615,9 +612,6 @@ export default function ProfilesScreen() {
         <View>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
             <DarkoLogo size={22} />
-            <View style={styles.betaBadge}>
-              <Text style={styles.betaBadgeText}>BETA v1.0</Text>
-            </View>
           </View>
           <Text style={styles.headerSub}>target profiles</Text>
         </View>

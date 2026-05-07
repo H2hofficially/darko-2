@@ -342,7 +342,7 @@ function runV3Scripts(R: HTMLElement) {
   const STATUS_ITEMS = [
     { label: 'HANDLER ONLINE', val: null as string | null, dot: true },
     { label: 'DECODE ENGINE ACTIVE', val: null as string | null, dot: true },
-    { label: 'ENGINE', val: 'DARKO v4.0', dot: false },
+    { label: 'ENGINE', val: 'Darko 1.0', dot: false },
     { label: 'LATENCY', val: '142ms', dot: false },
     { label: 'ENCRYPTION', val: 'AES-256', dot: false },
     { label: 'DARKO \u00b7 NXGEN MEDIA LLC \u00b7 2026', val: null as string | null, dot: false },

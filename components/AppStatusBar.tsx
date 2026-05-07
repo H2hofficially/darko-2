@@ -33,7 +33,7 @@ export function AppStatusBar() {
         <View style={s.items}>
           <StatusItem dot label="ONLINE" />
           <Separator />
-          <StatusItem label="ENGINE" val="DARKO v4.0" />
+          <StatusItem label="ENGINE" val="Darko 1.0" />
         </View>
         <Text style={s.copy}>NXGEN · 2026</Text>
       </View>
@@ -66,7 +66,7 @@ export function AppStatusBar() {
         <Separator />
         <StatusItem dot label="DECODE ENGINE ACTIVE" />
         <Separator />
-        <StatusItem label="ENGINE" val="DARKO v4.0" />
+        <StatusItem label="ENGINE" val="Darko 1.0" />
         <Separator />
         <StatusItem label="LATENCY" val={`${latency}ms`} />
         <Separator />

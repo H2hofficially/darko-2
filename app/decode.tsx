@@ -1873,9 +1873,6 @@ export default function DecodeScreen() {
             <TouchableOpacity onPress={() => router.back()} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
               <Text style={styles.backBtn}>← TARGETS</Text>
             </TouchableOpacity>
-            <View style={styles.betaBadge}>
-              <Text style={styles.betaBadgeText}>BETA v1.0</Text>
-            </View>
           </View>
           <View style={{ flexDirection: 'row', gap: 16 }}>
             <TouchableOpacity
