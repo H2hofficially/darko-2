@@ -80,31 +80,80 @@ function looksLikeJSON(text: string): boolean {
   return trimmed.startsWith('{') || trimmed.startsWith('[');
 }
 
+// True when a chat message is a Darko stream that has actual extractable
+// content visible to the user. Used to decide whether to show the
+// LoadingBubble — we hide it once a streaming bubble starts rendering
+// real text, but keep it up while the stream has no usable content yet
+// (empty buffer or JSON-shaped chunks that haven't reached handler_note).
+function hasVisibleStreamContent(m: any): boolean {
+  if (!m || m.type !== 'darko' || !m.isStreaming) return false;
+  const streamText = m.streamText ?? '';
+  if (typeof streamText !== 'string' || streamText.trim().length === 0) return false;
+  const displayText = safeDisplayText(stripStreamMarkers(streamText));
+  return !!displayText && displayText !== NEUTRAL_FALLBACK;
+}
+
 function safeDisplayText(text: string | undefined | null): string {
   // Strip a wrapping Markdown code fence first. Without this, fenced JSON
   // (```json {...} ```) fails looksLikeJSON's leading-'{' check and gets
   // rendered raw as a Markdown code block in the chat bubble.
   const raw = stripCodeFence(text ?? '');
   if (!looksLikeJSON(raw)) return raw;
-  // JSON-shaped: try full parse, then regex-rescue handler_note, then fallback.
+
+  // JSON-shaped: extract a usable string. We try in order:
+  //   1. handler_note               — primary user-facing field
+  //   2. next_directive             — fallback narrative
+  //   3. visible_arsenal.option_1_script / option_2_script
+  //   4. ANY string value inside visible_arsenal (handler may rename keys)
+  //   5. ANY top-level string value > 12 chars (last-resort)
+  // If none of these yield a non-empty string, return NEUTRAL_FALLBACK —
+  // never let raw JSON reach Markdown.
   try {
     const parsed = JSON.parse(raw.trim());
     if (parsed && typeof parsed === 'object') {
+      const tryFields: string[] = [];
+      if (typeof parsed.handler_note === 'string') tryFields.push(parsed.handler_note);
+      if (typeof parsed.next_directive === 'string') tryFields.push(parsed.next_directive);
+
       const va = parsed.visible_arsenal;
-      const candidates = [
-        typeof parsed.handler_note === 'string' ? parsed.handler_note : '',
-        typeof parsed.next_directive === 'string' ? parsed.next_directive : '',
-        va && typeof va === 'object' && typeof va.option_1_script === 'string'
-          ? va.option_1_script
-          : '',
-      ];
-      const picked = candidates.find((v) => v && v.trim().length > 0);
-      if (picked) return picked;
+      if (va && typeof va === 'object') {
+        if (typeof va.option_1_script === 'string') tryFields.push(va.option_1_script);
+        if (typeof va.option_2_script === 'string') tryFields.push(va.option_2_script);
+        // Any other string in visible_arsenal (handler sometimes renames keys)
+        for (const v of Object.values(va)) {
+          if (typeof v === 'string' && v.trim().length > 0) tryFields.push(v);
+        }
+      }
+
+      // Last-resort: any top-level string value of meaningful length.
+      for (const [k, v] of Object.entries(parsed)) {
+        if (typeof v === 'string' && v.trim().length > 12 && k !== 'intent') {
+          tryFields.push(v);
+        }
+      }
+
+      const picked = tryFields.find((v) => v && v.trim().length > 0);
+      if (picked) {
+        const trimmedPick = picked.trim();
+        // If the extracted field itself looks like JSON (handler sometimes
+        // double-wraps), recursively unwrap once. Recursion bottoms out
+        // at the next non-JSON string or NEUTRAL_FALLBACK.
+        if (trimmedPick.startsWith('{') || trimmedPick.startsWith('[')) {
+          return safeDisplayText(trimmedPick);
+        }
+        return trimmedPick;
+      }
     }
   } catch {
+    // Malformed / partial JSON — try to regex-rescue handler_note.
     const m = raw.match(/"handler_note"\s*:\s*"([\s\S]*?)(?<!\\)"/);
     if (m) {
       return m[1].replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\\\/g, '\\');
+    }
+    // Also try next_directive in case handler_note was missing.
+    const m2 = raw.match(/"next_directive"\s*:\s*"([\s\S]*?)(?<!\\)"/);
+    if (m2) {
+      return m2[1].replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\\\/g, '\\');
     }
   }
   return NEUTRAL_FALLBACK;
@@ -444,14 +493,16 @@ const DarkoBubble = React.memo(function DarkoBubble({
   const { response, isStreaming, streamText } = msg;
 
   // Streaming: strip block markers, render cleaned prose + cursor.
-  // Render NOTHING while the stream hasn't produced visible text yet — the
-  // LoadingBubble (with its cycling "what's happening in the background"
-  // text) covers that gap. Otherwise an empty bubble with a bare cursor
-  // would flash for a few seconds and the descriptive loader would never
-  // surface (this was the cause of the inconsistent loading behavior).
+  // Render NOTHING until the stream has produced VISIBLE, MEANINGFUL text:
+  //   - empty string         → still waiting on chunks
+  //   - NEUTRAL_FALLBACK     → JSON-shaped content but no extractable field
+  //                            yet; better to keep showing the LoadingBubble
+  //                            (with its cycling status text) than flash
+  //                            "Intel received..." for a frame
+  // In both cases the LoadingBubble covers the gap.
   if (isStreaming) {
     const displayText = safeDisplayText(stripStreamMarkers(streamText ?? ''));
-    if (!displayText) return null;
+    if (!displayText || displayText === NEUTRAL_FALLBACK) return null;
     return (
       <View style={[styles.darkoBubble, { borderLeftColor: BORDER }]}>
         <Markdown style={markdownStyles}>{displayText}</Markdown>
@@ -1783,7 +1834,7 @@ export default function DecodeScreen() {
                 </View>
               ) : null}
               {chatMessages.map((item) => renderChatItem(item))}
-              {loading && !chatMessages.some((m) => m.type === 'darko' && (m as any).isStreaming && (((m as any).streamText ?? '').trim().length > 0)) && (
+              {loading && !chatMessages.some(hasVisibleStreamContent) && (
                 <LoadingBubble text={loaderText} />
               )}
             </ScrollView>
@@ -1914,7 +1965,7 @@ export default function DecodeScreen() {
             </View>
           ) : null}
           {chatMessages.map((item) => renderChatItem(item))}
-          {loading && !chatMessages.some((m) => m.type === 'darko' && (m as any).isStreaming && (((m as any).streamText ?? '').trim().length > 0)) && (
+          {loading && !chatMessages.some(hasVisibleStreamContent) && (
             <LoadingBubble text={loaderText} />
           )}
         </ScrollView>
@@ -1931,7 +1982,7 @@ export default function DecodeScreen() {
           removeClippedSubviews
           maxToRenderPerBatch={10}
           windowSize={10}
-          ListHeaderComponent={loading && !chatMessages.some((m) => m.type === 'darko' && (m as any).isStreaming && (((m as any).streamText ?? '').trim().length > 0)) ? <LoadingBubble text={loaderText} /> : null}
+          ListHeaderComponent={loading && !chatMessages.some(hasVisibleStreamContent) ? <LoadingBubble text={loaderText} /> : null}
           ListEmptyComponent={
             !loading ? (
               <View style={styles.emptyChat}>
