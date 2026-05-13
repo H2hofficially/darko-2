@@ -66,7 +66,7 @@ export function PaywallModal({ visible, onClose, reason }: Props) {
 
           <View style={styles.divider} />
 
-          <Text style={styles.tierName}>DARKO PRO</Text>
+          <Text style={styles.tierName}>DARKO OPERATOR</Text>
           <Text style={styles.price}>$0 for 4 days</Text>
           <Text style={styles.priceSub}>then $15/month</Text>
 

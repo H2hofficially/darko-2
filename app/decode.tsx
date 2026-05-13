@@ -198,7 +198,7 @@ export function formatProResetDate(now: Date = new Date()): string {
 }
 
 export const CAP_MESSAGE_OBSERVER =
-  "Three sessions today. I reset at midnight UTC. Pro opens the full product — 150 sessions a month, full memory, voice and image input, dossiers. $15. Or wait — I'll be here tomorrow.";
+  "Three sessions today. I reset at midnight UTC. Operator opens the full product — 150 sessions a month, full memory, voice and image input, dossiers. $15. Or wait — I'll be here tomorrow.";
 
 export function buildCapMessageProMonthly(now: Date = new Date()): string {
   return `Monthly sessions closed. Resets on ${formatProResetDate(now)}. Executive removes the cap entirely and opens the training layer. Request access or wait — your call.`;
@@ -1248,7 +1248,7 @@ export default function DecodeScreen() {
 
   const handlePickImage = () => {
     if (tier === 'free') {
-      showPaywall('Screenshot analysis requires DARKO PRO.');
+      showPaywall('Screenshot analysis requires DARKO OPERATOR.');
       return;
     }
 
@@ -1291,7 +1291,7 @@ export default function DecodeScreen() {
 
   const handleMicPress = async () => {
     if (tier === 'free') {
-      showPaywall('Voice input requires DARKO PRO.');
+      showPaywall('Voice input requires DARKO OPERATOR.');
       return;
     }
     if (isRecording) await stopRecording();
@@ -1532,7 +1532,7 @@ export default function DecodeScreen() {
 
   const openDossier = useCallback(async () => {
     if (tier === 'free') {
-      showPaywall('// DOSSIER requires DARKO PRO. Full psychological profiling is a Pro feature.');
+      showPaywall('// DOSSIER requires DARKO OPERATOR. Full psychological profiling is an Operator feature.');
       return;
     }
     setDossierEverOpened(true);
@@ -1807,7 +1807,7 @@ export default function DecodeScreen() {
                 <View style={{ flexDirection: 'row', gap: 16 }}>
                   <TouchableOpacity
                     onPress={() => {
-                      if (tier === 'free') { showPaywall('// BRIEF campaign planning requires DARKO PRO.'); return; }
+                      if (tier === 'free') { showPaywall('// BRIEF campaign planning requires DARKO OPERATOR.'); return; }
                       setCampaignBriefOpen(true);
                     }}
                     hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
@@ -1929,7 +1929,7 @@ export default function DecodeScreen() {
             <TouchableOpacity
               onPress={() => {
                 if (tier === 'free') {
-                  showPaywall('// BRIEF campaign planning requires DARKO PRO.');
+                  showPaywall('// BRIEF campaign planning requires DARKO OPERATOR.');
                   return;
                 }
                 setCampaignBriefOpen(true);

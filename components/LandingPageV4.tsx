@@ -394,7 +394,7 @@ const V4_BODY = `
     <button class="nav-toggle" id="nav-toggle" aria-expanded="false" aria-controls="nav-mobile-menu" aria-label="Toggle menu" type="button">
       <span></span><span></span><span></span>
     </button>
-    <a href="#" class="nav-cta" data-cta="trial">START&nbsp;TRIAL&nbsp;→</a>
+    <a href="/auth?plan=operator&mode=signup" class="nav-cta" data-cta="trial">START&nbsp;TRIAL&nbsp;→</a>
   </div>
   <div class="nav-mobile-menu" id="nav-mobile-menu">
     <a href="#problem" class="nav-mobile-link">PROBLEM</a>
@@ -599,13 +599,13 @@ const V4_BODY = `
     <!-- BUG-09: canonical pricing copy. Pro $15/mo, 4-day trial, 8 targets, full features.
          Annual ($150/yr) is shown but routes to /pricing where the live toggle lives. -->
     <div class="pricing-card">
-      <div class="pricing-badge">DARKO PRO</div>
+      <div class="pricing-badge">DARKO OPERATOR</div>
       <div class="pricing-row">
         <span class="pricing-num">$15</span>
         <span class="pricing-per">/month</span>
       </div>
       <p class="pricing-tag">150 messages a month · 8 targets · voice + image · dossier · brief · phase tracking. 4-day free trial.</p>
-      <a href="#" class="pricing-cta" data-cta="trial">
+      <a href="/auth?plan=operator&mode=signup" class="pricing-cta" data-cta="trial">
         <span class="label">START 4-DAY FREE TRIAL</span>
         <span>→</span>
       </a>
@@ -665,7 +665,7 @@ const V4_BODY = `
           </div>
           <span class="faq-chev">+</span>
         </summary>
-        <div class="faq-answer"><p><span class="a-prefix">A.&nbsp;</span>One inbound message, or a short thread (≤8 messages) read as one. Pro is unlimited — no caps, no metering.</p></div>
+        <div class="faq-answer"><p><span class="a-prefix">A.&nbsp;</span>One inbound message, or a short thread (≤8 messages) read as one. Operator is unlimited — no caps, no metering.</p></div>
       </details>
       <details class="faq-item">
         <summary class="faq-summary">
@@ -688,7 +688,7 @@ const V4_BODY = `
       Stop guessing.<br/>
       <span class="accent">Start reading.<span class="caret"></span></span>
     </h2>
-    <a href="#" class="closer-cta" data-cta="trial">
+    <a href="/auth?plan=operator&mode=signup" class="closer-cta" data-cta="trial">
       <span class="label">START 4-DAY FREE TRIAL</span>
       <span>→</span>
     </a>
@@ -699,9 +699,9 @@ const V4_BODY = `
   <div class="footer-inner">
     <div class="footer-logo" aria-label="Darko">Darko<span class="caret"></span></div>
     <div class="footer-links">
-      <a href="#" data-route="/privacy">PRIVACY</a>
-      <a href="#" data-route="/terms">TERMS</a>
-      <a href="#" data-route="/contact">CONTACT</a>
+      <a href="/privacy" data-route="/privacy">PRIVACY</a>
+      <a href="/terms" data-route="/terms">TERMS</a>
+      <a href="/contact" data-route="/contact">CONTACT</a>
     </div>
     <div class="footer-copy">© 2026 NXGEN MEDIA LLC</div>
   </div>
@@ -812,11 +812,13 @@ function runV4Scripts(R: HTMLElement) {
     a.addEventListener('click', () => setMenuOpen(false));
   });
 
-  // CTA wiring — every [data-cta="trial"] -> /auth?plan=pro
+  // CTA wiring — every [data-cta="trial"] -> /auth?plan=operator&mode=signup
+  // (static href on each anchor is the canonical destination; this handler
+  // exists for analytics tracking + SPA-style nav.)
   R.querySelectorAll<HTMLElement>('[data-cta="trial"]').forEach(el => {
     el.addEventListener('click', e => {
       e.preventDefault();
-      window.location.href = '/auth?plan=pro';
+      window.location.href = '/auth?plan=operator&mode=signup';
     });
   });
 
@@ -1021,7 +1023,7 @@ function LandingPageNative() {
   const router = useRouter();
   const [expanded, setExpanded] = React.useState<number | null>(null);
 
-  const goTrial = () => router.push('/auth?plan=pro' as any);
+  const goTrial = () => router.push('/auth?plan=operator&mode=signup' as any);
 
   const FAQ_ITEMS = [
     { q: 'Is this manipulation?',
@@ -1031,7 +1033,7 @@ function LandingPageNative() {
     { q: 'How do I cancel?',
       a: "Account → Subscription → Cancel. Two taps, no retention loops." },
     { q: 'What counts as a "decode"?',
-      a: "One inbound message, or a short thread (≤8 messages) read as one. Pro is unlimited — no caps, no metering." },
+      a: "One inbound message, or a short thread (≤8 messages) read as one. Operator is unlimited — no caps, no metering." },
     { q: 'Can I use it on my own texts?',
       a: "Yes — and you should. Run your own drafts before you send. Most users find their first month of value comes from catching their own anxious-protest replies before they hit send." },
   ];
@@ -1170,7 +1172,7 @@ function LandingPageNative() {
           </Text>
           <View style={{ borderWidth: 1, borderColor: '#CCFF00', backgroundColor: 'rgba(204,255,0,0.04)', padding: 24, position: 'relative' }}>
             <View style={{ position: 'absolute', top: 0, right: 0, backgroundColor: '#CCFF00', paddingHorizontal: 12, paddingVertical: 4 }}>
-              <Text style={{ fontFamily: 'Courier New', fontSize: 10, letterSpacing: 1.8, color: '#000' }}>DARKO PRO</Text>
+              <Text style={{ fontFamily: 'Courier New', fontSize: 10, letterSpacing: 1.8, color: '#000' }}>DARKO OPERATOR</Text>
             </View>
             <View style={{ flexDirection: 'row', alignItems: 'flex-end' }}>
               <Text style={{ fontFamily: 'Courier New', fontSize: 64, color: '#fafafa', letterSpacing: -2, lineHeight: 64 }}>$15</Text>

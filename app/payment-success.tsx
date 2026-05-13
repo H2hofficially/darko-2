@@ -29,7 +29,7 @@ export default function PaymentSuccessScreen() {
         <View style={styles.divider} />
         <Text style={styles.title}>ACCESS GRANTED.</Text>
         <Text style={styles.body}>
-          {'Your DARKO PRO subscription is now active.\n\nAll features have been unlocked. Return to the system to begin operating at full capacity.'}
+          {'Your DARKO OPERATOR subscription is now active.\n\nAll features have been unlocked. Return to the system to begin operating at full capacity.'}
         </Text>
         <TouchableOpacity style={styles.btn} onPress={() => router.replace('/')}>
           <Text style={styles.btnText}>[ RETURN TO SYSTEM ]</Text>
