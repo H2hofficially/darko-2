@@ -24,11 +24,16 @@ import { supabase } from '../lib/supabase';
 import { registerPushToken } from '../services/notifications';
 import { useUser, TIER_LIMITS } from '../context/UserContext';
 import { PaywallModal } from '../components/PaywallModal';
-// LandingPageV3 retained for rollback — flip the import + the render below to
-// revert if v6 misbehaves in production.
-// import LandingPageV3 from '../components/LandingPageV3';
-import LandingPageV4 from '../components/LandingPageV4';
+// Brief 10: LandingPageV4 / LandingPageV3 are no longer rendered here.
+// The marketing surface is darkoapp.com — a logged-out visitor on
+// terminal.darkoapp.com/ is redirected there instead of being served a
+// duplicate landing page. The component files are kept in the repo for
+// reference/rollback; just re-add the import + render branch to revert.
+// import LandingPageV4 from '../components/LandingPageV4';
 import DarkoLogo from '../components/DarkoLogo';
+
+// Brief 10: single source of truth for the marketing redirect target.
+const MARKETING_URL = 'https://darkoapp.com';
 
 const ACCENT = '#CCFF00';
 const BG = '#09090B';
@@ -424,7 +429,6 @@ export default function ProfilesScreen() {
   const [newObjective, setNewObjective] = useState('');
   const [creating, setCreating] = useState(false);
   const [authReady, setAuthReady] = useState(false);
-  const [showLanding, setShowLanding] = useState(false);
   const [addBtnHovered, setAddBtnHovered] = useState(false);
   const [paywallVisible, setPaywallVisible] = useState(false);
   // BUG-06: tracks inline errors for the ACQUIRE TARGET modal (empty name etc.).
@@ -435,10 +439,12 @@ export default function ProfilesScreen() {
   useEffect(() => {
     (async () => {
       if (Platform.OS === 'web') {
-        // Web: skip onboarding, show landing if not authenticated
+        // Web: skip onboarding. Logged out → leave for the marketing site.
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) {
-          setShowLanding(true);
+          if (typeof window !== 'undefined') {
+            window.location.replace(MARKETING_URL);
+          }
         } else {
           router.replace('/targets' as any);
         }
@@ -463,8 +469,13 @@ export default function ProfilesScreen() {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (Platform.OS === 'web') {
-        if (!session) { setAuthReady(false); setShowLanding(true); }
-        else { setShowLanding(false); router.replace('/targets' as any); }
+        if (!session) {
+          // Signed out (e.g. SIGN OUT pressed) → back to the marketing site.
+          setAuthReady(false);
+          if (typeof window !== 'undefined') window.location.replace(MARKETING_URL);
+        } else {
+          router.replace('/targets' as any);
+        }
       } else {
         if (!session) router.replace('/auth');
       }
@@ -546,7 +557,8 @@ export default function ProfilesScreen() {
     />
   );
 
-  if (showLanding) return <LandingPageV4 />;
+  // Logged-out web visitors are redirected to the marketing site (see the
+  // auth effect above); this blank frame covers the brief redirect window.
   if (!authReady) return <View style={{ flex: 1, backgroundColor: BG }} />;
 
   if (isDesktop) {
