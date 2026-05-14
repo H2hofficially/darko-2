@@ -1343,7 +1343,23 @@ serve(async (req: Request) => {
       { role: 'system', content: systemPrompt },
     ];
     for (const msg of conversationHistory) {
-      messages.push({ role: msg.role === 'darko' ? 'assistant' : 'user', content: msg.content });
+      let content = msg.content;
+      // Re-attach delivered scripts to past darko turns so the model can refer
+      // back to what it actually told the operative (otherwise structured_data
+      // is dropped on the floor and DARKO "forgets" its own scripts next day).
+      if (msg.role === 'darko' && msg.structured_data) {
+        const sd = msg.structured_data as { scripts?: unknown };
+        const scripts = Array.isArray(sd.scripts)
+          ? (sd.scripts.filter((s) => typeof s === 'string' && s.trim().length > 0) as string[])
+          : [];
+        if (scripts.length > 0) {
+          const scriptLine = scripts
+            .map((s) => `"${s.replace(/\s+/g, ' ').slice(0, 400)}"`)
+            .join(' | ');
+          content = `${content}\n[DELIVERED SCRIPTS: ${scriptLine}]`;
+        }
+      }
+      messages.push({ role: msg.role === 'darko' ? 'assistant' : 'user', content });
     }
     messages.push({ role: 'user', content: userMessageWithContext });
 
