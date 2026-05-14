@@ -16,6 +16,25 @@ export type ExpectedNextInput =
   | 'meta_question'
   | null;
 
+export type DueWindow =
+  | 'now'
+  | 'tonight'
+  | 'tomorrow_morning'
+  | 'tomorrow_afternoon'
+  | 'tomorrow_evening'
+  | 'in_2_days'
+  | 'in_3_days'
+  | 'when_she_replies';
+
+export interface ActionDirective {
+  instruction: string;
+  script_to_send: string;
+  due_window: DueWindow;
+  deadline_iso: string;
+  created_at: string;
+  notified_at?: string | null;
+}
+
 export interface DarkoResponse {
   text: string;
   scripts: string[];
@@ -28,6 +47,10 @@ export interface DarkoResponse {
   // the next turn as a prior. Null on legacy rows or when the strategist
   // didn't emit it.
   expectedNextInput: ExpectedNextInput;
+  // Time-bound commitment Darko makes for the operator. When non-null the
+  // client persists to targets.pending_action and surfaces it as the
+  // ACTIVE DIRECTIVE card in the Playbook.
+  actionDirective: ActionDirective | null;
 }
 
 export interface MessageInput {
@@ -54,7 +77,72 @@ const EMPTY_RESPONSE: DarkoResponse = {
   reads: [],
   isCampaign: false,
   expectedNextInput: null,
+  actionDirective: null,
 };
+
+const VALID_DUE_WINDOWS: ReadonlyArray<string> = [
+  'now',
+  'tonight',
+  'tomorrow_morning',
+  'tomorrow_afternoon',
+  'tomorrow_evening',
+  'in_2_days',
+  'in_3_days',
+  'when_she_replies',
+];
+
+// Translate a due_window into a concrete deadline ISO. Falls back to whatever
+// the model emitted as deadline_iso if that already parses; otherwise computes
+// from "now" using the conventional window. Keeps Darko's commitments
+// machine-actionable for check-campaigns even when the model omits a stamp.
+function resolveDeadlineIso(window: string, modelEmitted: unknown): string {
+  if (typeof modelEmitted === 'string') {
+    const t = Date.parse(modelEmitted);
+    if (!isNaN(t)) return new Date(t).toISOString();
+  }
+  const now = new Date();
+  const d = new Date(now);
+  switch (window) {
+    case 'now':
+      d.setMinutes(d.getMinutes() + 30); break;
+    case 'tonight':
+      d.setHours(21, 0, 0, 0); break;
+    case 'tomorrow_morning':
+      d.setDate(d.getDate() + 1); d.setHours(10, 0, 0, 0); break;
+    case 'tomorrow_afternoon':
+      d.setDate(d.getDate() + 1); d.setHours(15, 0, 0, 0); break;
+    case 'tomorrow_evening':
+      d.setDate(d.getDate() + 1); d.setHours(20, 0, 0, 0); break;
+    case 'in_2_days':
+      d.setDate(d.getDate() + 2); d.setHours(15, 0, 0, 0); break;
+    case 'in_3_days':
+      d.setDate(d.getDate() + 3); d.setHours(15, 0, 0, 0); break;
+    case 'when_she_replies':
+      // Open-ended — no deadline. Use 7 days as outer bound for the cron sweep.
+      d.setDate(d.getDate() + 7); break;
+    default:
+      d.setDate(d.getDate() + 1); d.setHours(15, 0, 0, 0);
+  }
+  return d.toISOString();
+}
+
+function readActionDirective(parsed: any): ActionDirective | null {
+  const ad = parsed?.action_directive;
+  if (!ad || typeof ad !== 'object') return null;
+  const instruction = typeof ad.instruction === 'string' ? ad.instruction.trim() : '';
+  if (!instruction) return null;
+  const due = typeof ad.due_window === 'string' ? ad.due_window.trim() : '';
+  if (!VALID_DUE_WINDOWS.includes(due)) return null;
+  const script = typeof ad.script_to_send === 'string' ? ad.script_to_send.trim() : '';
+  return {
+    instruction,
+    script_to_send: script,
+    due_window: due as DueWindow,
+    deadline_iso: resolveDeadlineIso(due, ad.deadline_iso),
+    created_at: new Date().toISOString(),
+    notified_at: null,
+  };
+}
 
 const VALID_EXPECTED_NEXT_INPUTS: ReadonlyArray<string> = [
   'target_message',
@@ -199,6 +287,7 @@ export function parseDarkoResponse(raw: string): DarkoResponse {
           reads: [],
           isCampaign: parsed.intent === 'campaign_brief',
           expectedNextInput: readExpectedNextInput(parsed),
+          actionDirective: readActionDirective(parsed),
         };
       }
     } catch {
@@ -251,9 +340,10 @@ export function parseDarkoResponse(raw: string): DarkoResponse {
     phaseConfidence: null,
     reads,
     isCampaign,
-    // Plain-text / block-marker responses don't carry expected_next_input;
-    // null is the correct legacy default.
+    // Plain-text / block-marker responses don't carry expected_next_input
+    // or action_directive; null is the correct legacy default for both.
     expectedNextInput: null,
+    actionDirective: null,
   };
 }
 

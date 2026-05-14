@@ -44,6 +44,8 @@ import {
   getTarget,
   getMissionPhase,
   saveMissionPhase,
+  setPendingAction,
+  clearPendingAction,
   type ConversationMessage,
   type TargetProfile,
 } from '../services/storage';
@@ -74,6 +76,13 @@ const PANEL_WIDTH_CAP = 480;
 // mis-wires, or any future regression.
 
 const NEUTRAL_FALLBACK = 'Intel received. Awaiting your next input.';
+
+// User-message patterns that indicate the operator is reporting back on a
+// previously-issued action_directive. When present, the client clears
+// targets.pending_action so the next decode doesn't re-nag about it. Kept
+// loose on purpose — false positives just mean Darko asks once more.
+const REPORT_BACK_PATTERN =
+  /\b(sent it|i sent|just sent|sent the|she replied|she said|she answered|she texted|she responded|no reply|no response|didn'?t reply|didn'?t respond|didn'?t text|ghosted|left on read|she ghosted|her reply|her response)\b/i;
 
 function looksLikeJSON(text: string): boolean {
   const trimmed = (text ?? '').trim();
@@ -272,7 +281,7 @@ function conversationToChatMsgs(messages: ConversationMessage[]): ChatMsg[] {
     const sd = msg.structured_data ?? {};
     const reparsed: DarkoResponse = looksLikeJSON(stripCodeFence(msg.content ?? ''))
       ? parseDarkoResponse(msg.content ?? '')
-      : { text: '', scripts: [], alerts: [], phaseUpdate: null, phaseConfidence: null, reads: [], isCampaign: false, expectedNextInput: null };
+      : { text: '', scripts: [], alerts: [], phaseUpdate: null, phaseConfidence: null, reads: [], isCampaign: false, expectedNextInput: null, actionDirective: null };
 
     const sdScripts = (sd.scripts ?? []).filter(Boolean);
     const sdAlerts = (sd.alerts ?? []).filter(Boolean);
@@ -1191,6 +1200,8 @@ export default function DecodeScreen() {
             phaseConfidence: null,
             reads: [],
             isCampaign: false,
+            expectedNextInput: null,
+            actionDirective: null,
           },
           timestamp: new Date().toISOString(),
         };
@@ -1405,6 +1416,13 @@ export default function DecodeScreen() {
     // Persist user message
     const savedUserId = await saveMessage(targetId, 'user', userContent);
 
+    // If the operator is reporting back on a previously-issued action_directive,
+    // clear it so Darko doesn't keep nagging next session. Fire-and-forget;
+    // false positives are cheap.
+    if (REPORT_BACK_PATTERN.test(userContent)) {
+      clearPendingAction(targetId);
+    }
+
     // Add user bubble optimistically
     const userMsg: ChatMsg = {
       id: msgId + '_u',
@@ -1422,7 +1440,7 @@ export default function DecodeScreen() {
     const streamingMsg: ChatMsg = {
       id: darkoMsgId,
       type: 'darko',
-      response: { text: '', scripts: [], alerts: [], phaseUpdate: null, phaseConfidence: null, reads: [], isCampaign: false },
+      response: { text: '', scripts: [], alerts: [], phaseUpdate: null, phaseConfidence: null, reads: [], isCampaign: false, expectedNextInput: null, actionDirective: null },
       isStreaming: true,
       streamText: '',
       timestamp: new Date().toISOString(),
@@ -1463,7 +1481,14 @@ export default function DecodeScreen() {
           phaseConfidence: darkoResponse.phaseConfidence,
           reads: darkoResponse.reads.filter(Boolean),
           expected_next_input: darkoResponse.expectedNextInput,
+          action_directive: darkoResponse.actionDirective,
         });
+
+        // Mirror to targets.pending_action so the Playbook can render the
+        // ACTIVE DIRECTIVE card and check-campaigns can deadline-push.
+        if (darkoResponse.actionDirective) {
+          setPendingAction(targetId, darkoResponse.actionDirective);
+        }
 
         setChatMessages((prev) =>
           prev.map((m) =>
@@ -1585,7 +1610,7 @@ export default function DecodeScreen() {
     const streamingMsg: ChatMsg = {
       id: darkoMsgId,
       type: 'darko',
-      response: { text: '', scripts: [], alerts: [], phaseUpdate: null, phaseConfidence: null, reads: [], isCampaign: false },
+      response: { text: '', scripts: [], alerts: [], phaseUpdate: null, phaseConfidence: null, reads: [], isCampaign: false, expectedNextInput: null, actionDirective: null },
       isStreaming: true,
       streamText: '',
       timestamp: new Date().toISOString(),
@@ -1613,7 +1638,11 @@ export default function DecodeScreen() {
           scripts: darkoResponse.scripts.filter(Boolean),
           alerts: darkoResponse.alerts.filter(Boolean),
           expected_next_input: darkoResponse.expectedNextInput,
+          action_directive: darkoResponse.actionDirective,
         }, 'campaign_brief');
+        if (darkoResponse.actionDirective) {
+          setPendingAction(targetId, darkoResponse.actionDirective);
+        }
         setChatMessages((prev) =>
           prev.map((m) =>
             m.id === darkoMsgId
@@ -1700,7 +1729,7 @@ export default function DecodeScreen() {
     const streamingMsg: ChatMsg = {
       id: darkoMsgId,
       type: 'darko',
-      response: { text: '', scripts: [], alerts: [], phaseUpdate: null, phaseConfidence: null, reads: [], isCampaign: false },
+      response: { text: '', scripts: [], alerts: [], phaseUpdate: null, phaseConfidence: null, reads: [], isCampaign: false, expectedNextInput: null, actionDirective: null },
       isStreaming: true,
       streamText: '',
       timestamp: new Date().toISOString(),
@@ -1731,7 +1760,11 @@ export default function DecodeScreen() {
           phaseConfidence: darkoResponse.phaseConfidence,
           reads: darkoResponse.reads.filter(Boolean),
           expected_next_input: darkoResponse.expectedNextInput,
+          action_directive: darkoResponse.actionDirective,
         });
+        if (darkoResponse.actionDirective) {
+          setPendingAction(targetId, darkoResponse.actionDirective);
+        }
         setChatMessages((prev) =>
           prev.map((m) =>
             m.id === darkoMsgId

@@ -344,6 +344,12 @@ Return JSON matching this schema:
   },
   "next_directive": "one cold sentence",
   "handler_note": "the full Tier 1/2/3 response in voice — PRIMARY OUTPUT user reads",
+  "action_directive": {
+    "instruction": "Send Option 1 as-is.",
+    "script_to_send": "the exact line the operative will send, verbatim",
+    "due_window": "now | tonight | tomorrow_morning | tomorrow_afternoon | tomorrow_evening | in_2_days | in_3_days | when_she_replies",
+    "deadline_iso": "ISO 8601 — optional; leave blank and the client computes from due_window"
+  },
   "phase_update": null,
   "state_update": {
     "target_archetype": "...",
@@ -363,6 +369,27 @@ Return JSON matching this schema:
 \`\`\`
 
 handler_note is the primary output. Other fields are metadata.
+
+## ACTION_DIRECTIVE — WHEN TO EMIT
+
+Emit action_directive ONLY when:
+- You handed the operative a specific scripted move he should send to the target, AND
+- The move is time-bound (must happen by a specific window — "tomorrow afternoon", "tonight", "in 2 days"), AND
+- You want to follow up next session on whether it was executed.
+
+DO NOT emit action_directive when:
+- The response is strategic/explanatory only (no script handed off).
+- The move is open-ended ("just keep doing what you're doing").
+- The user is mid-moment asking about something happening RIGHT NOW (no future deadline).
+- You're answering a meta question about the app or yourself.
+
+When emitting:
+- instruction is for YOUR next-session memory — write it like a note to yourself ("Sent Option 1, asked about plans this weekend, waiting for reply").
+- script_to_send is the exact text the operative will paste — verbatim, no quotes, no commentary.
+- due_window is the operational window. Pick the closest match — Darko commits to deadlines, not vague suggestions.
+- deadline_iso: leave empty unless you want to override the default window mapping (e.g. user said "she'll be free at 8pm tomorrow").
+
+On the next session you will see the directive in [UNRESOLVED DIRECTIVE] block — you MUST open by asking whether it was executed before giving new advice.
 
 ---
 
@@ -768,18 +795,20 @@ async function getCampaignState(
     user_voice_profile_loaded: false,
     relationship_narrative: null,
     behavioral_profile: null,
+    pending_action: null,
   };
   try {
     const admin = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } });
     const { data } = await admin
       .from('targets')
-      .select('behavioral_profile')
+      .select('behavioral_profile, pending_action')
       .eq('id', targetId)
       .eq('user_id', userId)
       .single();
 
+    const pendingAction = (data as any)?.pending_action ?? null;
     const bp = data?.behavioral_profile as Record<string, unknown> | null;
-    if (!bp) return empty;
+    if (!bp) return { ...empty, pending_action: pendingAction };
 
     const validPhases = ['stray', 'approach', 'decide', 'fall'] as const;
     const normPhase = (v: unknown) => {
@@ -809,10 +838,53 @@ async function getCampaignState(
       last_known_emotional_state: bp.last_known_emotional_state ?? null,
       vulnerability_score: bp.vulnerability_score ?? null,
       behavioral_profile: bp,
+      pending_action: pendingAction,
     };
   } catch {
     return empty;
   }
+}
+
+// Build the [UNRESOLVED DIRECTIVE] injection block. When Darko committed to a
+// time-bound action last session, this surfaces it back into the prompt so the
+// model opens the conversation by asking whether it was executed before
+// giving new advice. Returns '' when no pending action exists.
+function buildPendingActionBlock(pending: unknown): string {
+  if (!pending || typeof pending !== 'object') return '';
+  const p = pending as Record<string, unknown>;
+  const instruction = typeof p.instruction === 'string' ? p.instruction.trim() : '';
+  if (!instruction) return '';
+  const script = typeof p.script_to_send === 'string' ? p.script_to_send.trim() : '';
+  const deadlineIso = typeof p.deadline_iso === 'string' ? p.deadline_iso : '';
+  const createdIso = typeof p.created_at === 'string' ? p.created_at : '';
+
+  const now = Date.now();
+  const deadlineMs = deadlineIso ? Date.parse(deadlineIso) : NaN;
+  const createdMs = createdIso ? Date.parse(createdIso) : NaN;
+
+  let timing = '';
+  if (!isNaN(deadlineMs)) {
+    const diffH = Math.round((deadlineMs - now) / 3600000);
+    timing = diffH >= 0
+      ? `deadline is in ~${diffH}h`
+      : `deadline passed ~${Math.abs(diffH)}h ago`;
+  }
+  let issued = '';
+  if (!isNaN(createdMs)) {
+    const ageH = Math.round((now - createdMs) / 3600000);
+    issued = ageH < 24 ? `${ageH}h ago` : `${Math.round(ageH / 24)}d ago`;
+  }
+
+  return (
+    '\n\n=== UNRESOLVED DIRECTIVE ===\n' +
+    `You committed ${issued || 'last session'} to: "${instruction}"\n` +
+    (script ? `Script you handed the operative: "${script}"\n` : '') +
+    (timing ? `${timing}.\n` : '') +
+    'Before giving new advice, open by asking whether this was executed and what happened.\n' +
+    'If the operative already addressed it in this message, acknowledge briefly and move on.\n' +
+    'Do NOT re-issue the same directive. Either confirm completion, redirect, or escalate.\n' +
+    '=== END UNRESOLVED DIRECTIVE ===\n'
+  );
 }
 
 // ── Context builders ──────────────────────────────────────────────────────────
@@ -1261,6 +1333,8 @@ serve(async (req: Request) => {
       .replaceAll('<<<INTENT_GUIDANCE_CLARIFICATION>>>', INTENT_STRATEGY_GUIDANCE.clarification)
       .replaceAll('<<<INTENT_GUIDANCE_META_QUESTION>>>', INTENT_STRATEGY_GUIDANCE.meta_question);
 
+    const pendingActionBlock = buildPendingActionBlock(campaignState.pending_action);
+
     const systemPrompt =
       intentGuidanceSubbed +
       `\n\n=== WHAT YOU KNOW ===` +
@@ -1270,6 +1344,7 @@ serve(async (req: Request) => {
       completedMovesBlock +
       phaseDepth +
       temporalBlock +
+      pendingActionBlock +
       commStyleBlock +
       passageBlock;
 

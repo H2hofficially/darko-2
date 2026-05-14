@@ -377,3 +377,45 @@ export async function saveNotes(targetId: string, notes: string): Promise<void> 
     .eq('id', targetId);
   if (error) console.error('[DARKO] saveNotes error:', error.message);
 }
+
+// ── Pending action (single-slot, time-bound directive Darko commits to) ──────
+
+export type PendingAction = {
+  instruction: string;
+  script_to_send: string;
+  due_window:
+    | 'now' | 'tonight'
+    | 'tomorrow_morning' | 'tomorrow_afternoon' | 'tomorrow_evening'
+    | 'in_2_days' | 'in_3_days' | 'when_she_replies';
+  deadline_iso: string;
+  created_at: string;
+  notified_at?: string | null;
+};
+
+export async function getPendingAction(targetId: string): Promise<PendingAction | null> {
+  const { data } = await supabase
+    .from('targets')
+    .select('pending_action')
+    .eq('id', targetId)
+    .single();
+  return ((data as any)?.pending_action as PendingAction | null) ?? null;
+}
+
+export async function setPendingAction(
+  targetId: string,
+  action: PendingAction,
+): Promise<void> {
+  const { error } = await supabase
+    .from('targets')
+    .update({ pending_action: action } as any)
+    .eq('id', targetId);
+  if (error) console.error('[DARKO] setPendingAction error:', error.message);
+}
+
+export async function clearPendingAction(targetId: string): Promise<void> {
+  const { error } = await supabase
+    .from('targets')
+    .update({ pending_action: null } as any)
+    .eq('id', targetId);
+  if (error) console.error('[DARKO] clearPendingAction error:', error.message);
+}

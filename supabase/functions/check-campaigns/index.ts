@@ -84,6 +84,81 @@ serve(async (req: Request) => {
 
     let alertsSent = 0;
 
+    // ── PRIORITY PASS — deadline-approaching directives ──────────────────────
+    // Pending action deadlines bypass the 20h debounce because Darko committed
+    // to a specific time window with the operator. Each directive only fires
+    // once via the notified_at marker stored on pending_action itself.
+    // Wrapped to no-op gracefully if migration 011_pending_action hasn't run.
+    try { for (const tokenRow of tokenRows) {
+      const { user_id, token } = tokenRow as any;
+
+      const { data: pendingTargets, error: paErr } = await admin
+        .from('targets')
+        .select('id, target_alias, pending_action')
+        .eq('user_id', user_id)
+        .not('pending_action', 'is', null);
+
+      if (paErr) {
+        console.warn('[check-campaigns] pending_action query failed (migration not applied?):', paErr.message);
+        break;
+      }
+
+      if (!pendingTargets?.length) continue;
+
+      for (const t of pendingTargets as any[]) {
+        const pa = t.pending_action;
+        if (!pa || typeof pa !== 'object') continue;
+        if (pa.notified_at) continue; // already pushed for this directive
+        const deadlineMs = pa.deadline_iso ? Date.parse(pa.deadline_iso) : NaN;
+        if (isNaN(deadlineMs)) continue;
+        const hoursUntil = (deadlineMs - Date.now()) / 3600000;
+        // Fire when within ~1h before deadline; also fire if just passed
+        // (operator may have missed it — push nudges them to report back).
+        if (hoursUntil > 1 || hoursUntil < -0.25) continue;
+
+        const script = typeof pa.script_to_send === 'string' ? pa.script_to_send : '';
+        const body = hoursUntil >= 0
+          ? `Window opens in ~${Math.max(1, Math.round(hoursUntil * 60))}m. ${script ? 'Send the line.' : ''}`.trim()
+          : `Window opened. Execute now or report back.`;
+
+        const pushRes = await fetch(EXPO_PUSH_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+          body: JSON.stringify({
+            to: token,
+            title: '// DARKO DIRECTIVE',
+            body,
+            data: { targetId: t.id, targetName: t.target_alias, alertType: 'DEADLINE_APPROACHING' },
+            sound: 'default',
+          }),
+        });
+
+        if (pushRes.ok) {
+          const pushData = await pushRes.json();
+          const ticket = pushData?.data ?? {};
+          await pruneStaleTokens(admin, [ticket], [user_id]);
+          if (ticket?.status !== 'error') {
+            alertsSent++;
+            // Stamp notified_at so we don't re-fire; keep rest of directive intact.
+            await admin
+              .from('targets')
+              .update({ pending_action: { ...pa, notified_at: new Date().toISOString() } })
+              .eq('id', t.id);
+            console.log(JSON.stringify({
+              event: 'directive_push_sent',
+              user_id,
+              targetId: t.id,
+              hoursUntil: hoursUntil.toFixed(2),
+            }));
+          }
+        } else {
+          console.error('[check-campaigns] directive push failed:', await pushRes.text());
+        }
+      }
+    } } catch (e: any) {
+      console.warn('[check-campaigns] directive pass error:', e?.message ?? e);
+    }
+
     for (const tokenRow of tokenRows) {
       const { user_id, token, last_alert_at } = tokenRow as any;
 

@@ -18,6 +18,9 @@ import {
   loadNotes,
   saveNotes,
   saveMissionPhase,
+  getPendingAction,
+  clearPendingAction,
+  type PendingAction,
 } from '../services/storage';
 
 const ACCENT = '#CCFF00';
@@ -120,22 +123,51 @@ export function Playbook({
   const [notes, setNotes] = useState('');
   const [activePhase, setActivePhase] = useState(Math.min(currentPhase, 4));
   const [copyIdx, setCopyIdx] = useState<number | null>(null);
+  const [pending, setPending] = useState<PendingAction | null>(null);
+  const [nowTick, setNowTick] = useState<number>(Date.now());
+  const [directiveCopied, setDirectiveCopied] = useState(false);
   const notesTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Load whenever the target changes
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const [cl, nt] = await Promise.all([loadChecklist(targetId), loadNotes(targetId)]);
+      const [cl, nt, pa] = await Promise.all([
+        loadChecklist(targetId),
+        loadNotes(targetId),
+        getPendingAction(targetId),
+      ]);
       if (cancelled) return;
       setChecklist(cl);
       setNotes(nt);
+      setPending(pa);
       setActivePhase(Math.min(currentPhase, 4));
     })();
     return () => {
       cancelled = true;
     };
   }, [targetId, currentPhase]);
+
+  // Tick once a minute so the countdown stays current. Cheap; only mounted
+  // while the playbook is on screen.
+  useEffect(() => {
+    if (!pending) return;
+    const id = setInterval(() => setNowTick(Date.now()), 60000);
+    return () => clearInterval(id);
+  }, [pending]);
+
+  const handleDirectiveDone = async () => {
+    setPending(null);
+    await clearPendingAction(targetId);
+  };
+
+  const handleCopyDirectiveScript = (text: string) => {
+    if (Platform.OS === 'web' && typeof navigator !== 'undefined') {
+      navigator.clipboard?.writeText(text).catch(() => {});
+    }
+    setDirectiveCopied(true);
+    setTimeout(() => setDirectiveCopied(false), 1800);
+  };
 
   const phaseConfig = PHASES.find((p) => p.num === activePhase) ?? PHASES[0];
 
@@ -167,8 +199,52 @@ export function Playbook({
     onPhaseAdvanced?.(next);
   };
 
+  // ── Active directive card ─────────────────────────────────────────────────
+  // Pinned at the top whenever Darko has an unresolved time-bound directive.
+  // The countdown is computed off nowTick so it stays current without a
+  // dedicated reducer.
+  let directiveCard: React.ReactNode = null;
+  if (pending) {
+    const deadlineMs = Date.parse(pending.deadline_iso);
+    const diffMs = isNaN(deadlineMs) ? 0 : deadlineMs - nowTick;
+    const past = diffMs <= 0;
+    const absMin = Math.max(0, Math.round(Math.abs(diffMs) / 60000));
+    const hrs = Math.floor(absMin / 60);
+    const mins = absMin % 60;
+    const countdown = hrs > 0
+      ? `${hrs}h ${mins}m`
+      : `${mins}m`;
+    const label = past ? `OVERDUE BY ${countdown}` : `SEND IN ${countdown}`;
+    directiveCard = (
+      <View style={pb.directiveCard}>
+        <View style={pb.directiveHeader}>
+          <Text style={pb.directiveBadge}>// ACTIVE DIRECTIVE</Text>
+          <Text style={[pb.directiveCountdown, past && pb.directiveOverdue]}>{label}</Text>
+        </View>
+        <Text style={pb.directiveInstruction}>{pending.instruction}</Text>
+        {pending.script_to_send ? (
+          <View style={pb.directiveScriptBox}>
+            <Text style={pb.directiveScriptText}>{pending.script_to_send}</Text>
+            <TouchableOpacity
+              style={pb.directiveCopyBtn}
+              onPress={() => handleCopyDirectiveScript(pending.script_to_send)}
+            >
+              <Text style={pb.directiveCopyText}>
+                {directiveCopied ? '✓ COPIED' : '⧉ COPY'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
+        <TouchableOpacity style={pb.directiveDoneBtn} onPress={handleDirectiveDone}>
+          <Text style={pb.directiveDoneText}>[ ✓ DONE ]</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
   return (
     <View style={pb.wrap}>
+      {directiveCard}
       {/* Phase tabs */}
       <ScrollView
         horizontal
@@ -266,8 +342,79 @@ export function Playbook({
   );
 }
 
+const OVERDUE_RED = '#FF4444';
+
 const pb = StyleSheet.create({
   wrap: { flexDirection: 'column', gap: 14 },
+  directiveCard: {
+    marginHorizontal: 18,
+    marginTop: 6,
+    padding: 14,
+    backgroundColor: 'rgba(204,255,0,0.06)' as any,
+    borderWidth: 1,
+    borderColor: ACCENT,
+    gap: 10,
+  },
+  directiveHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  directiveBadge: {
+    fontFamily: MONO as any,
+    fontSize: 9,
+    color: ACCENT,
+    letterSpacing: 2,
+    fontWeight: '700',
+  },
+  directiveCountdown: {
+    fontFamily: MONO as any,
+    fontSize: 9,
+    color: ACCENT,
+    letterSpacing: 2,
+  },
+  directiveOverdue: { color: OVERDUE_RED },
+  directiveInstruction: {
+    fontFamily: SANS as any,
+    fontSize: 13,
+    color: TEXT,
+    lineHeight: 18,
+  },
+  directiveScriptBox: {
+    backgroundColor: BG,
+    borderWidth: 1,
+    borderColor: BORDER,
+    padding: 10,
+    gap: 8,
+  },
+  directiveScriptText: {
+    fontFamily: MONO as any,
+    fontSize: 11,
+    color: TEXT,
+    lineHeight: 17,
+    fontStyle: 'italic',
+  },
+  directiveCopyBtn: {
+    borderWidth: 1,
+    borderColor: BORDER,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    alignSelf: 'flex-start',
+  },
+  directiveCopyText: { fontFamily: MONO as any, fontSize: 8, color: DIM, letterSpacing: 2 },
+  directiveDoneBtn: {
+    borderWidth: 1,
+    borderColor: ACCENT,
+    paddingVertical: 8,
+    alignItems: 'center',
+  },
+  directiveDoneText: {
+    fontFamily: MONO as any,
+    fontSize: 10,
+    color: ACCENT,
+    letterSpacing: 2,
+    fontWeight: '700',
+  },
   tabsRow: {
     flexDirection: 'row',
     gap: 0,
