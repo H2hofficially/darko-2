@@ -73,7 +73,7 @@ export default function TermsScreen() {
             <Text style={styles.bold}>OBSERVER</Text> — free forever. 5 reads per month, basic decoding, single target.
           </Text>
           <Text style={styles.body}>
-            <Text style={styles.bold}>PRO</Text> — $15 / month or $150 / year. 150 messages per month, up to 8 targets, voice and image input, full dossiers, phase tracking. A 4-day free trial is available before the first charge.
+            <Text style={styles.bold}>OPERATOR</Text> — $15 / month or $150 / year. 150 messages per month, up to 8 targets, voice and image input, full dossiers, phase tracking. A 4-day free trial is available before the first charge.
           </Text>
           <Text style={styles.body}>
             <Text style={styles.bold}>EXECUTIVE</Text> — $100 / month. The first 100 founder seats are price-locked at $100/month for life. Removes message caps, opens campaign engine and additional features described on the pricing page.

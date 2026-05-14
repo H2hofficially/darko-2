@@ -336,7 +336,7 @@ export default function PricingScreen() {
           <View style={s.badge}>
             <Text style={s.badgeText}>MOST POPULAR</Text>
           </View>
-          <Text style={[s.tierLabel, { color: TEXT_PRIMARY }]}>PRO</Text>
+          <Text style={[s.tierLabel, { color: TEXT_PRIMARY }]}>OPERATOR</Text>
           <View style={s.priceRow}>
             <Text style={[s.tierPrice, { color: ACCENT }]}>
               {billing === 'annual' ? `$${PRICE.PRO_ANNUAL}` : `$${PRICE.PRO_MONTHLY}`}
@@ -377,12 +377,12 @@ export default function PricingScreen() {
                 style={[s.btn, s.btnAccent]}
                 onPress={() => setProAnnualNotice('// annual billing — coming soon')}
               >
-                <Text style={s.btnAccentText}>[ GET PRO ANNUAL ]</Text>
+                <Text style={s.btnAccentText}>[ GET OPERATOR ANNUAL ]</Text>
               </TouchableOpacity>
             ) : (
               <TouchableOpacity
                 style={[s.btn, s.btnAccent, loadingTier === 'operator' && { opacity: 0.5 }]}
-                onPress={() => handleCheckout(STRIPE_PRICE_PRO_MONTHLY, 'operator', 'PRO MONTHLY')}
+                onPress={() => handleCheckout(STRIPE_PRICE_PRO_MONTHLY, 'operator', 'OPERATOR MONTHLY')}
                 disabled={loadingTier !== null}
               >
                 {loadingTier === 'operator'
@@ -428,7 +428,7 @@ export default function PricingScreen() {
             <FeatureLine text="Unlimited messages" />
             <FeatureLine text="Unlimited targets" />
             <FeatureLine text="Campaign memory: last 100 messages" />
-            <FeatureLine text="Everything in PRO" />
+            <FeatureLine text="Everything in OPERATOR" />
             <FeatureLine text="Teaching layer · monthly audits" />
             <FeatureLine text="Proactive check-ins · priority processing" />
             <FeatureLine text="Crisis mode" />
