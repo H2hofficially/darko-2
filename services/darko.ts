@@ -354,6 +354,37 @@ export function parseDarkoResponse(raw: string): DarkoResponse {
 // Contract: NEVER returns raw JSON. If the stream is JSON-shaped but the
 // handler_note key hasn't arrived yet, returns '' so the bubble just shows
 // a cursor.
+// Detects schema-keyword fragments leaking into operator-facing prose during
+// stream. Matches both JSON-style ("action_directive":) and prose-style
+// (action_directive = ..., due_window: tomorrow_afternoon) leaks. Used by
+// stripStreamMarkers to hide partial garbage until the full parse resolves
+// to clean content.
+const SCHEMA_KEYWORDS = [
+  'action_directive',
+  'due_window',
+  'deadline_iso',
+  'script_to_send',
+  'next_directive',
+  'strategic_directive',
+  'phase_update',
+  'state_update',
+  'visible_arsenal',
+  'hidden_intel',
+  'handler_note',
+  'expected_next_input',
+] as const;
+
+function containsSchemaLeakage(text: string): boolean {
+  if (!text) return false;
+  for (const kw of SCHEMA_KEYWORDS) {
+    // Match the keyword followed by ':', '=', or '":"' — any pattern that
+    // signals the model wrote a schema-field reference into prose.
+    const re = new RegExp(`\\b${kw}\\b\\s*[:=]`, 'i');
+    if (re.test(text)) return true;
+  }
+  return false;
+}
+
 export function stripStreamMarkers(text: string): string {
   const normalised = (text ?? '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
   // Strip Markdown code fence so a fenced JSON stream is treated as JSON
@@ -368,7 +399,16 @@ export function stripStreamMarkers(text: string): string {
     // Match an open-ended handler_note value: captures whatever has streamed
     // so far, up to an unescaped closing quote OR end-of-buffer.
     const m = trimmed.match(/"handler_note"\s*:\s*"([\s\S]*?)(?:(?<!\\)"|$)/);
-    if (m) return unescapeJsonStringBody(m[1]);
+    if (m) {
+      const body = unescapeJsonStringBody(m[1]);
+      // Defensive: if the model leaked schema-keyword fragments INTO the
+      // handler_note prose (e.g. "action_directive = ..." or
+      // "due_window: tomorrow_afternoon"), hide it during stream — the
+      // final parse falls back to a clean field. Better cursor-only than
+      // raw schema text flashing through the bubble.
+      if (containsSchemaLeakage(body)) return '';
+      return body;
+    }
 
     // JSON started but handler_note hasn't streamed yet → empty buffer,
     // so the caller renders only the blinking cursor. NEVER expose raw JSON.
