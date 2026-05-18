@@ -501,6 +501,55 @@ export function sendMessage(
     let accumulated = '';
     let completed = false;
 
+    // ── Progressive handler_note extraction ─────────────────────────────
+    // The model emits JSON like {"intent":"...","handler_note":"...",...}.
+    // The chat bubble must NEVER see raw JSON during stream — it only sees
+    // the decoded handler_note body. We carve it out char-by-char as
+    // chunks arrive, decoding JSON string escapes inline, and pass the
+    // growing decoded text to onChunk. parseDarkoResponse runs on the
+    // full accumulated buffer at finish() and handles the regex/legacy
+    // fallback when the marker never arrived.
+    // Whitespace-tolerant: matches `"handler_note":"`, `"handler_note": "`,
+    // `"handler_note" : "`, etc. A literal indexOf was too strict — when the
+    // model emitted any space around the colon the marker missed and the
+    // bubble fell through to rendering raw accumulated JSON.
+    const HANDLER_NOTE_RE = /"handler_note"\s*:\s*"/;
+    let inHandlerNote = false;
+    let handlerNoteDone = false;
+    let pendingEscape = false;
+    let handlerNoteText = '';
+
+    const feedHandlerNoteChars = (chars: string): boolean => {
+      let changed = false;
+      for (let i = 0; i < chars.length && !handlerNoteDone; i++) {
+        const c = chars[i];
+        if (pendingEscape) {
+          pendingEscape = false;
+          switch (c) {
+            case 'n':  handlerNoteText += '\n'; break;
+            case 't':  handlerNoteText += '\t'; break;
+            case 'r':  handlerNoteText += '\r'; break;
+            case 'b':  handlerNoteText += '\b'; break;
+            case 'f':  handlerNoteText += '\f'; break;
+            case '"':  handlerNoteText += '"';  break;
+            case '\\': handlerNoteText += '\\'; break;
+            case '/':  handlerNoteText += '/';  break;
+            // \uXXXX is vanishingly rare in handler_note prose; emit raw
+            // and let parseDarkoResponse decode on completion.
+            case 'u':  handlerNoteText += '\\u'; break;
+            default:   handlerNoteText += c;
+          }
+          changed = true;
+          continue;
+        }
+        if (c === '\\') { pendingEscape = true; continue; }
+        if (c === '"')  { handlerNoteDone = true; return changed; }
+        handlerNoteText += c;
+        changed = true;
+      }
+      return changed;
+    };
+
     const finish = () => {
       if (cancelled || completed) return;
       completed = true;
@@ -517,7 +566,29 @@ export function sendMessage(
       try {
         const parsed = JSON.parse(jsonStr);
         const text: string = parsed?.choices?.[0]?.delta?.content ?? '';
-        if (text) { accumulated += text; onChunk(accumulated); }
+        if (text) {
+          accumulated += text;
+          let changed = false;
+          if (!inHandlerNote && !handlerNoteDone) {
+            // The marker may straddle chunk boundaries — search the full
+            // accumulator, not the delta.
+            const m = HANDLER_NOTE_RE.exec(accumulated);
+            if (m) {
+              inHandlerNote = true;
+              const startPos = m.index + m[0].length;
+              changed = feedHandlerNoteChars(accumulated.substring(startPos));
+            }
+          } else if (inHandlerNote && !handlerNoteDone) {
+            changed = feedHandlerNoteChars(text);
+          }
+          // Only emit prose if we've actually entered and are building the
+          // handler_note body. If the marker hasn't arrived yet, keep the
+          // bubble hidden (LoadingBubble covers the gap). This prevents any
+          // accumulated JSON from leaking through during the prefix phase.
+          if (inHandlerNote && changed) {
+            onChunk(handlerNoteText);
+          }
+        }
         const finishReason: string | null | undefined = parsed?.choices?.[0]?.finish_reason;
         if (finishReason === 'stop') finish();
       } catch {

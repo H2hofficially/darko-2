@@ -29,7 +29,6 @@ import {
   transcribeAudio,
   generateTargetProfile,
   parseDarkoResponse,
-  stripStreamMarkers,
   stripCodeFence,
   type DarkoResponse,
   type MessageInput,
@@ -95,11 +94,16 @@ function looksLikeJSON(text: string): boolean {
 // real text, but keep it up while the stream has no usable content yet
 // (empty buffer or JSON-shaped chunks that haven't reached handler_note).
 function hasVisibleStreamContent(m: any): boolean {
+  // streamText is now the progressively-decoded handler_note body from
+  // services/darko.ts — empty string means handler_note hasn't started
+  // streaming yet (or never will, in which case LoadingBubble covers
+  // the gap until parseDarkoResponse fires at finish).
+  // Must match DarkoBubble's render guard: JSON-shaped streamText is
+  // hidden, so we report it as not-visible and keep LoadingBubble up.
   if (!m || m.type !== 'darko' || !m.isStreaming) return false;
   const streamText = m.streamText ?? '';
   if (typeof streamText !== 'string' || streamText.trim().length === 0) return false;
-  const displayText = safeDisplayText(stripStreamMarkers(streamText));
-  return !!displayText && displayText !== NEUTRAL_FALLBACK;
+  return !looksLikeJSON(streamText);
 }
 
 function safeDisplayText(text: string | undefined | null): string {
@@ -296,6 +300,7 @@ function conversationToChatMsgs(messages: ConversationMessage[]): ChatMsg[] {
       reads: sdReads.length > 0 ? sdReads : reparsed.reads,
       isCampaign: msg.entry_type === 'campaign_brief',
       expectedNextInput: sd.expected_next_input ?? reparsed.expectedNextInput ?? null,
+      actionDirective: sd.action_directive ?? reparsed.actionDirective ?? null,
     };
     return {
       id: msg.id + '_d',
@@ -510,8 +515,18 @@ const DarkoBubble = React.memo(function DarkoBubble({
   //                            "Intel received..." for a frame
   // In both cases the LoadingBubble covers the gap.
   if (isStreaming) {
-    const displayText = safeDisplayText(stripStreamMarkers(streamText ?? ''));
-    if (!displayText || displayText === NEUTRAL_FALLBACK) return null;
+    // streamText is already the decoded handler_note body. Empty means
+    // we're still waiting for the marker; let LoadingBubble cover it.
+    // Defensive: if streamText ever looks JSON-shaped (handler missed the
+    // marker, model variant, future regression), hide it — never let raw
+    // JSON reach the Markdown renderer.
+    const displayText = streamText ?? '';
+    // DIAGNOSTIC — capture every JSON-shaped streamText that hits the
+    // bubble. Remove once the intermittent leak is traced.
+    if (displayText && looksLikeJSON(displayText)) {
+      console.warn('[DARKO-LEAK] bubble received JSON-shaped streamText:', displayText.slice(0, 300));
+    }
+    if (!displayText || looksLikeJSON(displayText)) return null;
     return (
       <View style={[styles.darkoBubble, { borderLeftColor: BORDER }]}>
         <Markdown style={markdownStyles}>{displayText}</Markdown>
