@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import {
   View,
   Text,
-  TextInput,
   TouchableOpacity,
   ScrollView,
   StyleSheet,
@@ -39,16 +38,6 @@ const STRIPE_PRICE_PRO_ANNUAL       = process.env.EXPO_PUBLIC_STRIPE_PRICE_PRO_A
 const STRIPE_PRICE_EXECUTIVE_MONTHLY = process.env.EXPO_PUBLIC_STRIPE_PRICE_EXECUTIVE_MONTHLY ?? '';
 const STRIPE_PRICE_EXECUTIVE_ANNUAL  = process.env.EXPO_PUBLIC_STRIPE_PRICE_EXECUTIVE_ANNUAL  ?? '';
 
-// BUG-19: founder slot count for Executive tier. First 100 members lock at $100
-// forever. After 100, the card flips to a waitlist UI (BUG-22). The count is
-// read from a public env var so marketing can update it without a redeploy of
-// the Supabase function. Defaults to 0 (slots remaining = 100) when unset.
-const EXECUTIVE_FOUNDER_TOTAL = 100;
-const EXECUTIVE_FOUNDER_SOLD =
-  parseInt(process.env.EXPO_PUBLIC_EXECUTIVE_FOUNDER_SOLD ?? '0', 10) || 0;
-const EXECUTIVE_FOUNDER_REMAINING = Math.max(0, EXECUTIVE_FOUNDER_TOTAL - EXECUTIVE_FOUNDER_SOLD);
-const EXECUTIVE_FOUNDER_FULL = EXECUTIVE_FOUNDER_REMAINING <= 0;
-
 // Canonical pricing — must match LandingPageV4 pricing section copy.
 const PRICE = {
   PRO_MONTHLY: 15,
@@ -69,7 +58,7 @@ type FeatureRow = { label: string; observer: string | boolean; operator: string 
 // Headers renamed PRO/EXECUTIVE to match the spec; OBSERVER kept as the free tier.
 const FEATURES: FeatureRow[] = [
   { label: 'Active targets',          observer: '1',                 operator: '8',                 executive: 'Unlimited' },
-  { label: 'Sessions',                 observer: '3 / day',           operator: '150 / month',       executive: 'Unlimited' },
+  { label: 'Decodes',                  observer: '5 / month',         operator: '150 / month',       executive: 'Unlimited' },
   { label: 'Campaign memory',          observer: 'Last 10 messages',  operator: 'Last 50 messages',  executive: 'Last 100 messages' },
   { label: 'Psychological profiling',  observer: 'Basic handler',     operator: 'Full',              executive: 'Full + teaching layer' },
   { label: 'Voice input',              observer: false,               operator: true,                executive: true },
@@ -94,10 +83,6 @@ const FAQ_ITEMS = [
   {
     q: 'Can I cancel my subscription?',
     a: 'Yes. Cancel any time from your account settings. Access continues until end of the current billing period. No partial-period refunds.',
-  },
-  {
-    q: 'How does EXECUTIVE founder pricing work?',
-    a: 'The first 100 EXECUTIVE members lock in $100/mo (or $900/yr) forever. Once those 100 slots are gone, the EXECUTIVE card flips to a waitlist — leave your email and we will reach out when a slot opens.',
   },
   {
     q: 'Is my data private?',
@@ -194,9 +179,6 @@ export default function PricingScreen() {
   const [error, setError] = useState<string | null>(null);
   // BUG-15: Pro annual click → "coming soon" inline (no Stripe product yet).
   const [proAnnualNotice, setProAnnualNotice] = useState<string | null>(null);
-  // BUG-22: waitlist email-capture state for Executive once founder slots fill.
-  const [waitlistEmail, setWaitlistEmail] = useState('');
-  const [waitlistStatus, setWaitlistStatus] = useState<'idle' | 'sending' | 'ok' | 'error'>('idle');
 
   const isObserver   = tier === 'free';
   const isOperator   = tier === 'pro';
@@ -235,30 +217,6 @@ export default function PricingScreen() {
       setError((err.message ?? 'SOMETHING WENT WRONG').toUpperCase());
     } finally {
       setLoadingTier(null);
-    }
-  }
-
-  // BUG-22: persist a waitlist signup. Tries a Supabase RPC first; if it isn't
-  // wired yet, falls back to a mailto so the lead is never silently lost.
-  async function submitWaitlist() {
-    const email = waitlistEmail.trim();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      setWaitlistStatus('error');
-      return;
-    }
-    setWaitlistStatus('sending');
-    try {
-      const { error: fnErr } = await supabase.functions.invoke('executive-waitlist', {
-        body: { email },
-      });
-      if (fnErr) throw fnErr;
-      setWaitlistStatus('ok');
-    } catch {
-      // Fallback so leads still reach the team while the function is being built.
-      const subject = encodeURIComponent('DARKO EXECUTIVE — waitlist signup');
-      const body = encodeURIComponent(`Add me to the Executive waitlist.\nEmail: ${email}`);
-      Linking.openURL(`mailto:${SUPPORT_EMAIL}?subject=${subject}&body=${body}`);
-      setWaitlistStatus('ok');
     }
   }
 
@@ -305,15 +263,15 @@ export default function PricingScreen() {
       {/* Tier cards */}
       <View style={[s.cards, isWide && s.cardsRow]}>
 
-        {/* OBSERVER — canonical spec: 3 sessions/day, 1 target, basic only */}
+        {/* OBSERVER — canonical spec: 5 decodes/month, 1 target, basic only */}
         <View style={[s.card, isWide && s.cardWide, isObserver && s.cardCurrent]}>
           <Text style={s.tierLabel}>OBSERVER</Text>
           <Text style={s.tierPrice}>$0</Text>
           <Text style={s.tierPriceSub}>free forever</Text>
           <View style={s.cardDivider} />
           <View style={s.featureList}>
+            <FeatureLine text="5 decodes per month" />
             <FeatureLine text="1 active target" />
-            <FeatureLine text="3 sessions / day" />
             <FeatureLine text="Campaign memory: last 10 messages" />
             <FeatureLine text="Basic handler only" />
             <FeatureLine text="No voice, image, dossier, or brief" />
@@ -349,7 +307,7 @@ export default function PricingScreen() {
           }
           <View style={s.cardDivider} />
           <View style={s.featureList}>
-            <FeatureLine text="150 messages per month" accent />
+            <FeatureLine text="150 decodes per month" accent />
             <FeatureLine text="8 active targets" accent />
             <FeatureLine text="Campaign memory: last 50 messages" accent />
             <FeatureLine text="Voice input · image input" accent />
@@ -397,14 +355,8 @@ export default function PricingScreen() {
           </View>
         </View>
 
-        {/* EXECUTIVE — founder pricing first 100 (BUG-19), waitlist when full (BUG-22).
-            Stripe-or-mailto fallback (BUG-16/17). */}
+        {/* EXECUTIVE — Stripe-or-mailto fallback (BUG-16/17). */}
         <View style={[s.card, isWide && s.cardWide, isExecutive && s.cardCurrent]}>
-          <View style={[s.badge, s.badgeExec]}>
-            <Text style={[s.badgeText, { color: ACCENT }]}>
-              {EXECUTIVE_FOUNDER_FULL ? 'WAITLIST' : 'FOUNDER PRICING'}
-            </Text>
-          </View>
           <Text style={s.tierLabel}>EXECUTIVE</Text>
           <View style={s.priceRow}>
             <Text style={s.tierPrice}>
@@ -416,16 +368,9 @@ export default function PricingScreen() {
             ? <Text style={[s.tierPriceSub, { color: ACCENT }]}>Save ${PRICE.EXEC_ANNUAL_SAVINGS}/year</Text>
             : <Text style={s.tierPriceSub}>per month</Text>
           }
-          {/* BUG-19: founder framing — only while slots remain */}
-          {!EXECUTIVE_FOUNDER_FULL && (
-            <Text style={s.founderNote}>
-              First 100 members locked at $100 forever
-              {EXECUTIVE_FOUNDER_SOLD > 0 ? ` · ${EXECUTIVE_FOUNDER_REMAINING} of ${EXECUTIVE_FOUNDER_TOTAL} left` : ''}
-            </Text>
-          )}
           <View style={s.cardDivider} />
           <View style={s.featureList}>
-            <FeatureLine text="Unlimited messages" />
+            <FeatureLine text="Unlimited decodes" />
             <FeatureLine text="Unlimited targets" />
             <FeatureLine text="Campaign memory: last 100 messages" />
             <FeatureLine text="Everything in OPERATOR" />
@@ -437,40 +382,6 @@ export default function PricingScreen() {
             {isExecutive ? (
               <View style={[s.btn, s.btnGhost]}>
                 <Text style={s.btnGhostText}>CURRENT PLAN</Text>
-              </View>
-            ) : EXECUTIVE_FOUNDER_FULL ? (
-              // BUG-22: founder slots full → email-capture waitlist.
-              <View>
-                {waitlistStatus === 'ok' ? (
-                  <Text style={s.waitlistOk}>// you're on the list. we'll be in touch.</Text>
-                ) : (
-                  <>
-                    <Text style={s.waitlistLabel}>Founder slots are full. Join the waitlist:</Text>
-                    <View style={s.waitlistRow}>
-                      <TextInput
-                        style={s.waitlistInput}
-                        value={waitlistEmail}
-                        onChangeText={(t) => { setWaitlistEmail(t); setWaitlistStatus('idle'); }}
-                        placeholder="you@domain.com"
-                        placeholderTextColor={TEXT_DIM}
-                        autoCapitalize="none"
-                        keyboardType="email-address"
-                      />
-                      <TouchableOpacity
-                        style={[s.btn, s.btnGhost, { paddingHorizontal: 16 }]}
-                        onPress={submitWaitlist}
-                        disabled={waitlistStatus === 'sending'}
-                      >
-                        <Text style={s.btnGhostText}>
-                          {waitlistStatus === 'sending' ? 'SENDING...' : 'JOIN'}
-                        </Text>
-                      </TouchableOpacity>
-                    </View>
-                    {waitlistStatus === 'error' && (
-                      <Text style={s.error}>[ ENTER A VALID EMAIL ]</Text>
-                    )}
-                  </>
-                )}
               </View>
             ) : (
               <TouchableOpacity
@@ -626,7 +537,7 @@ const s = StyleSheet.create({
     flexDirection: 'row' as const,
     borderWidth: 1,
     borderColor: BORDER,
-    borderRadius: 2,
+    borderRadius: 0,
     overflow: 'hidden' as any,
   },
   toggleBtn: {
@@ -656,7 +567,7 @@ const s = StyleSheet.create({
     backgroundColor: 'rgba(204,255,0,0.1)',
     paddingHorizontal: 4,
     paddingVertical: 1,
-    borderRadius: 1,
+    borderRadius: 0,
   },
   divider: {
     height: 1,
@@ -683,7 +594,7 @@ const s = StyleSheet.create({
     backgroundColor: CARD_BG,
     borderWidth: 1,
     borderColor: BORDER,
-    borderRadius: 2,
+    borderRadius: 0,
     padding: 24,
   },
   cardWide: {
@@ -700,14 +611,10 @@ const s = StyleSheet.create({
     backgroundColor: 'rgba(204,255,0,0.08)',
     borderWidth: 1,
     borderColor: 'rgba(204,255,0,0.25)',
-    borderRadius: 1,
+    borderRadius: 0,
     paddingHorizontal: 8,
     paddingVertical: 3,
     marginBottom: 12,
-  },
-  badgeExec: {
-    backgroundColor: 'rgba(255,255,255,0.04)',
-    borderColor: BORDER,
   },
   badgeText: {
     fontFamily: MONO as any,
@@ -760,7 +667,7 @@ const s = StyleSheet.create({
   },
   cardFooter: {},
   btn: {
-    borderRadius: 2,
+    borderRadius: 0,
     paddingVertical: 13,
     alignItems: 'center' as const,
   },
@@ -796,7 +703,7 @@ const s = StyleSheet.create({
   betaNote: {
     borderWidth: 1,
     borderColor: BORDER,
-    borderRadius: 2,
+    borderRadius: 0,
     padding: 14,
     marginBottom: 20,
   },
@@ -822,47 +729,6 @@ const s = StyleSheet.create({
     letterSpacing: 1,
     marginBottom: 12,
   },
-  // BUG-19: founder framing line under the price
-  founderNote: {
-    fontFamily: MONO as any,
-    fontSize: 10,
-    color: ACCENT,
-    letterSpacing: 1,
-    marginTop: 4,
-    lineHeight: 16,
-  },
-  // BUG-22: waitlist UI (Executive when 100 founders are sold)
-  waitlistLabel: {
-    fontFamily: MONO as any,
-    fontSize: 10,
-    color: TEXT_DIM,
-    letterSpacing: 1,
-    marginBottom: 8,
-  },
-  waitlistRow: {
-    flexDirection: 'row' as const,
-    gap: 8,
-    alignItems: 'stretch' as const,
-  },
-  waitlistInput: {
-    flex: 1,
-    fontFamily: MONO as any,
-    fontSize: 12,
-    color: TEXT_PRIMARY,
-    backgroundColor: BG,
-    borderWidth: 1,
-    borderColor: BORDER,
-    borderRadius: 2,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-  },
-  waitlistOk: {
-    fontFamily: MONO as any,
-    fontSize: 11,
-    color: ACCENT,
-    letterSpacing: 1,
-    paddingVertical: 8,
-  },
   section: {
     marginBottom: 48,
   },
@@ -876,7 +742,7 @@ const s = StyleSheet.create({
   table: {
     borderWidth: 1,
     borderColor: BORDER,
-    borderRadius: 2,
+    borderRadius: 0,
     overflow: 'hidden' as any,
   },
   tableRow: {

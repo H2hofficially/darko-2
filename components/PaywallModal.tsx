@@ -71,8 +71,8 @@ export function PaywallModal({ visible, onClose, reason }: Props) {
           <Text style={styles.priceSub}>then $15/month</Text>
 
           <View style={styles.benefits}>
-            <BenefitRow text="3 active targets" />
-            <BenefitRow text="30 messages per day" />
+            <BenefitRow text="150 decodes per month" />
+            <BenefitRow text="8 active targets" />
             <BenefitRow text="// DOSSIER — full psychological profile" />
             <BenefitRow text="// BRIEF — campaign planning system" />
             <BenefitRow text="Voice input + transcription" />
@@ -123,7 +123,7 @@ const styles = StyleSheet.create({
     backgroundColor: CARD_BG,
     borderWidth: 1,
     borderColor: BORDER,
-    borderRadius: 4,
+    borderRadius: 0,
     padding: 24,
     maxWidth: 440,
     alignSelf: 'center' as const,
@@ -210,7 +210,7 @@ const styles = StyleSheet.create({
   },
   upgradeBtn: {
     backgroundColor: ACCENT,
-    borderRadius: 4,
+    borderRadius: 0,
     paddingVertical: 14,
     alignItems: 'center' as const,
     marginBottom: 12,

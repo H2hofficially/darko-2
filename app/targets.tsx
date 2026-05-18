@@ -144,12 +144,12 @@ function CreateTargetForm({
         returnKeyType="next"
       />
 
-      <Text style={cf.label}>LEVERAGE <Text style={cf.opt}>(optional)</Text></Text>
+      <Text style={cf.label}>CONTEXT <Text style={cf.opt}>(optional)</Text></Text>
       <TextInput
         style={cf.input}
         value={leverage}
         onChangeText={setLeverage}
-        placeholder="what they have over you..."
+        placeholder="what's the dynamic — distance, breakup, work crush..."
         placeholderTextColor={DIM}
         returnKeyType="next"
       />
@@ -159,7 +159,7 @@ function CreateTargetForm({
         style={[cf.input, { marginBottom: 20 }]}
         value={objective}
         onChangeText={setObjective}
-        placeholder="what you want from them..."
+        placeholder="what you'd like to read clearly"
         placeholderTextColor={DIM}
         returnKeyType="done"
         onSubmitEditing={handleSubmit}
@@ -254,6 +254,7 @@ function DetailDrawer({
   onPhaseAdvanced?: (newPhase: number) => void;
   bottomSheet?: boolean;
 }) {
+  const router = useRouter();
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   // Side mode: capped at 360, but never more than ~32% of viewport so a tablet-
   // landscape (640–1023px) doesn't get a 360px drawer over a 280px table.
@@ -375,6 +376,12 @@ function DetailDrawer({
       <View style={dd.actions}>
         <TouchableOpacity style={dd.btnPrimary} onPress={() => onDecode(t)}>
           <Text style={dd.btnPrimaryText}>DECODE</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={dd.btnSecondary}
+          onPress={() => router.push(`/campaigns?targetId=${t.id}` as any)}
+        >
+          <Text style={dd.btnSecondaryText}>CAMPAIGN</Text>
         </TouchableOpacity>
         <TouchableOpacity style={dd.btnDanger} onPress={() => onDelete(t)}>
           <Text style={dd.btnDangerText}>DELETE</Text>
@@ -681,7 +688,12 @@ function WebTable({
         ))}
         {rows.length === 0 && (
           <View style={wt.empty}>
-            <Text style={wt.emptyText}>NO TARGETS MATCH</Text>
+            <Text style={wt.emptyEyebrow}>// NO ACTIVE CAMPAIGNS</Text>
+            <Text style={wt.emptyTitle}>Start your first read.</Text>
+            <Text style={wt.emptyBody}>
+              A target is a single person whose thread you want decoded. Paste a few messages, name them, and the engine builds a behavioral profile and a phased campaign.
+            </Text>
+            <Text style={wt.emptyHint}>Use the + button to acquire your first target.</Text>
           </View>
         )}
       </ScrollView>
@@ -719,7 +731,11 @@ const wt = StyleSheet.create({
   nameSub: { fontFamily: MONO as any, fontSize: 8, color: DIM, marginTop: 2, letterSpacing: 1 },
   archetypeText: { fontFamily: MONO as any, fontSize: 9, color: MUTED, letterSpacing: 1 },
   decodeText: { fontFamily: MONO as any, fontSize: 9, color: DIM, letterSpacing: 1 },
-  empty: { padding: 32, alignItems: 'center' },
+  empty: { paddingHorizontal: 24, paddingVertical: 80, alignItems: 'center', gap: 10 },
+  emptyEyebrow: { fontFamily: MONO as any, fontSize: 10, color: ACCENT, letterSpacing: 3 },
+  emptyTitle: { fontFamily: MONO as any, fontSize: 22, color: TEXT, letterSpacing: 0.5, fontWeight: '700' as const, textAlign: 'center' as const, marginTop: 4 },
+  emptyBody: { fontFamily: MONO as any, fontSize: 12, color: DIM, letterSpacing: 0.5, lineHeight: 18, textAlign: 'center' as const, maxWidth: 440, marginTop: 6 },
+  emptyHint: { fontFamily: MONO as any, fontSize: 10, color: ACCENT, letterSpacing: 2, marginTop: 12 },
   emptyText: { fontFamily: MONO as any, fontSize: 10, color: DIM, letterSpacing: 3 },
 });
 
@@ -915,8 +931,18 @@ export default function TargetsScreen() {
             >
               {displayed.length === 0 ? (
                 <View style={nat.empty}>
-                  <Text style={nat.emptyText}>NO TARGETS ACQUIRED</Text>
-                  <Text style={nat.emptySub}>tap + to add one</Text>
+                  <Text style={nat.emptyEyebrow}>// NO ACTIVE CAMPAIGNS</Text>
+                  <Text style={nat.emptyTitle}>Start your first read.</Text>
+                  <Text style={nat.emptyBody}>
+                    A target is a single person whose thread you want decoded. Paste a few messages, name them, and the engine builds a behavioral profile and a phased campaign.
+                  </Text>
+                  <TouchableOpacity
+                    style={nat.emptyCta}
+                    onPress={() => setShowCreate(true)}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={nat.emptyCtaText}>+ ACQUIRE YOUR FIRST TARGET</Text>
+                  </TouchableOpacity>
                 </View>
               ) : (
                 displayed.map((item) => (
@@ -1051,7 +1077,12 @@ const nat = StyleSheet.create({
   cardArchetype: { fontFamily: MONO as any, fontSize: 9, color: MUTED, letterSpacing: 1 },
   cardBottom: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 },
   cardDecodeTime: { fontFamily: MONO as any, fontSize: 9, color: DIM },
-  empty: { padding: 48, alignItems: 'center', gap: 8 },
+  empty: { paddingHorizontal: 24, paddingVertical: 64, alignItems: 'center', gap: 12 },
+  emptyEyebrow: { fontFamily: MONO as any, fontSize: 10, color: ACCENT, letterSpacing: 3 },
+  emptyTitle: { fontFamily: MONO as any, fontSize: 20, color: TEXT, letterSpacing: 0.5, fontWeight: '700' as const, textAlign: 'center' as const, marginTop: 2 },
+  emptyBody: { fontFamily: MONO as any, fontSize: 12, color: DIM, letterSpacing: 0.5, lineHeight: 18, textAlign: 'center' as const, maxWidth: 360, marginTop: 6 },
+  emptyCta: { marginTop: 18, backgroundColor: ACCENT, paddingVertical: 12, paddingHorizontal: 18 },
+  emptyCtaText: { fontFamily: MONO as any, fontSize: 11, color: BG, letterSpacing: 2, fontWeight: '700' as const },
   emptyText: { fontFamily: MONO as any, fontSize: 10, color: DIM, letterSpacing: 3 },
   emptySub: { fontFamily: MONO as any, fontSize: 9, color: B2, letterSpacing: 1 },
 });

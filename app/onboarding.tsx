@@ -29,12 +29,12 @@ const SLIDES = [
     small: 'Someone is always controlling the frame. Most people never realize it.',
   },
   {
-    large: 'Upload data. Isolate variables. Secure leverage.',
-    small: 'DARKO intercepts subtext, identifies manipulation vectors, and compiles tactical intelligence.',
+    large: 'Upload data. Isolate variables. Read the move.',
+    small: 'Darko intercepts subtext, names the pattern being run, and compiles tactical intelligence for your reply.',
   },
   {
-    large: 'Emotions are a vulnerability. Data is leverage.',
-    small: 'Your private intelligence account. Every target. Every pattern. Every move.',
+    large: 'Emotions blur the read. Data sharpens it.',
+    small: 'Your private intelligence account. Every target. Every pattern. Every phase.',
   },
 ];
 

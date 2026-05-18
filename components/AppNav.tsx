@@ -91,6 +91,16 @@ export function AppNav() {
             </View>
           )}
 
+          {/* Upgrade CTA — only for free tier on web nav. */}
+          {!isMobile && tier === 'free' && pathname !== '/pricing' && (
+            <Pressable
+              style={s.upgradeBtn}
+              onPress={() => router.push('/pricing' as any)}
+            >
+              <Text style={s.upgradeText}>UPGRADE →</Text>
+            </Pressable>
+          )}
+
           {/* User chip — compact on mobile */}
           {!isMobile ? (
             <Pressable
@@ -284,6 +294,20 @@ const s = StyleSheet.create({
     fontFamily: MONO as any,
     fontSize: 8,
     color: DIM,
+    letterSpacing: 2,
+  },
+
+  // Upgrade CTA (free tier only)
+  upgradeBtn: {
+    backgroundColor: ACCENT,
+    paddingVertical: 5,
+    paddingHorizontal: 12,
+  },
+  upgradeText: {
+    fontFamily: MONO as any,
+    fontSize: 9,
+    fontWeight: '700' as const,
+    color: BG,
     letterSpacing: 2,
   },
 

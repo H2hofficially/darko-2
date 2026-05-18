@@ -70,13 +70,13 @@ export default function TermsScreen() {
             Darko is offered in three tiers:
           </Text>
           <Text style={styles.body}>
-            <Text style={styles.bold}>OBSERVER</Text> — free forever. 5 reads per month, basic decoding, single target.
+            <Text style={styles.bold}>OBSERVER</Text> — free forever. 5 decodes per month, basic decoding, single target.
           </Text>
           <Text style={styles.body}>
-            <Text style={styles.bold}>OPERATOR</Text> — $15 / month or $150 / year. 150 messages per month, up to 8 targets, voice and image input, full dossiers, phase tracking. A 4-day free trial is available before the first charge.
+            <Text style={styles.bold}>OPERATOR</Text> — $15 / month or $150 / year. 150 decodes per month, up to 8 targets, voice and image input, full dossiers, phase tracking. A 4-day free trial is available before the first charge.
           </Text>
           <Text style={styles.body}>
-            <Text style={styles.bold}>EXECUTIVE</Text> — $100 / month. The first 100 founder seats are price-locked at $100/month for life. Removes message caps, opens campaign engine and additional features described on the pricing page.
+            <Text style={styles.bold}>EXECUTIVE</Text> — $100 / month. Removes decode caps, opens campaign engine and additional features described on the pricing page.
           </Text>
           <Text style={styles.body}>
             Pricing on the in-app pricing page is canonical and may be revised. Material price increases for an existing subscription will be communicated in advance and will not apply mid-billing-cycle.

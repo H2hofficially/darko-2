@@ -53,17 +53,17 @@ export default function AuthScreen() {
   // Signup-only fields
   const [fullName, setFullName] = useState('');
   const [age, setAge] = useState('');
-  const [phone, setPhone] = useState('');
+  const [consent, setConsent] = useState(false);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmPending, setConfirmPending] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
 
   // Focus states
   const [nameFocused, setNameFocused] = useState(false);
   const [ageFocused, setAgeFocused] = useState(false);
   const [emailFocused, setEmailFocused] = useState(false);
-  const [phoneFocused, setPhoneFocused] = useState(false);
   const [passFocused, setPassFocused] = useState(false);
 
   // Already logged in → skip to home
@@ -76,6 +76,29 @@ export default function AuthScreen() {
   const switchMode = (next: Mode) => {
     setMode(next);
     setError(null);
+    setResetSent(false);
+  };
+
+  // ── Forgot password ─────────────────────────────────────────────────────────
+  const handleForgotPassword = async () => {
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail) {
+      setError('ENTER YOUR EMAIL FIRST, THEN TAP FORGOT PASSWORD');
+      return;
+    }
+    if (!EMAIL_RE.test(trimmedEmail)) {
+      setError('PLEASE ENTER A VALID EMAIL ADDRESS');
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    const { error: err } = await supabase.auth.resetPasswordForEmail(trimmedEmail);
+    setLoading(false);
+    if (err) {
+      setError(err.message.toUpperCase());
+    } else {
+      setResetSent(true);
+    }
   };
 
   // ── Login ────────────────────────────────────────────────────────────────────
@@ -139,12 +162,15 @@ export default function AuthScreen() {
       setError('PLEASE ENTER A VALID EMAIL ADDRESS');
       return;
     }
-    if (!phone.trim()) { setError('PHONE NUMBER IS REQUIRED'); return; }
     if (!password) { setError('PASSWORD IS REQUIRED'); return; }
     // BUG-11: enforce a visible minimum password length on the client. Hint text
     // below the input also communicates the requirement up-front (see render).
     if (password.length < MIN_PASSWORD_LEN) {
       setError(`PASSWORD MUST BE AT LEAST ${MIN_PASSWORD_LEN} CHARACTERS`);
+      return;
+    }
+    if (!consent) {
+      setError('YOU MUST AGREE TO THE TERMS AND PRIVACY POLICY');
       return;
     }
 
@@ -158,7 +184,7 @@ export default function AuthScreen() {
         data: {
           full_name: name,
           age: ageNum,
-          phone: phone.trim(),
+          consent_at: new Date().toISOString(),
         },
       },
     });
@@ -262,6 +288,18 @@ export default function AuthScreen() {
                 />
               </View>
 
+              <Pressable
+                onPress={handleForgotPassword}
+                hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                style={styles.forgotRow}
+              >
+                <Text style={styles.forgotLink}>forgot password?</Text>
+              </Pressable>
+
+              {resetSent && (
+                <Text style={styles.resetSent}>[ RESET LINK SENT — CHECK YOUR EMAIL ]</Text>
+              )}
+
               {error && <Text style={styles.errorText}>[ {error} ]</Text>}
 
               <Pressable
@@ -287,7 +325,10 @@ export default function AuthScreen() {
                 <Text style={styles.secondaryButtonText}>[ CREATE ACCOUNT ]</Text>
               </Pressable>
 
-              <Text style={styles.disclaimer}>unauthorized access is logged and analyzed.</Text>
+              <Text style={styles.disclaimer}>
+                End-to-end encrypted. Anonymous decodes deleted in 24h.{'\n'}
+                Content is never sold or shared with third parties.
+              </Text>
             </ScrollView>
           </KeyboardAvoidingView>
         </View>
@@ -364,22 +405,6 @@ export default function AuthScreen() {
               />
             </View>
 
-            {/* Phone */}
-            <Text style={styles.fieldLabel}>PHONE</Text>
-            <View style={[styles.inputWrapper, phoneFocused && styles.inputWrapperFocused]}>
-              <TextInput
-                style={styles.input}
-                value={phone}
-                onChangeText={setPhone}
-                placeholder="+1 (555) 000-0000"
-                placeholderTextColor={TEXT_DIM}
-                keyboardType="phone-pad"
-                autoComplete="tel"
-                onFocus={() => setPhoneFocused(true)}
-                onBlur={() => setPhoneFocused(false)}
-              />
-            </View>
-
             {/* Password */}
             <Text style={styles.fieldLabel}>PASSWORD</Text>
             <View style={[styles.inputWrapper, passFocused && styles.inputWrapperFocused]}>
@@ -401,6 +426,29 @@ export default function AuthScreen() {
             <Text style={styles.fieldHint}>
               minimum {MIN_PASSWORD_LEN} characters
             </Text>
+
+            <Pressable
+              style={styles.consentRow}
+              onPress={() => setConsent(!consent)}
+              hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
+            >
+              <View style={[styles.checkbox, consent && styles.checkboxChecked]}>
+                {consent && <Text style={styles.checkboxMark}>✓</Text>}
+              </View>
+              <Text style={styles.consentText}>
+                I agree to the{' '}
+                <Text
+                  style={styles.consentLink}
+                  onPress={() => router.push('/terms' as any)}
+                >Terms</Text>
+                {' '}and{' '}
+                <Text
+                  style={styles.consentLink}
+                  onPress={() => router.push('/privacy' as any)}
+                >Privacy Policy</Text>
+                , and consent to my threads being processed by Darko's decode engine.
+              </Text>
+            </Pressable>
 
             {error && <Text style={styles.errorText}>[ {error} ]</Text>}
 
@@ -427,7 +475,10 @@ export default function AuthScreen() {
               <Text style={styles.secondaryButtonText}>[ SIGN IN ]</Text>
             </Pressable>
 
-            <Text style={styles.disclaimer}>unauthorized access is logged and analyzed.</Text>
+            <Text style={styles.disclaimer}>
+                End-to-end encrypted. Anonymous decodes deleted in 24h.{'\n'}
+                Content is never sold or shared with third parties.
+              </Text>
           </ScrollView>
         </KeyboardAvoidingView>
       </View>
@@ -592,5 +643,65 @@ const styles = StyleSheet.create({
   },
   confirmEmail: {
     color: TEXT_PRIMARY,
+  },
+  // Forgot-password link on sign-in screen
+  forgotRow: {
+    alignSelf: 'flex-end' as const,
+    marginTop: -10,
+    marginBottom: 18,
+  },
+  forgotLink: {
+    fontFamily: MONO as any,
+    fontSize: 10,
+    color: TEXT_DIM,
+    letterSpacing: 1,
+  },
+  resetSent: {
+    fontFamily: MONO as any,
+    fontSize: 10,
+    color: ACCENT,
+    letterSpacing: 2,
+    marginBottom: 14,
+    lineHeight: 16,
+  },
+  // Terms + privacy consent on signup
+  consentRow: {
+    flexDirection: 'row' as const,
+    alignItems: 'flex-start' as const,
+    gap: 10,
+    marginTop: 4,
+    marginBottom: 18,
+  },
+  checkbox: {
+    width: 16,
+    height: 16,
+    borderWidth: 1,
+    borderColor: BORDER,
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    marginTop: 2,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+  },
+  checkboxChecked: {
+    borderColor: ACCENT,
+    backgroundColor: 'rgba(204, 255, 0, 0.15)',
+  },
+  checkboxMark: {
+    fontFamily: MONO as any,
+    fontSize: 11,
+    color: ACCENT,
+    lineHeight: 13,
+  },
+  consentText: {
+    flex: 1,
+    fontFamily: MONO as any,
+    fontSize: 10,
+    color: TEXT_DIM,
+    letterSpacing: 0.5,
+    lineHeight: 16,
+  },
+  consentLink: {
+    color: ACCENT,
+    textDecorationLine: 'underline' as const,
   },
 });

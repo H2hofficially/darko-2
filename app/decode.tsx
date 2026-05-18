@@ -1071,8 +1071,8 @@ const rp = StyleSheet.create({
   liveDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#CCFF00' },
   liveText: { fontFamily: DECODE_MONO as any, fontSize: 8, color: '#52525b', letterSpacing: 2 },
   empty: { padding: 32, alignItems: 'center', gap: 10, marginTop: 40 },
-  emptyTitle: { fontFamily: DECODE_MONO as any, fontSize: 10, color: '#3f3f46', letterSpacing: 3 },
-  emptySub: { fontFamily: DECODE_MONO as any, fontSize: 9, color: '#3f3f46', letterSpacing: 1, textAlign: 'center', lineHeight: 16 },
+  emptyTitle: { fontFamily: DECODE_MONO as any, fontSize: 11, color: '#CCFF00', letterSpacing: 3 },
+  emptySub: { fontFamily: DECODE_MONO as any, fontSize: 10, color: '#A1A1AA', letterSpacing: 1, textAlign: 'center', lineHeight: 16, maxWidth: 240 },
   section: {
     borderBottomWidth: 1,
     borderBottomColor: '#27272A',

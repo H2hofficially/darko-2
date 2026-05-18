@@ -112,12 +112,12 @@ function TargetForm({
       />
       {formError ? <Text style={styles.modalError}>[ {formError} ]</Text> : null}
 
-      <Text style={styles.modalFieldLabel}>LEVERAGE  <Text style={styles.modalOptional}>(optional)</Text></Text>
+      <Text style={styles.modalFieldLabel}>CONTEXT  <Text style={styles.modalOptional}>(optional)</Text></Text>
       <TextInput
         style={styles.modalInput}
         value={newLeverage}
         onChangeText={setNewLeverage}
-        placeholder="what they have over you..."
+        placeholder="what's the dynamic — distance, breakup, work crush..."
         placeholderTextColor={TEXT_DIM}
         returnKeyType="next"
       />
@@ -127,7 +127,7 @@ function TargetForm({
         style={[styles.modalInput, styles.modalInputLast]}
         value={newObjective}
         onChangeText={setNewObjective}
-        placeholder="what you want from them..."
+        placeholder="what you'd like to read clearly"
         placeholderTextColor={TEXT_DIM}
         returnKeyType="done"
         onSubmitEditing={onCreate}
