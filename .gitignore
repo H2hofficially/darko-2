@@ -51,3 +51,20 @@ yarn-error.*
 # RAG ingestion: raw extracted book text (copyrighted source material)
 navarro_chunks/_source/
 mace_chunks/_source/
+knowledge/
+
+# RAG slicing intermediate outputs
+chunk_*.txt
+slice_log.txt
+
+# Astro build cache
+.astro/
+
+# Supabase CLI scratch (project ref, version pins, etc.)
+supabase/.temp/
+
+# Marketing site lives in its own repo (H2hofficially/darko-marketing)
+darko-marketing/
+
+# WSL/FUSE ghost files from deleted-but-open files
+.fuse_hidden*
