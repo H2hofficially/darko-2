@@ -66,5 +66,8 @@ supabase/.temp/
 # Marketing site lives in its own repo (H2hofficially/darko-marketing)
 darko-marketing/
 
+# Design handoff bundle (kept locally; chat transcripts not for public repo)
+darko_design/
+
 # WSL/FUSE ghost files from deleted-but-open files
 .fuse_hidden*

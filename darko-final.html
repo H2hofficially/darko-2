@@ -1,0 +1,1317 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Darko — Decode any text in 30 seconds</title>
+<meta name="description" content="Built on Greene, Cialdini, Machiavelli, Sun Tzu, Bowlby, Freud, and Gottman — applied to the text thread. Read the move. Refuse to mirror. Return from a stronger frame.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #09090b;
+    --surface: rgba(22, 22, 28, 0.55);
+    --surface-strong: rgba(22, 22, 28, 0.78);
+    --surface-faint: rgba(255, 255, 255, 0.025);
+    --border: rgba(255, 255, 255, 0.08);
+    --border-strong: rgba(255, 255, 255, 0.16);
+    --text: #ffffff;
+    --text-2: #c4c4cc;
+    --text-3: #9090a0;
+    --accent: #cdf01b;
+    --accent-dim: rgba(205, 240, 27, 0.12);
+    --accent-glow: rgba(205, 240, 27, 0.25);
+    --warn: #ffbd2e;
+    --target-bg: rgba(255, 255, 255, 0.06);
+    --you-bg: rgba(205, 240, 27, 0.10);
+    --you-border: rgba(205, 240, 27, 0.35);
+    --shadow-1: 0 1px 2px rgba(0,0,0,0.4), 0 4px 12px rgba(0,0,0,0.25);
+    --shadow-2: 0 4px 12px rgba(0,0,0,0.45), 0 16px 40px rgba(0,0,0,0.35);
+    --shadow-3: 0 12px 28px rgba(0,0,0,0.55), 0 32px 80px rgba(0,0,0,0.45);
+    --glass-blur: saturate(140%) blur(18px);
+    --mono: 'JetBrains Mono', ui-monospace, Menlo, monospace;
+    --sans: 'Inter', system-ui, -apple-system, sans-serif;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 15px;
+    line-height: 1.55;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Ambient page glow */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background:
+      radial-gradient(60% 50% at 18% 20%, rgba(205, 240, 27, 0.06) 0%, transparent 60%),
+      radial-gradient(55% 45% at 82% 65%, rgba(70, 140, 220, 0.08) 0%, transparent 65%),
+      radial-gradient(80% 60% at 50% 110%, rgba(140, 80, 220, 0.05) 0%, transparent 70%);
+    z-index: 0;
+  }
+  body > * { position: relative; z-index: 1; }
+
+  *:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    border-radius: 0;
+  }
+
+  a { color: inherit; text-decoration: none; }
+  button { font-family: inherit; cursor: pointer; }
+
+  /* ============ NAV ============ */
+  .nav {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: rgba(9, 9, 11, 0.55);
+    backdrop-filter: saturate(180%) blur(20px);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+    border-bottom: 1px solid var(--border);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  }
+  .nav-inner {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 16px 32px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+  }
+  .wordmark {
+    font-family: var(--mono);
+    font-size: 19px;
+    font-weight: 700;
+    color: var(--text);
+    letter-spacing: -0.01em;
+  }
+  .wordmark::after {
+    content: "_";
+    color: var(--accent);
+    animation: blink 1.2s steps(2, end) infinite;
+  }
+  @keyframes blink { 50% { opacity: 0; } }
+  .nav-links {
+    display: flex;
+    gap: 32px;
+  }
+  .nav-links a {
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 0.1em;
+    color: var(--text-2);
+    transition: color 150ms;
+  }
+  .nav-links a:hover { color: var(--text); }
+  .nav-cta {
+    background: var(--accent);
+    color: #0a0a0a;
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    padding: 10px 16px;
+    border-radius: 0;
+    border: 0;
+    box-shadow:
+      0 0 0 1px rgba(205, 240, 27, 0.3) inset,
+      0 4px 16px rgba(205, 240, 27, 0.18);
+    transition: all 150ms;
+  }
+  .nav-cta:hover {
+    filter: brightness(1.08);
+    transform: translateY(-1px);
+    box-shadow:
+      0 0 0 1px rgba(205, 240, 27, 0.4) inset,
+      0 8px 24px rgba(205, 240, 27, 0.25);
+  }
+
+  /* ============ shared ============ */
+  .container {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 0 32px;
+  }
+  section { padding: 80px 0; }
+  .section-eyebrow {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--accent);
+    letter-spacing: 0.14em;
+    margin-bottom: 12px;
+  }
+  .section-h {
+    font-family: var(--mono);
+    font-size: 48px;
+    font-weight: 700;
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+    margin-bottom: 16px;
+    max-width: 720px;
+  }
+  .section-sub {
+    font-family: var(--sans);
+    font-size: 16px;
+    color: var(--text-2);
+    line-height: 1.6;
+    max-width: 580px;
+    margin-bottom: 48px;
+  }
+
+  /* ============ HERO ============ */
+  .hero {
+    text-align: center;
+    padding: 80px 32px 40px;
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+  .hero-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    border: 1px solid var(--border-strong);
+    border-radius: 0;
+    padding: 6px 14px;
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    color: var(--text-2);
+    margin-bottom: 28px;
+    background: var(--surface);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+  }
+  .hero-pill::before {
+    content: "";
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 10px var(--accent);
+  }
+  .hero h1 {
+    font-family: var(--mono);
+    font-size: 72px;
+    line-height: 1.02;
+    font-weight: 700;
+    letter-spacing: -0.025em;
+    margin-bottom: 28px;
+  }
+  .hero h1 .accent { color: var(--accent); }
+  .hero-sub {
+    font-family: var(--sans);
+    font-size: 17px;
+    color: var(--text-2);
+    line-height: 1.6;
+    max-width: 620px;
+    margin: 0 auto 40px;
+  }
+
+  /* Inline decode embed — fulfills the "no signup · no card" promise */
+  .inline-decode {
+    max-width: 680px;
+    margin: 0 auto 20px;
+    background: var(--surface);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--border);
+    border-radius: 0;
+    padding: 24px;
+    text-align: left;
+    box-shadow: var(--shadow-2),
+                inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  }
+  .inline-decode label {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-2);
+    letter-spacing: 0.14em;
+    display: block;
+    margin-bottom: 12px;
+  }
+  .inline-decode textarea {
+    width: 100%;
+    min-height: 110px;
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid var(--border);
+    border-radius: 0;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 13px;
+    padding: 14px;
+    resize: vertical;
+    line-height: 1.55;
+    box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.3);
+    transition: border-color 150ms, box-shadow 150ms;
+  }
+  .inline-decode textarea::placeholder { color: var(--text-3); }
+  .inline-decode textarea:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.3),
+                0 0 0 3px rgba(205, 240, 27, 0.12);
+  }
+  .inline-decode-row {
+    display: flex;
+    gap: 16px;
+    margin-top: 16px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .inline-decode-row .reassure {
+    flex: 1;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-2);
+    min-width: 220px;
+  }
+  .inline-decode-row .reassure::before { content: "🔒  "; }
+
+  .btn-primary {
+    background: var(--accent);
+    color: #0a0a0a;
+    border: 0;
+    border-radius: 0;
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    padding: 14px 24px;
+    transition: all 150ms;
+    box-shadow:
+      0 0 0 1px rgba(205, 240, 27, 0.3) inset,
+      0 8px 24px rgba(205, 240, 27, 0.18),
+      0 2px 6px rgba(0, 0, 0, 0.3);
+  }
+  .btn-primary:hover {
+    filter: brightness(1.08);
+    transform: translateY(-1px);
+    box-shadow:
+      0 0 0 1px rgba(205, 240, 27, 0.4) inset,
+      0 12px 32px rgba(205, 240, 27, 0.25),
+      0 4px 8px rgba(0, 0, 0, 0.35);
+  }
+
+  .hero-fineprint {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-2);
+    letter-spacing: 0.06em;
+    margin-top: 16px;
+  }
+
+  /* ============ LIVE DECODE ============ */
+  .decode-section { padding: 60px 0 80px; }
+  .decode-frame {
+    background: var(--surface);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--border);
+    border-radius: 0;
+    overflow: hidden;
+    max-width: 1000px;
+    margin: 0 auto;
+    box-shadow: var(--shadow-3),
+                inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  }
+  .decode-header {
+    background: rgba(0, 0, 0, 0.35);
+    padding: 12px 18px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-3);
+    letter-spacing: 0.12em;
+    gap: 16px;
+  }
+  .traffic { display: flex; gap: 6px; }
+  .traffic span { width: 11px; height: 11px; border-radius: 50%; }
+  .traffic .r { background: #ff5f56; }
+  .traffic .y { background: #ffbd2e; }
+  .traffic .g { background: #27c93f; }
+
+  .decode-body {
+    display: grid;
+    grid-template-columns: 340px 1fr;
+    min-height: 500px;
+  }
+  .thread-col {
+    padding: 24px;
+    border-right: 1px solid var(--border);
+  }
+  .meta-row {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-3);
+    letter-spacing: 0.14em;
+    margin-bottom: 4px;
+  }
+  .meta-val {
+    font-family: var(--mono);
+    font-size: 16px;
+    color: var(--text);
+    margin-bottom: 18px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+  }
+  .meta-val.obj {
+    font-size: 13px;
+    color: var(--text-2);
+    font-weight: 400;
+    font-style: italic;
+    letter-spacing: normal;
+  }
+  .thread-divider {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-3);
+    letter-spacing: 0.14em;
+    margin: 20px 0 14px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+  }
+  .bubble-meta {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-3);
+    margin-bottom: 4px;
+    letter-spacing: 0.04em;
+  }
+  .bubble-meta.right { text-align: right; }
+  .bubble {
+    font-family: var(--sans);
+    font-size: 14px;
+    padding: 10px 14px;
+    border-radius: 0;
+    margin-bottom: 14px;
+    max-width: 85%;
+    line-height: 1.4;
+    word-break: break-word;
+  }
+  .bubble.target {
+    background: var(--target-bg);
+    color: var(--text);
+    margin-right: auto;
+  }
+  .bubble.you {
+    background: var(--you-bg);
+    color: var(--text);
+    border: 1px solid var(--you-border);
+    margin-left: auto;
+  }
+
+  .verdict-col { padding: 28px; }
+  .verdict-label {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-3);
+    letter-spacing: 0.14em;
+    margin-bottom: 20px;
+  }
+  .verdict-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 0;
+    border-bottom: 1px dashed var(--border);
+    font-family: var(--mono);
+    font-size: 13px;
+    gap: 16px;
+  }
+  .verdict-row .k {
+    color: var(--text-3);
+    letter-spacing: 0.08em;
+    font-size: 11px;
+  }
+  .verdict-row .v {
+    color: var(--accent);
+    font-weight: 600;
+    text-align: right;
+    letter-spacing: 0.04em;
+  }
+  .verdict-row .v.warn { color: var(--warn); }
+
+  .confidence {
+    margin-top: 22px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+  }
+  .confidence-row {
+    display: flex;
+    justify-content: space-between;
+    font-family: var(--mono);
+    font-size: 11px;
+    margin-bottom: 8px;
+    color: var(--text-3);
+    letter-spacing: 0.08em;
+  }
+  .confidence-row .val { color: var(--accent); font-weight: 600; font-size: 13px; }
+  .confidence-bar {
+    height: 4px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 0;
+    overflow: hidden;
+  }
+  .confidence-fill {
+    height: 100%;
+    width: 83%;
+    background: var(--accent);
+    box-shadow: 0 0 8px var(--accent-glow);
+  }
+  .directive {
+    margin-top: 22px;
+    background: rgba(205, 240, 27, 0.05);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(205, 240, 27, 0.25);
+    border-radius: 0;
+    padding: 14px 16px;
+    box-shadow: 0 4px 16px rgba(205, 240, 27, 0.08),
+                inset 0 1px 0 rgba(205, 240, 27, 0.1);
+  }
+  .directive-label {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--accent);
+    letter-spacing: 0.14em;
+    margin-bottom: 10px;
+  }
+  .directive p {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--text);
+    line-height: 1.6;
+  }
+
+  .decode-footer {
+    background: rgba(0, 0, 0, 0.35);
+    padding: 14px 18px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .scenario-info {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-3);
+    letter-spacing: 0.08em;
+  }
+  .scenario-info strong { color: var(--text); font-weight: 600; }
+  .scenario-dots {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  .scenario-dots button {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    border: 0;
+    background: var(--border-strong);
+    padding: 0;
+    transition: all 200ms;
+  }
+  .scenario-dots button[aria-current="true"] {
+    background: var(--accent);
+    width: 26px;
+    border-radius: 0;
+    box-shadow: 0 0 8px var(--accent-glow);
+  }
+  .scenario-dots button:hover { background: var(--text-3); }
+  .scenario-dots button[aria-current="true"]:hover { background: var(--accent); }
+  .scenario-controls { display: flex; gap: 8px; align-items: center; }
+  .ctrl {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-2);
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 6px 12px;
+    border-radius: 0;
+    letter-spacing: 0.08em;
+    transition: all 150ms;
+  }
+  .ctrl:hover { color: var(--text); border-color: var(--border-strong); background: rgba(255, 255, 255, 0.04); }
+
+  /* ============ PROBLEM ============ */
+  .problem-list {
+    display: flex;
+    flex-direction: column;
+  }
+  .problem-row {
+    display: grid;
+    grid-template-columns: 60px 200px 1fr;
+    gap: 28px;
+    padding: 22px 0;
+    border-top: 1px solid var(--border);
+    align-items: start;
+  }
+  .problem-row:last-child { border-bottom: 1px solid var(--border); }
+  .problem-row .num {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--accent);
+    letter-spacing: 0.14em;
+    padding-top: 2px;
+  }
+  .problem-row .who {
+    font-family: var(--mono);
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+    letter-spacing: 0.04em;
+  }
+  .problem-row .why {
+    font-family: var(--sans);
+    font-size: 15px;
+    color: var(--text-2);
+    line-height: 1.6;
+  }
+
+  /* ============ FIT ============ */
+  .fit-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+  }
+  .fit-col {
+    background: var(--surface);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--border);
+    border-radius: 0;
+    padding: 28px;
+    box-shadow: var(--shadow-1),
+                inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  }
+  .fit-col h3 {
+    font-family: var(--mono);
+    font-size: 14px;
+    color: var(--text);
+    margin-bottom: 18px;
+    letter-spacing: 0.06em;
+  }
+  .fit-col h3::before {
+    content: "▸ ";
+    color: var(--accent);
+    margin-right: 4px;
+  }
+  .fit-col.not h3 { color: var(--text-3); }
+  .fit-col.not h3::before { color: var(--text-3); }
+  .fit-col ul { list-style: none; }
+  .fit-col li {
+    font-family: var(--sans);
+    font-size: 14.5px;
+    color: var(--text-2);
+    padding: 10px 0;
+    line-height: 1.5;
+  }
+  .fit-col.not li { color: var(--text-3); text-decoration: line-through; text-decoration-color: rgba(144,144,160,0.4); }
+
+  /* ============ DOCTRINE ============ */
+  .doctrine-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+  }
+  .doctrine-card {
+    background: var(--surface);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--border);
+    border-radius: 0;
+    padding: 22px;
+    box-shadow: var(--shadow-1),
+                inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    transition: transform 200ms, box-shadow 200ms, border-color 200ms;
+  }
+  .doctrine-card:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--shadow-2),
+                inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.14);
+  }
+  .doctrine-card .name {
+    font-family: var(--mono);
+    font-size: 14px;
+    color: var(--text);
+    font-weight: 600;
+    margin-bottom: 6px;
+  }
+  .doctrine-card .domain {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--accent);
+    letter-spacing: 0.14em;
+    margin-bottom: 14px;
+  }
+  .doctrine-card .desc {
+    font-family: var(--sans);
+    font-size: 13.5px;
+    color: var(--text-2);
+    line-height: 1.55;
+  }
+  .doctrine-card.accent {
+    background: linear-gradient(135deg, rgba(205, 240, 27, 0.10) 0%, rgba(205, 240, 27, 0.02) 100%);
+    border-color: rgba(205, 240, 27, 0.3);
+  }
+  .doctrine-card.accent .name { color: var(--accent); }
+  .doctrine-card.accent .name::before { content: "+ "; }
+  .doctrine-card.accent .domain { color: var(--text); }
+
+  /* ============ PRICING ============ */
+  .pricing-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 18px;
+    align-items: stretch;
+  }
+  .pricing-card {
+    background: var(--surface);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--border);
+    border-radius: 0;
+    padding: 32px 24px;
+    display: flex;
+    flex-direction: column;
+    box-shadow: var(--shadow-1),
+                inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    position: relative;
+    transition: transform 200ms, box-shadow 200ms;
+  }
+  .pricing-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-2); }
+  .pricing-card.featured {
+    border-color: rgba(205, 240, 27, 0.4);
+    background:
+      radial-gradient(80% 60% at 50% 0%, rgba(205, 240, 27, 0.08) 0%, transparent 60%),
+      var(--surface);
+    box-shadow: var(--shadow-2),
+                0 0 0 1px rgba(205, 240, 27, 0.2),
+                inset 0 1px 0 rgba(205, 240, 27, 0.15);
+  }
+  .featured-badge {
+    position: absolute;
+    top: -1px;
+    right: 24px;
+    background: var(--accent);
+    color: #0a0a0a;
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    padding: 6px 12px;
+    border-radius: 0;
+    box-shadow: 0 4px 12px rgba(205, 240, 27, 0.3);
+  }
+  .pricing-card .tier {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-3);
+    letter-spacing: 0.16em;
+    margin-bottom: 14px;
+  }
+  .pricing-card.featured .tier { color: var(--accent); }
+  .pricing-card .price {
+    font-family: var(--mono);
+    font-size: 48px;
+    font-weight: 700;
+    color: var(--text);
+    line-height: 1;
+    margin-bottom: 4px;
+    letter-spacing: -0.02em;
+  }
+  .pricing-card .price .per {
+    font-size: 13px;
+    color: var(--text-3);
+    font-weight: 400;
+    letter-spacing: 0;
+  }
+  .pricing-card .blurb {
+    font-family: var(--sans);
+    font-size: 14px;
+    color: var(--text-2);
+    margin-bottom: 22px;
+    line-height: 1.5;
+  }
+  .pricing-card ul { list-style: none; margin-bottom: 24px; }
+  .pricing-card li {
+    font-family: var(--sans);
+    font-size: 14px;
+    color: var(--text-2);
+    padding: 6px 0;
+    line-height: 1.5;
+  }
+  .pricing-card li::before {
+    content: "→ ";
+    color: var(--accent);
+    margin-right: 6px;
+  }
+  .pricing-card .cta {
+    margin-top: auto;
+    background: transparent;
+    border: 1px solid var(--border-strong);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    padding: 14px;
+    border-radius: 0;
+    transition: all 150ms;
+  }
+  .pricing-card .cta:hover {
+    background: rgba(255, 255, 255, 0.04);
+    border-color: var(--text-3);
+  }
+  .pricing-card.featured .cta {
+    background: var(--accent);
+    color: #0a0a0a;
+    border-color: var(--accent);
+    box-shadow:
+      0 0 0 1px rgba(205, 240, 27, 0.3) inset,
+      0 4px 16px rgba(205, 240, 27, 0.18);
+  }
+  .pricing-card.featured .cta:hover {
+    filter: brightness(1.08);
+    transform: translateY(-1px);
+  }
+  .pricing-card .fineprint {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-3);
+    letter-spacing: 0.06em;
+    text-align: center;
+    margin-top: 10px;
+  }
+
+  /* ============ FAQ ============ */
+  .faq-list { max-width: 720px; }
+  .faq-item {
+    background: var(--surface);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--border);
+    border-radius: 0;
+    margin-bottom: 10px;
+    overflow: hidden;
+    box-shadow: var(--shadow-1);
+    transition: border-color 200ms;
+  }
+  .faq-item:hover { border-color: var(--border-strong); }
+  .faq-item summary {
+    padding: 18px 22px;
+    font-family: var(--mono);
+    font-size: 14px;
+    color: var(--text);
+    list-style: none;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+  }
+  .faq-item summary::-webkit-details-marker { display: none; }
+  .faq-item summary::after {
+    content: "+";
+    color: var(--accent);
+    font-family: var(--mono);
+    font-size: 20px;
+    flex-shrink: 0;
+    transition: transform 200ms;
+  }
+  .faq-item[open] summary::after { content: "−"; }
+  .faq-answer {
+    padding: 0 22px 20px;
+    font-family: var(--sans);
+    font-size: 14.5px;
+    color: var(--text-2);
+    line-height: 1.65;
+    max-width: 640px;
+  }
+
+  /* ============ CTA ============ */
+  .final-cta {
+    text-align: center;
+    padding: 100px 32px 60px;
+  }
+  .final-cta h2 {
+    font-family: var(--mono);
+    font-size: 56px;
+    font-weight: 700;
+    line-height: 1.05;
+    letter-spacing: -0.025em;
+    margin-bottom: 18px;
+  }
+  .final-cta p {
+    font-family: var(--sans);
+    font-size: 17px;
+    color: var(--text-2);
+    margin-bottom: 36px;
+  }
+
+  /* ============ FOOTER ============ */
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 48px 32px 32px;
+    background: rgba(0, 0, 0, 0.3);
+  }
+  .footer-inner {
+    max-width: 1100px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: 2fr 1fr 1fr 1fr;
+    gap: 48px;
+    margin-bottom: 32px;
+  }
+  .footer-brand p {
+    font-family: var(--sans);
+    font-size: 14px;
+    color: var(--text-2);
+    line-height: 1.6;
+    margin-top: 14px;
+    max-width: 320px;
+  }
+  .footer-col h4 {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-3);
+    letter-spacing: 0.14em;
+    margin-bottom: 14px;
+  }
+  .footer-col ul { list-style: none; }
+  .footer-col li {
+    margin-bottom: 8px;
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--text-2);
+  }
+  .footer-col li a:hover { color: var(--accent); }
+  .footer-base {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding-top: 24px;
+    border-top: 1px solid var(--border);
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-3);
+    letter-spacing: 0.06em;
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+
+  /* ============ RESPONSIVE ============ */
+  @media (max-width: 860px) {
+    .hero h1 { font-size: 44px; }
+    .section-h { font-size: 32px; }
+    .final-cta h2 { font-size: 36px; }
+    .decode-body { grid-template-columns: 1fr; }
+    .thread-col { border-right: 0; border-bottom: 1px solid var(--border); }
+    .doctrine-grid { grid-template-columns: repeat(2, 1fr); }
+    .pricing-grid { grid-template-columns: 1fr; }
+    .fit-grid { grid-template-columns: 1fr; }
+    .footer-inner { grid-template-columns: 1fr 1fr; }
+    .nav-links { display: none; }
+    .problem-row { grid-template-columns: 50px 1fr; }
+    .problem-row .why { grid-column: 1 / -1; }
+  }
+</style>
+</head>
+<body>
+
+<header class="nav">
+  <div class="nav-inner">
+    <a href="#" class="wordmark">Darko</a>
+    <nav class="nav-links" aria-label="Primary">
+      <a href="#problem">PROBLEM</a>
+      <a href="#doctrine">DOCTRINE</a>
+      <a href="#pricing">PRICING</a>
+      <a href="#faq">FAQ</a>
+    </nav>
+    <button class="nav-cta">TRY DARKO →</button>
+  </div>
+</header>
+
+<!-- HERO -->
+<section class="hero">
+  <span class="hero-pill">RELATIONSHIP INTELLIGENCE</span>
+  <h1>Decode any text<br>in <span class="accent">30 seconds.</span></h1>
+  <p class="hero-sub">Reads body language and power dynamics in your dating threads. Names the archetype. Plays the campaign phase by phase.</p>
+
+  <form class="inline-decode" onsubmit="event.preventDefault()" aria-label="Free decode">
+    <label for="paste-area">PASTE A THREAD · ONE FREE DECODE · NO SIGNUP</label>
+    <textarea id="paste-area" placeholder="Marcus: last night was really good
+You: it was. when can i see you again?
+Marcus: haha yeah for sure. busy this week though"></textarea>
+    <div class="inline-decode-row">
+      <div class="reassure">Encrypted in transit · anonymous decodes deleted in 24h</div>
+      <button class="btn-primary" type="submit">RUN DECODE →</button>
+    </div>
+  </form>
+  <div class="hero-fineprint">// 5 more free decodes per month with a free Observer account</div>
+</section>
+
+<!-- LIVE DECODE -->
+<section class="decode-section" id="decode">
+  <div class="container">
+    <div class="section-eyebrow">01 // LIVE DECODE</div>
+    <h2 class="section-h">Watch the engine read.</h2>
+    <p class="section-sub">Six operator scenarios. The engine runs every thread against the full canon at once, returns the named pattern, and hands you the next move.</p>
+  </div>
+
+  <div class="decode-frame">
+    <div class="decode-header">
+      <div class="traffic"><span class="r"></span><span class="y"></span><span class="g"></span></div>
+      <div>OPERATOR_LOG · ACTIVE SESSION</div>
+      <div>AES-256 · ENCRYPTED</div>
+    </div>
+    <div class="decode-body">
+      <div class="thread-col">
+        <div class="meta-row">TARGET</div>
+        <div class="meta-val">MARCUS</div>
+        <div class="meta-row">OBJECTIVE</div>
+        <div class="meta-val obj">post-intimacy distance</div>
+
+        <div class="thread-divider">THREAD</div>
+
+        <div class="bubble-meta">MARCUS · 11:42 pm</div>
+        <div class="bubble target">last night was really good</div>
+
+        <div class="bubble-meta right">YOU · 11:44 pm</div>
+        <div class="bubble you">it was. when can i see you again?</div>
+
+        <div class="bubble-meta">MARCUS · next day · 9:18 pm</div>
+        <div class="bubble target">haha yeah for sure. busy this week though</div>
+      </div>
+
+      <div class="verdict-col" aria-live="polite">
+        <div class="verdict-label">DECODE OUTPUT</div>
+        <div class="verdict-row"><span class="k">ARCHETYPE</span><span class="v">FEARFUL-AVOIDANT</span></div>
+        <div class="verdict-row"><span class="k">POWER_DYN</span><span class="v">OSCILLATING</span></div>
+        <div class="verdict-row"><span class="k">MOMENTUM</span><span class="v warn">WITHDRAWING</span></div>
+        <div class="verdict-row"><span class="k">NEXT</span><span class="v">create space, do not fill</span></div>
+        <div class="verdict-row"><span class="k">DO NOT</span><span class="v warn">ask "are we okay"</span></div>
+
+        <div class="confidence">
+          <div class="confidence-row"><span>CONFIDENCE</span><span class="val">83%</span></div>
+          <div class="confidence-bar"><div class="confidence-fill"></div></div>
+        </div>
+
+        <div class="directive">
+          <div class="directive-label">// DIRECTIVE</div>
+          <p>Post-intimacy distance is a regulatory move, not rejection. Pursue now and you confirm the closeness threat. Hold for 72 hours, then re-engage cold on a low-stakes thread.</p>
+        </div>
+      </div>
+    </div>
+    <div class="decode-footer">
+      <div class="scenario-info">SCENARIO <strong id="scenario-num">02</strong> / 06</div>
+      <div class="scenario-dots" role="tablist" aria-label="Scenarios">
+        <button aria-label="Scenario 1" data-dot="1"></button>
+        <button aria-label="Scenario 2" aria-current="true" data-dot="2"></button>
+        <button aria-label="Scenario 3" data-dot="3"></button>
+        <button aria-label="Scenario 4" data-dot="4"></button>
+        <button aria-label="Scenario 5" data-dot="5"></button>
+        <button aria-label="Scenario 6" data-dot="6"></button>
+      </div>
+      <div class="scenario-controls">
+        <button class="ctrl" aria-label="Previous scenario">←</button>
+        <button class="ctrl" id="play-pause" aria-label="Pause rotation">⏸ PAUSE</button>
+        <button class="ctrl" aria-label="Next scenario">→</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- PROBLEM -->
+<section id="problem">
+  <div class="container">
+    <div class="section-eyebrow">02 // THE PROBLEM</div>
+    <h2 class="section-h">Everyone is wrong about your texts.</h2>
+    <p class="section-sub">You already know not to trust the obvious advice. Here is why none of it works.</p>
+
+    <div class="problem-list">
+      <div class="problem-row">
+        <div class="num">01</div>
+        <div class="who">CHATGPT</div>
+        <div class="why">Agrees with whatever you say. It is built to be helpful, which in relational contexts means it confirms the read you already walked in with.</div>
+      </div>
+      <div class="problem-row">
+        <div class="num">02</div>
+        <div class="who">FRIENDS</div>
+        <div class="why">Are tired of hearing about it, and tell you what you want to hear so the conversation ends faster.</div>
+      </div>
+      <div class="problem-row">
+        <div class="num">03</div>
+        <div class="who">THERAPISTS</div>
+        <div class="why">Say "communicate openly" — useless advice when the other person is the one being deliberately unclear.</div>
+      </div>
+      <div class="problem-row">
+        <div class="num">04</div>
+        <div class="who">DATING SUBS</div>
+        <div class="why">Give you 200 conflicting takes from strangers who were never in the conversation and have no stake in the outcome.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FIT -->
+<section>
+  <div class="container">
+    <div class="section-eyebrow">03 // FIT</div>
+    <h2 class="section-h">Darko is not for everyone.</h2>
+
+    <div class="fit-grid">
+      <div class="fit-col">
+        <h3>FOR YOU</h3>
+        <ul>
+          <li>You read Greene, Cialdini, or Bowlby.</li>
+          <li>You find "just communicate" insulting.</li>
+          <li>You want clarity, not comfort.</li>
+          <li>You re-read the same text twelve times before replying.</li>
+        </ul>
+      </div>
+      <div class="fit-col not">
+        <h3>NOT FOR YOU</h3>
+        <ul>
+          <li>You want a supportive friend.</li>
+          <li>You are looking for couples therapy.</li>
+          <li>You want to be told you are right.</li>
+          <li>You believe vibes beat patterns.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- DOCTRINE -->
+<section id="doctrine">
+  <div class="container">
+    <div class="section-eyebrow">04 // THE DOCTRINE</div>
+    <h2 class="section-h">Seven minds. One engine.</h2>
+    <p class="section-sub">Darko does not improvise. Every decode runs against a fixed canon of power, influence, and attachment.</p>
+
+    <div class="doctrine-grid">
+      <article class="doctrine-card">
+        <div class="name">Robert Greene</div>
+        <div class="domain">STRATEGY</div>
+        <div class="desc">The architecture of power and seduction across long campaigns.</div>
+      </article>
+      <article class="doctrine-card">
+        <div class="name">Robert Cialdini</div>
+        <div class="domain">INFLUENCE</div>
+        <div class="desc">The mechanics of persuasion — and how to spot them being run on you.</div>
+      </article>
+      <article class="doctrine-card">
+        <div class="name">Machiavelli</div>
+        <div class="domain">POWER</div>
+        <div class="desc">Reading intent behind the stated position. What is actually being asked.</div>
+      </article>
+      <article class="doctrine-card">
+        <div class="name">Sun Tzu</div>
+        <div class="domain">POSITIONING</div>
+        <div class="desc">When to engage, when to hold, when silence is the stronger move.</div>
+      </article>
+      <article class="doctrine-card">
+        <div class="name">John Bowlby</div>
+        <div class="domain">ATTACHMENT</div>
+        <div class="desc">Why people pursue, withdraw, and oscillate — the attachment system.</div>
+      </article>
+      <article class="doctrine-card">
+        <div class="name">Sigmund Freud</div>
+        <div class="domain">THE UNCONSCIOUS</div>
+        <div class="desc">The motive beneath the motive. What the message is defending against.</div>
+      </article>
+      <article class="doctrine-card">
+        <div class="name">John Gottman</div>
+        <div class="domain">RELATIONAL PATTERNS</div>
+        <div class="desc">The repeatable signals that predict where a dynamic is heading.</div>
+      </article>
+      <article class="doctrine-card accent">
+        <div class="name">Your thread</div>
+        <div class="domain">THE INPUT</div>
+        <div class="desc">Your actual conversation, read against all seven at once.</div>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- PRICING -->
+<section id="pricing">
+  <div class="container">
+    <div class="section-eyebrow">05 // ACCESS</div>
+    <h2 class="section-h">Intelligence isn't free. It's worth it.</h2>
+
+    <div class="pricing-grid">
+      <article class="pricing-card">
+        <div class="tier">OBSERVER</div>
+        <div class="price">$0</div>
+        <p class="blurb">Sample the engine. Free forever.</p>
+        <ul>
+          <li>5 decodes per month</li>
+          <li>Core archetype + power read</li>
+          <li>No card required</li>
+        </ul>
+        <button class="cta">START FREE</button>
+      </article>
+
+      <article class="pricing-card featured">
+        <div class="featured-badge">MOST OPERATORS</div>
+        <div class="tier">OPERATOR</div>
+        <div class="price">$15<span class="per">/mo</span></div>
+        <p class="blurb">The full engine for an active campaign.</p>
+        <ul>
+          <li>150 decodes per month</li>
+          <li>Up to 8 tracked targets</li>
+          <li>Voice + image input</li>
+          <li>Persistent dossier per target</li>
+          <li>Phase tracking across the thread</li>
+        </ul>
+        <button class="cta">START 4-DAY TRIAL</button>
+        <div class="fineprint">// 4 days free · cancel anytime</div>
+      </article>
+
+      <article class="pricing-card">
+        <div class="tier">EXECUTIVE</div>
+        <div class="price">$100<span class="per">/mo</span></div>
+        <p class="blurb">For those running several dynamics at once.</p>
+        <ul>
+          <li>Unlimited decodes</li>
+          <li>Unlimited targets</li>
+          <li>Deep dossier + priority engine</li>
+          <li>Full campaign history</li>
+        </ul>
+        <button class="cta">TAKE A SEAT</button>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- FAQ -->
+<section id="faq">
+  <div class="container">
+    <div class="section-eyebrow">06 // FAQ</div>
+    <h2 class="section-h">Before you ask.</h2>
+
+    <div class="faq-list">
+      <details class="faq-item">
+        <summary>Is this manipulation?</summary>
+        <div class="faq-answer">No. It is literacy. Most operators arrive here because someone has been running these moves on them. Darko teaches you to see the move so you can decline it. Whether you ever run one yourself is your call, not the tool's.</div>
+      </details>
+      <details class="faq-item">
+        <summary>How is Darko different from ChatGPT?</summary>
+        <div class="faq-answer">ChatGPT is trained to be agreeable, so in relational contexts it confirms whatever read you bring it. Darko applies a fixed canon — Greene, Cialdini, Bowlby, Gottman, Freud — to name what is actually being run, even when the answer is uncomfortable.</div>
+      </details>
+      <details class="faq-item">
+        <summary>What can I actually use it for?</summary>
+        <div class="faq-answer">Reading the message you cannot decode. Catching your own anxious-protest replies before you send them. Spotting love-bombing in week one. Tracking phase changes across a multi-week thread. Naming attachment patterns in real time instead of weeks later.</div>
+      </details>
+      <details class="faq-item">
+        <summary>Will my texts stay private?</summary>
+        <div class="faq-answer">Yes. Decodes are encrypted at rest and readable only by your account. Anonymous free-tier decodes are deleted within 24 hours. Content is never sold or shared with third parties.</div>
+      </details>
+      <details class="faq-item">
+        <summary>How does the free decode work?</summary>
+        <div class="faq-answer">One decode on this page, no account needed. After that, a free Observer account gives you five per month. Upgrade to Operator when you want persistent dossiers, phase tracking, and the campaign engine across multiple targets.</div>
+      </details>
+      <details class="faq-item">
+        <summary>Can I cancel any time?</summary>
+        <div class="faq-answer">Yes. Monthly billing, no contract, cancel inside the product in two clicks.</div>
+      </details>
+    </div>
+  </div>
+</section>
+
+<!-- FINAL CTA -->
+<section class="final-cta">
+  <h2>Stop guessing.<br>Start reading.</h2>
+  <p>Your first decode lands in under a minute. No card required.</p>
+  <button class="btn-primary" style="padding: 18px 32px; font-size: 13px;">RUN A FREE DECODE →</button>
+</section>
+
+<footer>
+  <div class="footer-inner">
+    <div class="footer-brand">
+      <a class="wordmark" href="#">Darko</a>
+      <p>A power-dynamics platform. Read the move. Refuse to mirror. Return from a stronger frame.</p>
+    </div>
+    <div class="footer-col">
+      <h4>PRODUCT</h4>
+      <ul>
+        <li><a href="#">Doctrine</a></li>
+        <li><a href="#">Glossary</a></li>
+        <li><a href="#">Pricing</a></li>
+        <li><a href="#">Blog</a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <h4>LEGAL</h4>
+      <ul>
+        <li><a href="#">Privacy</a></li>
+        <li><a href="#">Terms</a></li>
+      </ul>
+    </div>
+    <div class="footer-col">
+      <h4>CONTACT</h4>
+      <ul>
+        <li><a href="mailto:support@darkoapp.com">support@darkoapp.com</a></li>
+        <li><a href="mailto:privacy@darkoapp.com">privacy@darkoapp.com</a></li>
+      </ul>
+    </div>
+  </div>
+  <div class="footer-base">
+    <span>NXGEN MEDIA LLC · DELAWARE</span>
+    <span>DARKOAPP.COM</span>
+  </div>
+</footer>
+
+<script>
+  // Scenario dots — visual switch only (content stays for this mockup)
+  document.querySelectorAll('.scenario-dots button').forEach(dot => {
+    dot.addEventListener('click', () => {
+      document.querySelectorAll('.scenario-dots button').forEach(d => d.removeAttribute('aria-current'));
+      dot.setAttribute('aria-current', 'true');
+      const num = dot.getAttribute('data-dot');
+      const numEl = document.getElementById('scenario-num');
+      if (numEl) numEl.textContent = String(num).padStart(2, '0');
+    });
+  });
+
+  // Play / pause toggle
+  const pp = document.getElementById('play-pause');
+  if (pp) {
+    let paused = true; // demo defaults to paused for review
+    pp.addEventListener('click', () => {
+      paused = !paused;
+      pp.textContent = paused ? '⏸ PAUSE' : '▶ PLAY';
+      pp.setAttribute('aria-label', paused ? 'Pause rotation' : 'Resume rotation');
+    });
+  }
+</script>
+</body>
+</html>

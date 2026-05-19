@@ -1,0 +1,1150 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Darko Terminal — Mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #09090b;
+    --surface: rgba(22, 22, 28, 0.55);
+    --surface-strong: rgba(22, 22, 28, 0.78);
+    --surface-faint: rgba(255, 255, 255, 0.025);
+    --border: rgba(255, 255, 255, 0.08);
+    --border-strong: rgba(255, 255, 255, 0.16);
+    --text: #ffffff;
+    --text-2: #c4c4cc;
+    --text-3: #9090a0;
+    --accent: #cdf01b;
+    --accent-dim: rgba(205, 240, 27, 0.12);
+    --accent-glow: rgba(205, 240, 27, 0.25);
+    --warn: #ffbd2e;
+    --danger: #ff5a5a;
+    --shadow-1: 0 1px 2px rgba(0,0,0,0.4), 0 4px 12px rgba(0,0,0,0.25);
+    --shadow-2: 0 4px 12px rgba(0,0,0,0.45), 0 16px 40px rgba(0,0,0,0.35);
+    --shadow-3: 0 12px 28px rgba(0,0,0,0.55), 0 32px 80px rgba(0,0,0,0.45);
+    --glass-blur: saturate(140%) blur(18px);
+    --mono: 'JetBrains Mono', ui-monospace, Menlo, monospace;
+    --sans: 'Inter', system-ui, -apple-system, sans-serif;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 14px;
+    line-height: 1.55;
+    min-height: 100vh;
+  }
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background:
+      radial-gradient(60% 50% at 18% 20%, rgba(205, 240, 27, 0.05) 0%, transparent 60%),
+      radial-gradient(55% 45% at 82% 65%, rgba(70, 140, 220, 0.06) 0%, transparent 65%);
+    z-index: 0;
+  }
+  body > * { position: relative; z-index: 1; }
+  *:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    border-radius: 0;
+  }
+  a { color: inherit; text-decoration: none; }
+  button { font-family: inherit; cursor: pointer; border: 0; background: transparent; color: inherit; }
+
+  /* ============ APP NAV ============ */
+  .app-nav {
+    position: sticky;
+    top: 0;
+    z-index: 50;
+    background: rgba(9, 9, 11, 0.65);
+    backdrop-filter: saturate(180%) blur(20px);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+    border-bottom: 1px solid var(--border);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+  }
+  .app-nav-inner {
+    display: flex;
+    align-items: center;
+    gap: 32px;
+    padding: 14px 28px;
+  }
+  .wordmark {
+    font-family: var(--mono);
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--text);
+  }
+  .wordmark::after {
+    content: "_";
+    color: var(--accent);
+    animation: blink 1.2s steps(2, end) infinite;
+  }
+  @keyframes blink { 50% { opacity: 0; } }
+  .nav-tabs {
+    display: flex;
+    gap: 28px;
+  }
+  .nav-tab {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text-3);
+    letter-spacing: 0.12em;
+    padding: 4px 0;
+    border-bottom: 2px solid transparent;
+    transition: color 150ms, border-color 150ms;
+  }
+  .nav-tab:hover { color: var(--text-2); }
+  .nav-tab.active {
+    color: var(--text);
+    border-bottom-color: var(--accent);
+  }
+  .nav-spacer { flex: 1; }
+  .engine-indicator {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-2);
+    letter-spacing: 0.12em;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .engine-indicator::before {
+    content: "";
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 8px var(--accent);
+    animation: pulse 2s ease-in-out infinite;
+  }
+  @keyframes pulse { 50% { opacity: 0.5; } }
+  .plan-pill {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-3);
+    letter-spacing: 0.14em;
+    border: 1px solid var(--border-strong);
+    padding: 4px 10px;
+    border-radius: 0;
+  }
+  .upgrade-cta {
+    background: var(--accent);
+    color: #0a0a0a;
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    padding: 8px 14px;
+    border-radius: 0;
+    box-shadow:
+      0 0 0 1px rgba(205, 240, 27, 0.3) inset,
+      0 4px 12px rgba(205, 240, 27, 0.18);
+    transition: all 150ms;
+  }
+  .upgrade-cta:hover {
+    filter: brightness(1.08);
+    transform: translateY(-1px);
+  }
+  .signout {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-3);
+    letter-spacing: 0.1em;
+  }
+  .signout:hover { color: var(--text); }
+
+  /* ============ section captions ============ */
+  .screen-caption {
+    max-width: 1200px;
+    margin: 60px auto 16px;
+    padding: 0 28px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-3);
+    letter-spacing: 0.14em;
+  }
+  .screen-caption::before { content: "// "; color: var(--accent); }
+
+  /* ============ TARGETS + DOSSIER ============ */
+  .targets-screen {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 28px;
+    display: grid;
+    grid-template-columns: 1fr 420px;
+    gap: 18px;
+    align-items: start;
+  }
+
+  .targets-pane {
+    background: var(--surface);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--border);
+    border-radius: 0;
+    box-shadow: var(--shadow-1),
+                inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    overflow: hidden;
+  }
+  .targets-head {
+    padding: 18px 22px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .targets-head h1 {
+    font-family: var(--mono);
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text);
+    letter-spacing: 0.06em;
+  }
+  .targets-head h1 .count {
+    color: var(--accent);
+    margin-left: 6px;
+    font-weight: 700;
+  }
+  .targets-head .add-btn {
+    background: var(--accent);
+    color: #0a0a0a;
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    padding: 8px 14px;
+    border-radius: 0;
+    box-shadow:
+      0 0 0 1px rgba(205, 240, 27, 0.3) inset,
+      0 4px 12px rgba(205, 240, 27, 0.18);
+    transition: all 150ms;
+  }
+  .targets-head .add-btn:hover { filter: brightness(1.08); transform: translateY(-1px); }
+  .targets-head .add-btn::before { content: "+ "; }
+
+  .targets-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .targets-table th {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-3);
+    letter-spacing: 0.14em;
+    text-align: left;
+    font-weight: 500;
+    padding: 14px 22px;
+    background: rgba(0,0,0,0.2);
+    border-bottom: 1px solid var(--border);
+  }
+  .targets-table td {
+    padding: 16px 22px;
+    border-bottom: 1px solid var(--border);
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--text);
+  }
+  .targets-table tr.row {
+    transition: background 150ms;
+    cursor: pointer;
+  }
+  .targets-table tr.row:hover { background: rgba(255, 255, 255, 0.03); }
+  .targets-table tr.row.selected {
+    background: rgba(205, 240, 27, 0.04);
+    border-left: 2px solid var(--accent);
+  }
+  .targets-table tr.row.selected td:first-child {
+    color: var(--accent);
+    font-weight: 600;
+  }
+
+  .phase-pill {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    padding: 4px 10px;
+    border-radius: 0;
+    background: var(--accent-dim);
+    color: var(--accent);
+    border: 1px solid rgba(205, 240, 27, 0.3);
+  }
+  .phase-pill.approach { background: rgba(110, 168, 255, 0.12); color: #6ea8ff; border-color: rgba(110, 168, 255, 0.3); }
+  .phase-pill.build    { background: rgba(205, 240, 27, 0.12); color: var(--accent); border-color: rgba(205, 240, 27, 0.3); }
+  .phase-pill.decide   { background: rgba(255, 189, 46, 0.12); color: var(--warn); border-color: rgba(255, 189, 46, 0.3); }
+  .phase-pill.commit   { background: rgba(110, 220, 130, 0.12); color: #6edc82; border-color: rgba(110, 220, 130, 0.3); }
+
+  .conf-bar {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .conf-bar-track {
+    width: 70px;
+    height: 4px;
+    background: rgba(255,255,255,0.06);
+    border-radius: 0;
+    overflow: hidden;
+  }
+  .conf-bar-fill {
+    height: 100%;
+    background: var(--accent);
+    box-shadow: 0 0 6px var(--accent-glow);
+  }
+  .conf-bar-val {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-2);
+  }
+
+  .text-muted { color: var(--text-3); }
+
+  /* empty state */
+  .empty-state {
+    padding: 64px 22px 80px;
+    text-align: center;
+  }
+  .empty-state .eyebrow {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--accent);
+    letter-spacing: 0.14em;
+    margin-bottom: 14px;
+  }
+  .empty-state h2 {
+    font-family: var(--mono);
+    font-size: 22px;
+    color: var(--text);
+    margin-bottom: 12px;
+    letter-spacing: -0.01em;
+  }
+  .empty-state p {
+    font-family: var(--sans);
+    font-size: 14px;
+    color: var(--text-2);
+    max-width: 400px;
+    margin: 0 auto 24px;
+    line-height: 1.6;
+  }
+  .empty-state .empty-cta {
+    background: var(--accent);
+    color: #0a0a0a;
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    padding: 12px 22px;
+    border-radius: 0;
+    box-shadow:
+      0 0 0 1px rgba(205, 240, 27, 0.3) inset,
+      0 8px 24px rgba(205, 240, 27, 0.18);
+    transition: all 150ms;
+  }
+  .empty-state .empty-cta:hover { filter: brightness(1.08); transform: translateY(-1px); }
+
+  /* ============ DOSSIER PANEL ============ */
+  .dossier {
+    background: var(--surface);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--border);
+    border-radius: 0;
+    box-shadow: var(--shadow-2),
+                inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    overflow: hidden;
+    position: sticky;
+    top: 80px;
+  }
+  .dossier-head {
+    padding: 18px 22px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .dossier-head .title {
+    font-family: var(--mono);
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text);
+    letter-spacing: -0.005em;
+    margin-bottom: 4px;
+  }
+  .dossier-head .obj {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-3);
+    letter-spacing: 0.04em;
+  }
+  .dossier-head .close {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-3);
+    letter-spacing: 0.1em;
+    padding: 4px 8px;
+    border: 1px solid var(--border);
+    border-radius: 0;
+  }
+  .dossier-head .close:hover { color: var(--text); border-color: var(--border-strong); }
+
+  .dossier-section {
+    padding: 18px 22px;
+    border-bottom: 1px solid var(--border);
+  }
+  .dossier-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-3);
+    letter-spacing: 0.14em;
+    margin-bottom: 12px;
+  }
+  .dossier-label::before { content: "// "; color: var(--accent); }
+  .dossier-label .meta {
+    float: right;
+    color: var(--text-3);
+    font-size: 10px;
+  }
+  .dossier-label .meta::before { content: ""; color: inherit; }
+
+  .stat-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    font-family: var(--mono);
+    font-size: 12px;
+  }
+  .stat-row .k {
+    color: var(--text-3);
+    letter-spacing: 0.06em;
+    font-size: 11px;
+  }
+  .stat-row .v {
+    color: var(--text);
+    font-weight: 600;
+  }
+  .stat-row .v.accent { color: var(--accent); }
+  .stat-row .v.warn { color: var(--warn); }
+
+  /* Playbook tabs */
+  .playbook-tabs {
+    display: flex;
+    gap: 0;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 18px;
+    overflow-x: auto;
+  }
+  .playbook-tab {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-3);
+    letter-spacing: 0.12em;
+    padding: 10px 12px;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    white-space: nowrap;
+    transition: all 150ms;
+  }
+  .playbook-tab.done {
+    color: var(--text-2);
+  }
+  .playbook-tab.done::before {
+    content: "✓ ";
+    color: var(--accent);
+  }
+  .playbook-tab.active {
+    color: var(--text);
+    border-bottom-color: var(--accent);
+    font-weight: 700;
+  }
+  .playbook-tab:hover:not(.active) { color: var(--text-2); }
+
+  .objective-card {
+    background: rgba(205, 240, 27, 0.04);
+    border: 1px solid rgba(205, 240, 27, 0.2);
+    border-left: 3px solid var(--accent);
+    border-radius: 0;
+    padding: 14px 16px;
+    margin-bottom: 4px;
+  }
+  .objective-card .obj-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--accent);
+    letter-spacing: 0.14em;
+    margin-bottom: 10px;
+  }
+  .objective-card p {
+    font-family: var(--sans);
+    font-size: 13.5px;
+    color: var(--text);
+    line-height: 1.55;
+  }
+
+  .tactic {
+    display: flex;
+    gap: 10px;
+    padding: 10px 0;
+    border-top: 1px dashed var(--border);
+  }
+  .tactic:first-child { border-top: 0; padding-top: 4px; }
+  .tactic .check {
+    width: 16px;
+    height: 16px;
+    border-radius: 0;
+    border: 1px solid var(--border-strong);
+    margin-top: 2px;
+    flex-shrink: 0;
+    background: rgba(0,0,0,0.3);
+  }
+  .tactic .body { flex: 1; }
+  .tactic .name {
+    font-family: var(--sans);
+    font-size: 13px;
+    color: var(--text);
+    font-weight: 600;
+    margin-bottom: 3px;
+  }
+  .tactic .desc {
+    font-family: var(--sans);
+    font-size: 12.5px;
+    color: var(--text-2);
+    line-height: 1.5;
+    margin-bottom: 4px;
+  }
+  .tactic .when {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-3);
+    letter-spacing: 0.06em;
+  }
+
+  .script {
+    background: rgba(255, 255, 255, 0.025);
+    border: 1px solid var(--border);
+    border-radius: 0;
+    padding: 12px 14px;
+    margin-bottom: 8px;
+    position: relative;
+  }
+  .script p {
+    font-family: var(--sans);
+    font-style: italic;
+    font-size: 13px;
+    color: var(--text);
+    line-height: 1.5;
+    padding-right: 60px;
+  }
+  .script .copy {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-3);
+    padding: 4px 8px;
+    border: 1px solid var(--border);
+    border-radius: 0;
+    letter-spacing: 0.08em;
+    transition: all 150ms;
+  }
+  .script .copy:hover { color: var(--accent); border-color: var(--accent); }
+
+  .dossier-actions {
+    padding: 14px 22px;
+    display: flex;
+    gap: 10px;
+    background: rgba(0,0,0,0.2);
+  }
+  .btn-primary {
+    flex: 1;
+    background: var(--accent);
+    color: #0a0a0a;
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    padding: 12px 16px;
+    border-radius: 0;
+    box-shadow:
+      0 0 0 1px rgba(205, 240, 27, 0.3) inset,
+      0 4px 12px rgba(205, 240, 27, 0.18);
+    transition: all 150ms;
+  }
+  .btn-primary:hover { filter: brightness(1.08); transform: translateY(-1px); }
+  .btn-danger {
+    background: transparent;
+    color: var(--danger);
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    padding: 12px 16px;
+    border: 1px solid rgba(255, 90, 90, 0.3);
+    border-radius: 0;
+    transition: all 150ms;
+  }
+  .btn-danger:hover { background: rgba(255, 90, 90, 0.08); border-color: rgba(255, 90, 90, 0.5); }
+
+  /* ============ ACQUIRE MODAL ============ */
+  .modal-stage {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 28px;
+    display: flex;
+    justify-content: center;
+  }
+  .modal-card {
+    background: var(--surface);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--border);
+    border-radius: 0;
+    padding: 28px 32px;
+    width: 100%;
+    max-width: 460px;
+    box-shadow: var(--shadow-3),
+                inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  }
+  .modal-title {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--accent);
+    letter-spacing: 0.14em;
+    margin-bottom: 22px;
+  }
+  .modal-field { margin-bottom: 18px; }
+  .modal-field label {
+    display: block;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-2);
+    letter-spacing: 0.08em;
+    margin-bottom: 8px;
+    font-weight: 500;
+  }
+  .modal-field label .opt {
+    color: var(--text-3);
+    font-weight: 400;
+    text-transform: none;
+    letter-spacing: 0;
+    margin-left: 4px;
+  }
+  .modal-field input {
+    width: 100%;
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid var(--border);
+    border-radius: 0;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 13px;
+    padding: 11px 14px;
+    transition: all 150ms;
+  }
+  .modal-field input::placeholder { color: var(--text-3); }
+  .modal-field input:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(205, 240, 27, 0.12);
+  }
+  .modal-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+    margin-top: 24px;
+  }
+  .modal-cancel {
+    background: transparent;
+    color: var(--text-2);
+    border: 1px solid var(--border-strong);
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 0.12em;
+    padding: 11px 18px;
+    border-radius: 0;
+    transition: all 150ms;
+  }
+  .modal-cancel:hover { color: var(--text); background: rgba(255,255,255,0.04); }
+  .modal-confirm {
+    background: var(--accent);
+    color: #0a0a0a;
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    padding: 11px 22px;
+    border-radius: 0;
+    box-shadow:
+      0 0 0 1px rgba(205, 240, 27, 0.3) inset,
+      0 4px 12px rgba(205, 240, 27, 0.18);
+    transition: all 150ms;
+  }
+  .modal-confirm:hover { filter: brightness(1.08); transform: translateY(-1px); }
+
+  /* ============ IN-APP PRICING ============ */
+  .pricing-screen {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 28px;
+  }
+  .pricing-head {
+    margin-bottom: 28px;
+  }
+  .pricing-head h2 {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--accent);
+    letter-spacing: 0.14em;
+    margin-bottom: 6px;
+  }
+  .pricing-head h2::before { content: "// "; }
+  .pricing-head .sub {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text-3);
+    letter-spacing: 0.04em;
+  }
+
+  .pricing-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+  }
+  .price-card {
+    background: var(--surface);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--border);
+    border-radius: 0;
+    padding: 28px 22px;
+    display: flex;
+    flex-direction: column;
+    box-shadow: var(--shadow-1),
+                inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    position: relative;
+    transition: transform 200ms, box-shadow 200ms;
+  }
+  .price-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-2); }
+  .price-card.featured {
+    border-color: rgba(205, 240, 27, 0.4);
+    background:
+      radial-gradient(80% 60% at 50% 0%, rgba(205, 240, 27, 0.08) 0%, transparent 60%),
+      var(--surface);
+    box-shadow: var(--shadow-2),
+                0 0 0 1px rgba(205, 240, 27, 0.2),
+                inset 0 1px 0 rgba(205, 240, 27, 0.15);
+  }
+  .price-badge {
+    position: absolute;
+    top: -1px;
+    right: 22px;
+    background: var(--accent);
+    color: #0a0a0a;
+    font-family: var(--mono);
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    padding: 5px 10px;
+    border-radius: 0;
+    box-shadow: 0 4px 12px rgba(205, 240, 27, 0.3);
+  }
+  .price-badge.founder {
+    background: rgba(110, 168, 255, 0.2);
+    color: #6ea8ff;
+    border: 1px solid rgba(110, 168, 255, 0.4);
+    border-top: 0;
+  }
+  .price-card .tier {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-3);
+    letter-spacing: 0.16em;
+    margin-bottom: 12px;
+  }
+  .price-card.featured .tier { color: var(--accent); }
+  .price-card .price {
+    font-family: var(--mono);
+    font-size: 42px;
+    font-weight: 700;
+    color: var(--text);
+    line-height: 1;
+    margin-bottom: 4px;
+    letter-spacing: -0.02em;
+  }
+  .price-card .price .per {
+    font-size: 12px;
+    color: var(--text-3);
+    font-weight: 400;
+  }
+  .price-card .free-line {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-3);
+    margin-bottom: 18px;
+    letter-spacing: 0.04em;
+  }
+  .price-card .lock-line {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--accent);
+    margin-bottom: 18px;
+    letter-spacing: 0.04em;
+    line-height: 1.5;
+  }
+  .price-card ul { list-style: none; margin-bottom: 22px; flex: 1; }
+  .price-card li {
+    font-family: var(--sans);
+    font-size: 13.5px;
+    color: var(--text-2);
+    padding: 5px 0;
+    line-height: 1.5;
+  }
+  .price-card li::before {
+    content: "→ ";
+    color: var(--accent);
+    margin-right: 6px;
+  }
+  .price-card .cta {
+    background: transparent;
+    border: 1px solid var(--border-strong);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    padding: 12px;
+    border-radius: 0;
+    transition: all 150ms;
+  }
+  .price-card .cta:hover { background: rgba(255,255,255,0.04); border-color: var(--text-3); }
+  .price-card.featured .cta {
+    background: var(--accent);
+    color: #0a0a0a;
+    border-color: var(--accent);
+    box-shadow:
+      0 0 0 1px rgba(205, 240, 27, 0.3) inset,
+      0 4px 12px rgba(205, 240, 27, 0.18);
+  }
+  .price-card.featured .cta:hover { filter: brightness(1.08); transform: translateY(-1px); }
+  .price-card.current .cta {
+    color: var(--text-3);
+    cursor: default;
+  }
+  .price-card .fineprint {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-3);
+    text-align: center;
+    margin-top: 8px;
+    letter-spacing: 0.04em;
+  }
+
+  /* ============ STATUS BAR ============ */
+  .status-bar {
+    position: sticky;
+    bottom: 0;
+    margin-top: 80px;
+    background: rgba(9, 9, 11, 0.85);
+    backdrop-filter: saturate(180%) blur(16px);
+    -webkit-backdrop-filter: saturate(180%) blur(16px);
+    border-top: 1px solid var(--border);
+    padding: 10px 28px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-3);
+    letter-spacing: 0.1em;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .status-bar .left, .status-bar .right { display: flex; gap: 16px; flex-wrap: wrap; align-items: center; }
+  .status-bar .dot::before {
+    content: "● ";
+    color: var(--accent);
+  }
+  .status-bar strong { color: var(--text-2); margin-left: 4px; font-weight: 600; }
+  .status-bar .accent strong { color: var(--accent); }
+
+  /* responsive */
+  @media (max-width: 980px) {
+    .targets-screen { grid-template-columns: 1fr; }
+    .dossier { position: static; }
+    .pricing-grid { grid-template-columns: 1fr; }
+    .nav-tabs { display: none; }
+    .targets-table th:nth-child(4), .targets-table td:nth-child(4) { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<header class="app-nav" aria-label="App navigation">
+  <div class="app-nav-inner">
+    <a href="#" class="wordmark">Darko</a>
+    <nav class="nav-tabs">
+      <a class="nav-tab active" href="#targets">TARGETS</a>
+      <a class="nav-tab" href="#pricing">PRICING</a>
+    </nav>
+    <div class="nav-spacer"></div>
+    <div class="engine-indicator">ENGINE ACTIVE</div>
+    <span class="plan-pill">FREE · 1/1</span>
+    <button class="upgrade-cta">UPGRADE →</button>
+    <a href="#" class="signout">SIGN OUT</a>
+  </div>
+</header>
+
+<!-- ============ TARGETS LIST + DOSSIER ============ -->
+<div class="screen-caption">TARGETS · list + dossier panel · row selected</div>
+<main class="targets-screen" id="targets">
+  <section class="targets-pane">
+    <header class="targets-head">
+      <h1>TARGETS <span class="count">1</span></h1>
+      <button class="add-btn">ACQUIRE TARGET</button>
+    </header>
+    <table class="targets-table">
+      <thead>
+        <tr>
+          <th>TARGET</th>
+          <th>PHASE</th>
+          <th>ARCHETYPE</th>
+          <th>CONFIDENCE</th>
+          <th>LAST DECODE</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr class="row selected">
+          <td>MARCUS</td>
+          <td><span class="phase-pill build">BUILD</span></td>
+          <td>FEARFUL-AVOIDANT</td>
+          <td>
+            <div class="conf-bar">
+              <div class="conf-bar-track"><div class="conf-bar-fill" style="width:83%"></div></div>
+              <span class="conf-bar-val">83%</span>
+            </div>
+          </td>
+          <td class="text-muted">2h ago</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <aside class="dossier" aria-label="Target dossier">
+    <header class="dossier-head">
+      <div>
+        <div class="title">MARCUS</div>
+        <div class="obj">post-intimacy distance</div>
+      </div>
+      <button class="close">✕ CLOSE</button>
+    </header>
+
+    <section class="dossier-section">
+      <div class="dossier-label">STATUS</div>
+      <div class="stat-row"><span class="k">MISSION_PHASE</span><span class="v accent">BUILD</span></div>
+      <div class="stat-row"><span class="k">ARCHETYPE</span><span class="v">FEARFUL-AVOIDANT</span></div>
+      <div class="stat-row"><span class="k">CONFIDENCE</span><span class="v accent">83%</span></div>
+      <div class="stat-row"><span class="k">LAST_DECODE</span><span class="v">2h ago</span></div>
+    </section>
+
+    <section class="dossier-section">
+      <div class="dossier-label">BEHAVIORAL PROFILE</div>
+      <p style="font-family: var(--sans); font-size: 13px; color: var(--text-2); line-height: 1.6;">
+        Oscillates between pursuit and withdrawal under perceived intimacy threat. Reply latency increases by 4–6× the day after a high-disclosure exchange. Verbal warmth in person, asynchronous cooling at distance.
+      </p>
+    </section>
+
+    <section class="dossier-section">
+      <div class="dossier-label">PLAYBOOK</div>
+      <nav class="playbook-tabs" role="tablist" aria-label="Campaign phase">
+        <button class="playbook-tab done" role="tab">APPROACH</button>
+        <button class="playbook-tab active" role="tab" aria-selected="true">BUILD</button>
+        <button class="playbook-tab" role="tab">DECIDE</button>
+        <button class="playbook-tab" role="tab">COMMIT</button>
+      </nav>
+
+      <div class="objective-card">
+        <div class="obj-label">OBJECTIVE · BUILD PHASE</div>
+        <p>Re-establish baseline trust without confirming the closeness threat. Match their cooling, do not chase. Allow them to re-initiate from a safer frame.</p>
+      </div>
+    </section>
+
+    <section class="dossier-section">
+      <div class="dossier-label">TACTICS <span class="meta">0 / 4 complete</span></div>
+      <div class="tactic">
+        <div class="check"></div>
+        <div class="body">
+          <div class="name">Hold for 72 hours</div>
+          <div class="desc">Match their reply window. Do not fill silence with check-ins. The pattern is the protest.</div>
+          <div class="when">Now → 72h</div>
+        </div>
+      </div>
+      <div class="tactic">
+        <div class="check"></div>
+        <div class="body">
+          <div class="name">Cold re-engage on a low-stakes thread</div>
+          <div class="desc">A separate context — a shared interest, a piece of news — not the last unresolved thread.</div>
+          <div class="when">After hold</div>
+        </div>
+      </div>
+      <div class="tactic">
+        <div class="check"></div>
+        <div class="body">
+          <div class="name">Refuse the "are we okay" frame</div>
+          <div class="desc">If they bait it, name what's happening at the dynamic level, not the relationship level.</div>
+          <div class="when">If raised</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="dossier-section">
+      <div class="dossier-label">SCRIPTS</div>
+      <div class="script">
+        <p>"Saw this and thought of you" — link to something specific, no emotional weight, no follow-up question.</p>
+        <button class="copy">⧉ COPY</button>
+      </div>
+      <div class="script">
+        <p>"I'm around if you want to talk through it sometime — no rush."</p>
+        <button class="copy">⧉ COPY</button>
+      </div>
+    </section>
+
+    <footer class="dossier-actions">
+      <button class="btn-primary">RUN DECODE</button>
+      <button class="btn-danger">DELETE</button>
+    </footer>
+  </aside>
+</main>
+
+<!-- ============ EMPTY STATE (separate demo) ============ -->
+<div class="screen-caption">TARGETS · empty state for new users</div>
+<main class="targets-screen" style="grid-template-columns: 1fr;">
+  <section class="targets-pane">
+    <header class="targets-head">
+      <h1>TARGETS <span class="count">0</span></h1>
+      <button class="add-btn">ACQUIRE TARGET</button>
+    </header>
+    <div class="empty-state">
+      <div class="eyebrow">NO ACTIVE CAMPAIGNS</div>
+      <h2>Start your first read.</h2>
+      <p>A target is a single person whose thread you want decoded. Paste a few messages, name them, and the engine builds a behavioral profile and a phased campaign. You can track up to 1 target on the Free plan.</p>
+      <button class="empty-cta">+ ACQUIRE YOUR FIRST TARGET</button>
+    </div>
+  </section>
+</main>
+
+<!-- ============ ACQUIRE TARGET MODAL ============ -->
+<div class="screen-caption">ACQUIRE TARGET · modal · softened field copy</div>
+<section class="modal-stage">
+  <div class="modal-card" role="dialog" aria-labelledby="acquire-title">
+    <div class="modal-title" id="acquire-title">ACQUIRE TARGET</div>
+
+    <div class="modal-field">
+      <label for="t-name">TARGET NAME</label>
+      <input id="t-name" type="text" placeholder="e.g. Marcus">
+    </div>
+
+    <div class="modal-field">
+      <label for="t-context">CONTEXT <span class="opt">(optional)</span></label>
+      <input id="t-context" type="text" placeholder="what's the dynamic — long-distance, post-breakup, work crush…">
+    </div>
+
+    <div class="modal-field">
+      <label for="t-goal">OBJECTIVE <span class="opt">(optional)</span></label>
+      <input id="t-goal" type="text" placeholder="what you'd like to read clearly">
+    </div>
+
+    <div class="modal-actions">
+      <button class="modal-cancel">CANCEL</button>
+      <button class="modal-confirm">ACQUIRE</button>
+    </div>
+  </div>
+</section>
+
+<!-- ============ IN-APP PRICING ============ -->
+<div class="screen-caption">PRICING · in-app · units aligned with marketing (decodes)</div>
+<section class="pricing-screen" id="pricing">
+  <header class="pricing-head">
+    <h2>PRICING</h2>
+    <div class="sub">Select your operational tier</div>
+  </header>
+
+  <div class="pricing-grid">
+    <article class="price-card current">
+      <div class="tier">OBSERVER</div>
+      <div class="price">$0</div>
+      <div class="free-line">Free forever</div>
+      <ul>
+        <li>5 decodes per month</li>
+        <li>1 active target</li>
+        <li>Core archetype + power read</li>
+        <li>Basic handler only</li>
+        <li>No card required</li>
+      </ul>
+      <button class="cta">CURRENT PLAN</button>
+    </article>
+
+    <article class="price-card featured">
+      <div class="price-badge">MOST OPERATORS</div>
+      <div class="tier">OPERATOR</div>
+      <div class="price">$15<span class="per">/mo</span></div>
+      <div class="free-line">4-day free trial</div>
+      <ul>
+        <li>150 decodes per month</li>
+        <li>Up to 8 tracked targets</li>
+        <li>Voice + image input</li>
+        <li>Persistent dossier per target</li>
+        <li>Phase tracking across the thread</li>
+      </ul>
+      <button class="cta">START 4-DAY TRIAL</button>
+      <div class="fineprint">// no charge until trial ends · cancel anytime</div>
+    </article>
+
+    <article class="price-card">
+      <div class="price-badge founder">FOUNDER PRICING</div>
+      <div class="tier">EXECUTIVE</div>
+      <div class="price">$100<span class="per">/mo</span></div>
+      <div class="lock-line">First 100 members locked at $100 forever</div>
+      <ul>
+        <li>Unlimited decodes</li>
+        <li>Unlimited targets</li>
+        <li>Deep dossier + priority engine</li>
+        <li>Full campaign history</li>
+        <li>Monthly campaign audits</li>
+      </ul>
+      <button class="cta">TAKE A SEAT</button>
+    </article>
+  </div>
+</section>
+
+<!-- ============ STATUS BAR ============ -->
+<footer class="status-bar">
+  <div class="left">
+    <span class="dot">HANDLER ONLINE</span>
+    <span class="dot">DECODE ENGINE ACTIVE</span>
+    <span class="accent">ENGINE<strong>Darko 1.0</strong></span>
+    <span>LATENCY<strong>142ms</strong></span>
+    <span>ENCRYPTION<strong>AES-256</strong></span>
+  </div>
+  <div class="right">
+    <span>Darko_ · NXGEN MEDIA LLC · 2026</span>
+  </div>
+</footer>
+
+</body>
+</html>
