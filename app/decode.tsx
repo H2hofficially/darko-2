@@ -420,6 +420,7 @@ function UserBubble({
             value={editDraft}
             onChangeText={onEditChange}
             multiline
+            scrollEnabled
             autoFocus
             style={styles.userBubbleEditInput}
             placeholderTextColor={TEXT_DIM}
@@ -2248,7 +2249,8 @@ const styles = StyleSheet.create({
     color: TEXT_PRIMARY,
     lineHeight: 22,
     padding: 0,
-    minHeight: 60,
+    minHeight: 88,
+    maxHeight: 320,
     textAlignVertical: 'top',
     ...(Platform.OS === 'web' ? ({ outlineStyle: 'none' } as any) : {}),
   },
@@ -2285,7 +2287,7 @@ const styles = StyleSheet.create({
     backgroundColor: BG,
     borderWidth: 1,
     borderColor: BORDER,
-    opacity: 0.45,
+    opacity: 0.65,
     ...(Platform.OS === 'web' ? ({ cursor: 'pointer' } as any) : {}),
   },
   userBubbleEditIconHover: {
@@ -2483,16 +2485,18 @@ const styles = StyleSheet.create({
   cmdRowFocused: {
     borderColor: ACCENT,
   },
-  cmdPrefix: { fontFamily: MONO, fontSize: 13, color: ACCENT, marginRight: 6, paddingTop: 12 },
+  cmdPrefix: { fontFamily: MONO, fontSize: 13, color: ACCENT, marginRight: 8, paddingTop: 16 },
   cmdInput: {
     flex: 1,
-    fontFamily: MONO,
-    fontSize: 13,
+    fontFamily: SANS,
+    fontSize: 15,
+    lineHeight: 22,
     color: TEXT_PRIMARY,
-    paddingVertical: 12,
-    paddingRight: 10,
-    minHeight: 44,
-    maxHeight: 200,
+    paddingVertical: 14,
+    paddingRight: 12,
+    minHeight: 56,
+    maxHeight: 320,
+    ...(Platform.OS === 'web' ? ({ outlineStyle: 'none' } as any) : {}),
   },
 
   // ── Action row ──
