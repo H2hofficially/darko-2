@@ -44,3 +44,10 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# Local Netlify folder
+.netlify
+
+# RAG ingestion: raw extracted book text (copyrighted source material)
+navarro_chunks/_source/
+mace_chunks/_source/
