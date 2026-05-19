@@ -75,6 +75,11 @@ const PANEL_WIDTH_CAP = 480;
 // mis-wires, or any future regression.
 
 const NEUTRAL_FALLBACK = 'Intel received. Awaiting your next input.';
+// Reserved for the unrecoverable render-failure path: JSON-shaped text that
+// neither parses nor yields a handler_note via regex rescue, OR any string
+// that would otherwise reach Markdown starting with '{'. NEVER let raw JSON
+// hit the bubble — show the operator a clearly-actionable re-run line.
+const RENDER_ERROR_FALLBACK = '// INTEL RECEIVED — render error, tap to re-run';
 
 // User-message patterns that indicate the operator is reporting back on a
 // previously-issued action_directive. When present, the client clears
@@ -107,6 +112,17 @@ function hasVisibleStreamContent(m: any): boolean {
 }
 
 function safeDisplayText(text: string | undefined | null): string {
+  const out = _safeDisplayTextInner(text);
+  // Last-mile guard: nothing leaving this function may start with '{'. If
+  // every defense above somehow leaks raw JSON (recursion edge, future
+  // refactor, surprising handler output), show the re-run line instead.
+  // This is the boundary between parsing and Markdown — once we return,
+  // the next stop is the chat bubble.
+  if (out.trimStart().startsWith('{')) return RENDER_ERROR_FALLBACK;
+  return out;
+}
+
+function _safeDisplayTextInner(text: string | undefined | null): string {
   // Strip a wrapping Markdown code fence first. Without this, fenced JSON
   // (```json {...} ```) fails looksLikeJSON's leading-'{' check and gets
   // rendered raw as a Markdown code block in the chat bubble.
@@ -158,18 +174,20 @@ function safeDisplayText(text: string | undefined | null): string {
       }
     }
   } catch {
-    // Malformed / partial JSON — try to regex-rescue handler_note.
-    const m = raw.match(/"handler_note"\s*:\s*"([\s\S]*?)(?<!\\)"/);
+    // Malformed / partial JSON — regex-rescue. (?:[^"\\]|\\.)* walks a JSON
+    // string body char-by-char (any non-quote/non-backslash, OR an escape
+    // sequence) so embedded 'quoted' words and backslashes don't truncate
+    // the rescue early.
+    const m = raw.match(/"handler_note"\s*:\s*"((?:[^"\\]|\\.)*)"/);
     if (m) {
       return m[1].replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\\\/g, '\\');
     }
-    // Also try next_directive in case handler_note was missing.
-    const m2 = raw.match(/"next_directive"\s*:\s*"([\s\S]*?)(?<!\\)"/);
+    const m2 = raw.match(/"next_directive"\s*:\s*"((?:[^"\\]|\\.)*)"/);
     if (m2) {
       return m2[1].replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\\\/g, '\\');
     }
   }
-  return NEUTRAL_FALLBACK;
+  return RENDER_ERROR_FALLBACK;
 }
 
 // react-native-markdown-display style overrides to match app design

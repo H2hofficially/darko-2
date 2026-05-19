@@ -67,6 +67,12 @@ export interface MessageInput {
 // ── Block parser ───────────────────────────────────────────────────────────────
 
 const NEUTRAL_FALLBACK = 'Intel received. Send your next input.';
+// Step-4 of the render pipeline: JSON-shaped output that neither parses nor
+// yields handler_note via regex rescue. NEVER expose raw JSON in the bubble —
+// surface a clearly-actionable re-run line instead. Distinct from
+// NEUTRAL_FALLBACK, which is for the soft "model returned nothing usable"
+// case rather than a render-side failure.
+const RENDER_ERROR_FALLBACK = '// INTEL RECEIVED — render error, tap to re-run';
 
 const EMPTY_RESPONSE: DarkoResponse = {
   text: '',
@@ -197,10 +203,14 @@ function unescapeJsonStringBody(body: string): string {
   }
 }
 
-// Rescue handler_note from a malformed or truncated JSON blob. Matches an
-// unescaped closing quote OR end-of-string so partial streams still work.
+// Rescue handler_note from a malformed JSON blob. The body pattern
+// (?:[^"\\]|\\.)* correctly walks a JSON string literal: any char that
+// isn't a quote or backslash, OR a backslash followed by any single char
+// (an escape sequence). This survives handler_note prose full of
+// 'quoted' words and embedded backslashes that would trip a lazier
+// matcher. The trailing `"` anchors on the real terminator.
 function rescueHandlerNote(raw: string): string | null {
-  const m = raw.match(/"handler_note"\s*:\s*"([\s\S]*?)(?<!\\)"/);
+  const m = raw.match(/"handler_note"\s*:\s*"((?:[^"\\]|\\.)*)"/);
   if (!m) return null;
   return unescapeJsonStringBody(m[1]);
 }
@@ -300,8 +310,10 @@ export function parseDarkoResponse(raw: string): DarkoResponse {
       return { ...EMPTY_RESPONSE, text: rescued };
     }
 
-    // JSON-shaped but unrecoverable → neutral fallback. NEVER surface raw JSON.
-    return { ...EMPTY_RESPONSE, text: NEUTRAL_FALLBACK };
+    // JSON-shaped but unrecoverable (parse failed AND regex rescue failed).
+    // This is the step-4 render-error sink — surface the re-run literal.
+    // NEVER surface raw JSON.
+    return { ...EMPTY_RESPONSE, text: RENDER_ERROR_FALLBACK };
   }
 
   // ── Case D: plain text (or legacy v3 block-marker format) ─────────────────────
