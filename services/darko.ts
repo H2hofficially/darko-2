@@ -188,6 +188,43 @@ export function stripCodeFence(text: string): string {
   return m ? m[1].trim() : t;
 }
 
+// Keys that mark a `{...}` object as Darko's JSON contract envelope (vs. some
+// incidental brace block in prose). At least one must be present before
+// extractEmbeddedEnvelope will treat a parsed object as the real envelope.
+const ENVELOPE_KEYS = [
+  'handler_note', 'next_directive', 'visible_arsenal', 'hidden_intel',
+  'state_update', 'action_directive', 'intent', 'mission_status',
+] as const;
+
+// Some models (DeepSeek especially) ignore the JSON-only instruction and emit
+// a free-prose answer FOLLOWED BY the JSON contract envelope, concatenated.
+// The combined blob starts with prose, so it fails every leading-'{' check and
+// would otherwise render the raw JSON in the chat bubble. This carves out the
+// trailing brace-balanced envelope so the JSON branch can parse it; the prose
+// leak is discarded. Returns null when no parseable Darko envelope is embedded.
+export function extractEmbeddedEnvelope(text: string): string | null {
+  const t = (text ?? '').trim();
+  // The real envelope is the trailing object — slicing from its '{' to the end
+  // of the string parses cleanly. Try each '{' in turn; earlier ones (stray
+  // braces in prose) fail JSON.parse and are skipped.
+  for (let i = t.indexOf('{'); i !== -1; i = t.indexOf('{', i + 1)) {
+    const candidate = t.slice(i).trimEnd();
+    if (!candidate.endsWith('}')) continue;
+    try {
+      const parsed = JSON.parse(candidate);
+      if (
+        parsed && typeof parsed === 'object' && !Array.isArray(parsed) &&
+        ENVELOPE_KEYS.some((k) => k in parsed)
+      ) {
+        return candidate;
+      }
+    } catch {
+      // Not a valid object from this '{' — try the next one.
+    }
+  }
+  return null;
+}
+
 // Decode the escape sequences present inside a JSON string literal we've
 // carved out with a regex (i.e. without the surrounding quotes).
 function unescapeJsonStringBody(body: string): string {
@@ -224,6 +261,15 @@ export function parseDarkoResponse(raw: string): DarkoResponse {
   if (!trimmed) return { ...EMPTY_RESPONSE };
 
   const looksLikeJson = trimmed.startsWith('{') || trimmed.startsWith('[');
+
+  // Prose-then-JSON leak: the model emitted a free-prose answer followed by
+  // the JSON envelope. The blob fails the leading-'{' test above, so without
+  // this it would fall to Case D and render the raw JSON. Carve out the
+  // envelope and parse that; the leading prose leak is discarded.
+  if (!looksLikeJson) {
+    const embedded = extractEmbeddedEnvelope(trimmed);
+    if (embedded) return parseDarkoResponse(embedded);
+  }
 
   // ── Cases A / B: well-formed JSON ─────────────────────────────────────────────
   if (looksLikeJson) {
@@ -428,7 +474,12 @@ export function stripStreamMarkers(text: string): string {
   }
 
   // ── Plain text / legacy v3 block-marker format ──────────────────────────────
-  return normalised
+  // A prose answer may be followed (mid-stream) by the JSON contract envelope
+  // — a model leak. Cut everything from the envelope's opening brace so raw
+  // JSON never streams into the bubble; the final parse recovers clean fields.
+  const envelopeStart = normalised.search(/\{\s*"/);
+  const proseOnly = envelopeStart >= 0 ? normalised.slice(0, envelopeStart) : normalised;
+  return proseOnly
     .replace(/\/\/ (SCRIPT|ALERT|READ|PHASE UPDATE[^\n]*|CAMPAIGN)\n/g, '')
     .replace(/\/\/ END\n?/g, '')
     .replace(/\n{3,}/g, '\n\n')

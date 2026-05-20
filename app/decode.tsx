@@ -30,6 +30,7 @@ import {
   generateTargetProfile,
   parseDarkoResponse,
   stripCodeFence,
+  extractEmbeddedEnvelope,
   type DarkoResponse,
   type MessageInput,
 } from '../services/darko';
@@ -127,7 +128,14 @@ function _safeDisplayTextInner(text: string | undefined | null): string {
   // (```json {...} ```) fails looksLikeJSON's leading-'{' check and gets
   // rendered raw as a Markdown code block in the chat bubble.
   const raw = stripCodeFence(text ?? '');
-  if (!looksLikeJSON(raw)) return raw;
+  if (!looksLikeJSON(raw)) {
+    // Prose-then-JSON leak: a JSON envelope appended after free prose. The
+    // blob fails looksLikeJSON's leading-'{' check, but must not reach
+    // Markdown with raw JSON in it. Carve out the envelope and unwrap that.
+    const embedded = extractEmbeddedEnvelope(raw);
+    if (embedded) return _safeDisplayTextInner(embedded);
+    return raw;
+  }
 
   // JSON-shaped: extract a usable string. We try in order:
   //   1. handler_note               — primary user-facing field
